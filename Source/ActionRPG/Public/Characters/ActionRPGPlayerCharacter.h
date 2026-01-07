@@ -6,6 +6,9 @@
 #include "Characters/ActionRPGCharacter.h"
 #include "ActionRPGPlayerCharacter.generated.h"
 
+class USpringArmComponent;
+class UCameraComponent;
+
 UCLASS(Blueprintable)
 class ACTIONRPG_API AActionRPGPlayerCharacter : public AActionRPGCharacter
 {
@@ -18,7 +21,18 @@ public:
 	void Move(const FVector2D& MovementVector);
 	void Look(const FVector2D& LookVector);
 
+	// Camera
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<USpringArmComponent> SpringArmComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<UCameraComponent> CameraComponent;
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+
+	// Rotate character to face mouse cursor
+	void RotateToMouseCursor();
 };
 

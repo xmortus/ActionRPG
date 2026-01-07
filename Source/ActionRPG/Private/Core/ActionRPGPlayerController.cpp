@@ -7,9 +7,13 @@
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
-	bShowMouseCursor = false;
-	bEnableClickEvents = false;
-	bEnableMouseOverEvents = false;
+	// For top-down action RPG, show mouse cursor for aiming
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+	
+	// Set default mouse cursor
+	DefaultMouseCursor = EMouseCursor::Crosshairs;
 }
 
 void AActionRPGPlayerController::BeginPlay()
