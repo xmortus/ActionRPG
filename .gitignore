@@ -1,0 +1,141 @@
+# Visual Studio 2015/2017/2019/2022 user specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options directory
+.vs/
+
+# Unreal Engine generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# Compiled source
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Packages
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Unreal Engine specific
+*.opensdf
+*.sdf
+*.suo
+*.xcodeproj
+*.xcworkspace
+# Note: Keep .sln files - they are typically version controlled
+
+# Rider
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Unreal Engine - Keep project files but ignore user-specific ones
+# Keep: *.uproject, Source/, Config/
+# Ignore: user-specific configs in Saved/
+
+# Crash reports
+CrashReportClient/
+
+# Autosaves
+Autosaves/
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+!README*.png
+!README*.jpg
+!README*.jpeg
+
+# Web cache
+webcache_*/
+
+# Shader debug info
+ShaderDebugInfo/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Unreal Engine Python
+Intermediate/PipInstall/
+
+# Perforce
+.p4ignore
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
