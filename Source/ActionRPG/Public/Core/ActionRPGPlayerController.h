@@ -44,6 +44,31 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenInventoryAction;
 
+	// Skill Slot Input Actions
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot1Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot2Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot3Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot4Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot5Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot6Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot7Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	TObjectPtr<UInputAction> SkillSlot8Action;
+
 	// Input Handlers
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
@@ -51,5 +76,15 @@ protected:
 	void OnAttack();
 	void OnDodge();
 	void OnOpenInventory();
+
+	// Skill Slot Handlers
+	void OnSkillSlot1();
+	void OnSkillSlot2();
+	void OnSkillSlot3();
+	void OnSkillSlot4();
+	void OnSkillSlot5();
+	void OnSkillSlot6();
+	void OnSkillSlot7();
+	void OnSkillSlot8();
 };
 

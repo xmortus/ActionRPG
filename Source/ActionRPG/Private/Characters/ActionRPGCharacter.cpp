@@ -5,7 +5,8 @@
 AActionRPGCharacter::AActionRPGCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// Set default values
+	// Base character class - can be used for NPCs and enemies
+	// Player-specific functionality is in ActionRPGPlayerCharacter
 	PrimaryActorTick.bCanEverTick = true;
 }
 

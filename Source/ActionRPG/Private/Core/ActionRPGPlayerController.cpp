@@ -92,6 +92,47 @@ void AActionRPGPlayerController::SetupInputComponent()
 		{
 			EnhancedInputComponent->BindAction(OpenInventoryAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenInventory);
 		}
+
+		// Bind skill slot actions
+		if (SkillSlot1Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot1Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot1);
+		}
+
+		if (SkillSlot2Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot2Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot2);
+		}
+
+		if (SkillSlot3Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot3Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot3);
+		}
+
+		if (SkillSlot4Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot4Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot4);
+		}
+
+		if (SkillSlot5Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot5Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot5);
+		}
+
+		if (SkillSlot6Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot6Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot6);
+		}
+
+		if (SkillSlot7Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot7Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot7);
+		}
+
+		if (SkillSlot8Action)
+		{
+			EnhancedInputComponent->BindAction(SkillSlot8Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot8);
+		}
 	}
 	else
 	{
@@ -151,3 +192,50 @@ void AActionRPGPlayerController::OnOpenInventory()
 	UE_LOG(LogTemp, Warning, TEXT("Open Inventory pressed"));
 }
 
+void AActionRPGPlayerController::OnSkillSlot1()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 1 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot2()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 2 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot3()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 3 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot4()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 4 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot5()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 5 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot6()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 6 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot7()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 7 pressed"));
+}
+
+void AActionRPGPlayerController::OnSkillSlot8()
+{
+	// TODO: Implement skill activation in Phase 2
+	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 8 pressed"));
+}
