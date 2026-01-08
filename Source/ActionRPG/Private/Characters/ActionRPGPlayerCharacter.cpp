@@ -57,8 +57,8 @@ void AActionRPGPlayerCharacter::BeginPlay()
 
 void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)
 {
-	// Debug logging
-	UE_LOG(LogTemp, VeryVerbose, TEXT("Move called with Vector: X=%.2f, Y=%.2f"), MovementVector.X, MovementVector.Y);
+	// Debug logging (disabled)
+	// UE_LOG(LogTemp, VeryVerbose, TEXT("Move called with Vector: X=%.2f, Y=%.2f"), MovementVector.X, MovementVector.Y);
 	
 	if (MovementVector.IsZero())
 	{
@@ -81,7 +81,8 @@ void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)
 	if (GetCharacterMovement())
 	{
 		AddMovementInput(Direction, 1.0f);
-		UE_LOG(LogTemp, VeryVerbose, TEXT("Movement applied: Direction=(%.2f, %.2f, %.2f)"), Direction.X, Direction.Y, Direction.Z);
+		// Debug logging (disabled)
+		// UE_LOG(LogTemp, VeryVerbose, TEXT("Movement applied: Direction=(%.2f, %.2f, %.2f)"), Direction.X, Direction.Y, Direction.Z);
 	}
 	else
 	{
