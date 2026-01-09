@@ -7,6 +7,7 @@
 #include "Items/Pickups/ItemPickupActor.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/UserWidget.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -252,8 +253,54 @@ void AActionRPGPlayerController::OnDodge()
 
 void AActionRPGPlayerController::OnOpenInventory()
 {
-	// TODO: Implement inventory UI in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Open Inventory pressed"));
+	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Inventory key pressed"));
+
+	// Create widget if it doesn't exist
+	if (!InventoryWidget)
+	{
+		if (InventoryWidgetClass)
+		{
+			InventoryWidget = CreateWidget<UUserWidget>(this, InventoryWidgetClass);
+			if (InventoryWidget)
+			{
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Inventory widget created"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenInventory - Failed to create inventory widget! Check InventoryWidgetClass is set in Blueprint"));
+				return;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenInventory - InventoryWidgetClass is not set! Set it in Blueprint"));
+			return;
+		}
+	}
+
+	// Toggle widget visibility
+	if (InventoryWidget)
+	{
+		if (InventoryWidget->IsInViewport())
+		{
+			// Hide inventory
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Hiding inventory"));
+			InventoryWidget->RemoveFromParent();
+			SetInputMode(FInputModeGameOnly());
+			bShowMouseCursor = false;
+			SetPause(false);
+		}
+		else
+		{
+			// Show inventory
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Showing inventory"));
+			InventoryWidget->AddToViewport();
+			SetInputMode(FInputModeGameAndUI());
+			bShowMouseCursor = true;
+			// Optional: Pause game when inventory is open
+			// SetPause(true);
+		}
+	}
 }
 
 void AActionRPGPlayerController::OnSkillSlot1()

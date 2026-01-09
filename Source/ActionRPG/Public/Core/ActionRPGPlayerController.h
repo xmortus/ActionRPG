@@ -9,6 +9,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class UUserWidget;
 
 /**
  * PlayerController for ActionRPG.
@@ -48,6 +49,13 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenInventoryAction;
+
+	// UI Widgets
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> InventoryWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> InventoryWidget;
 
 	// Skill Slot Input Actions
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
