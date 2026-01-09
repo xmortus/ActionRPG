@@ -67,7 +67,7 @@
    - Added clamp metadata to numeric properties
 
 2. **Debug Features**
-   - Automatic inventory reporting every 5 seconds
+   - Automatic inventory reporting on inventory changes (event-driven)
    - Enhanced logging throughout all systems
    - Manual debug report function
 

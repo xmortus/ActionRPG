@@ -243,11 +243,12 @@ After applying fixes, test:
 - Logs slot state before and after operations
 
 ### Debug Reporting Feature:
-- Automatic inventory report every 5 seconds
+- Automatic inventory report on every inventory change (AddItem, RemoveItem, MoveItem, etc.)
 - Shows all slots (empty and filled)
 - Shows capacity, weight, and item counts
 - Logs inconsistent slot states
 - Can be called manually via `ReportInventoryContents()` Blueprint function
+- Provides immediate feedback when inventory state changes
 
 ### UE 5.7 Compliance Updates:
 - Removed `ConditionalBeginDestroy()` calls (GC handles cleanup automatically)
@@ -283,7 +284,7 @@ When you see logs about "ItemDatabase", it's creating item instances from templa
 1. **Recompile C++ code** in Visual Studio
 2. **Restart Unreal Editor**
 3. **Test pickup** and check console logs
-4. **Check debug reports** (every 5 seconds) to see inventory state
+4. **Check debug reports** (triggered on inventory changes) to see inventory state
 5. **Identify failure point** from logs
 6. **Apply appropriate fix** from solutions above
 7. **Test again** to verify fix

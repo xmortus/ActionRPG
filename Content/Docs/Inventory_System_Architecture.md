@@ -168,11 +168,14 @@ The inventory system consists of several key components working together to mana
 
 ### Automatic Debug Reporting:
 
-The InventoryComponent automatically logs inventory contents every 5 seconds:
+The InventoryComponent automatically logs inventory contents whenever the inventory changes:
+- Triggers on every AddItem, RemoveItem, MoveItem, SwapItems, or UseItem operation
 - Shows all slots (empty and filled)
 - Displays capacity, weight, and item counts
 - Logs inconsistent slot states
-- Can be called manually via `ReportInventoryContents()` Blueprint function
+- Can also be called manually via `ReportInventoryContents()` Blueprint function
+
+**Note:** This provides immediate feedback when inventory changes occur, making it easier to debug issues in real-time.
 
 ### Enhanced Logging:
 

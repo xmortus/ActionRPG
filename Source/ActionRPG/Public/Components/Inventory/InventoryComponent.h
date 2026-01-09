@@ -130,8 +130,4 @@ private:
 	int32 FindEmptySlot() const;
 	void UpdateSlotEmptyStatus(int32 SlotIndex);
 	void BroadcastInventoryChanged(int32 SlotIndex, UItemBase* Item);
-
-	// Debug timer
-	FTimerHandle DebugReportTimerHandle;
-	void StartDebugReporting();
 };

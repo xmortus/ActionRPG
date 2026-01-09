@@ -56,19 +56,11 @@ void UInventoryComponent::BeginPlay()
 	UE_LOG(LogTemp, Log, TEXT("InventoryComponent: Initialized with %d slots, Max Weight: %.2f"), MaxCapacity, MaxWeight);
 	UE_LOG(LogTemp, Log, TEXT("  This InventoryComponent is UNIQUE to this player/actor."));
 	UE_LOG(LogTemp, Log, TEXT("  Items stored here are separate from other players' inventories."));
-
-	// Start debug reporting timer
-	StartDebugReporting();
+	UE_LOG(LogTemp, Log, TEXT("  Debug reporting will trigger on inventory changes."));
 }
 
 void UInventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Clear debug timer
-	if (GetWorld())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(DebugReportTimerHandle);
-	}
-
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -591,26 +583,11 @@ void UInventoryComponent::BroadcastInventoryChanged(int32 SlotIndex, UItemBase* 
 {
 	OnInventoryChanged.Broadcast(SlotIndex, Item);
 	UpdateSlotEmptyStatus(SlotIndex);
+	
+	// Report inventory contents on change (for debugging)
+	ReportInventoryContents();
 }
 
-void UInventoryComponent::StartDebugReporting()
-{
-	if (!GetWorld())
-	{
-		return;
-	}
-
-	// Set up timer to report inventory contents every 5 seconds
-	GetWorld()->GetTimerManager().SetTimer(
-		DebugReportTimerHandle,
-		this,
-		&UInventoryComponent::ReportInventoryContents,
-		5.0f, // Interval in seconds
-		true  // Loop
-	);
-
-	UE_LOG(LogTemp, Log, TEXT("InventoryComponent: Debug reporting started (every 5 seconds)"));
-}
 
 void UInventoryComponent::ReportInventoryContents() const
 {

@@ -258,7 +258,7 @@ After recompiling with the updated code:
    - Added `AllowPrivateAccess = "true"` metadata to InventorySlots
 
 6. **Debug Features:**
-   - Added automatic debug reporting every 5 seconds
+   - Added automatic debug reporting on inventory changes (event-driven)
    - Added `ReportInventoryContents()` function for manual reporting
    - Enhanced logging throughout all functions
 
