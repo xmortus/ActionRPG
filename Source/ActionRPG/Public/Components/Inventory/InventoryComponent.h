@@ -45,6 +45,7 @@ public:
 
 	// Component lifecycle
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// Inventory Management
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -63,33 +64,37 @@ public:
 	bool UseItem(int32 SlotIndex);
 
 	// Query Methods
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UItemBase* GetItemAt(int32 SlotIndex) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 FindItemSlot(const FName& ItemID) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	bool HasSpaceFor(UItemBase* Item) const;
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	bool HasSpaceFor(UItemBase* Item, int32 Quantity = 1) const;
 
 	// Getters
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetMaxCapacity() const { return MaxCapacity; }
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	float GetMaxWeight() const { return MaxWeight; }
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	float GetCurrentWeight() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetTotalItemCount() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	TArray<FInventorySlot> GetInventorySlots() const { return InventorySlots; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	const TArray<FInventorySlot>& GetInventorySlots() const { return InventorySlots; }
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetEmptySlotCount() const;
+
+	// Debug
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
+	void ReportInventoryContents() const;
 
 	// Events
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryChanged, int32, SlotIndex, UItemBase*, Item);
@@ -110,13 +115,13 @@ public:
 	FOnItemUsed OnItemUsed;
 
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	TArray<FInventorySlot> InventorySlots;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory", meta = (ClampMin = "1", ClampMax = "1000"))
 	int32 MaxCapacity = 50;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory", meta = (ClampMin = "0.0", ClampMax = "10000.0"))
 	float MaxWeight = 100.0f;
 
 private:
@@ -125,4 +130,8 @@ private:
 	int32 FindEmptySlot() const;
 	void UpdateSlotEmptyStatus(int32 SlotIndex);
 	void BroadcastInventoryChanged(int32 SlotIndex, UItemBase* Item);
+
+	// Debug timer
+	FTimerHandle DebugReportTimerHandle;
+	void StartDebugReporting();
 };

@@ -5,6 +5,7 @@
 #include "Items/Core/ItemBase.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
+#include "UObject/UObjectGlobals.h"
 
 UItemDatabase* UItemDatabase::Instance = nullptr;
 
@@ -85,8 +86,10 @@ void UItemDatabase::Initialize()
 				if (ItemData->ItemID != NAME_None)
 				{
 					ItemRegistry.Add(ItemData->ItemID, ItemData);
-					UE_LOG(LogTemp, Log, TEXT("ItemDatabase: Registered item - ID: %s, Name: %s"), 
+					UE_LOG(LogTemp, Log, TEXT("ItemDatabase: Registered ItemDataAsset (template) - ID: %s, Name: %s"), 
 						*ItemData->ItemID.ToString(), *ItemData->ItemName.ToString());
+					UE_LOG(LogTemp, Verbose, TEXT("  Note: ItemDatabase stores ItemDataAssets (templates), not actual inventory items."));
+					UE_LOG(LogTemp, Verbose, TEXT("  Actual inventory items are stored in each player's InventoryComponent."));
 				}
 				else
 				{
@@ -106,7 +109,9 @@ void UItemDatabase::Initialize()
 			}
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("ItemDatabase: Initialization complete. Registered %d items."), ItemRegistry.Num());
+		UE_LOG(LogTemp, Log, TEXT("ItemDatabase: Initialization complete. Registered %d ItemDataAssets (templates)."), ItemRegistry.Num());
+		UE_LOG(LogTemp, Log, TEXT("  ItemDatabase is a SINGLETON - stores ItemDataAssets (templates) shared by all players."));
+		UE_LOG(LogTemp, Log, TEXT("  Actual inventory items are stored in each player's InventoryComponent (unique per player)."));
 	}
 	else
 	{
@@ -182,8 +187,10 @@ TArray<FName> UItemDatabase::GetAllItemIDs() const
 
 void UItemDatabase::PrintAllItems() const
 {
-	UE_LOG(LogTemp, Log, TEXT("=== ItemDatabase: All Registered Items ==="));
-	UE_LOG(LogTemp, Log, TEXT("Total Items: %d"), ItemRegistry.Num());
+	UE_LOG(LogTemp, Log, TEXT("=== ItemDatabase: All Registered ItemDataAssets (Templates) ==="));
+	UE_LOG(LogTemp, Log, TEXT("Note: ItemDatabase stores ItemDataAssets (templates), NOT actual inventory items."));
+	UE_LOG(LogTemp, Log, TEXT("Actual inventory items are stored in each player's InventoryComponent."));
+	UE_LOG(LogTemp, Log, TEXT("Total ItemDataAssets: %d"), ItemRegistry.Num());
 	
 	if (ItemRegistry.Num() == 0)
 	{
@@ -208,15 +215,29 @@ void UItemDatabase::PrintAllItems() const
 
 UItemBase* UItemDatabase::CreateItem(const FName& ItemID, int32 Quantity) const
 {
+	UE_LOG(LogTemp, Verbose, TEXT("ItemDatabase::CreateItem - Creating item instance (NOT storing in database): %s (Quantity: %d)"), 
+		*ItemID.ToString(), Quantity);
+
 	UItemDataAsset* ItemData = GetItemDataAsset(ItemID);
 	if (!ItemData)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemDatabase::CreateItem - ItemDataAsset not found: %s"), *ItemID.ToString());
 		return nullptr;
 	}
 
-	UItemBase* NewItem = NewObject<UItemBase>();
-	NewItem->ItemData = ItemData;
-	NewItem->Quantity = FMath::Max(1, Quantity);
+	// Create a new item instance - this is NOT stored in the database
+	// The database only stores ItemDataAssets (templates), not actual inventory items
+	// Actual items are stored in the player's InventoryComponent
+	// Use GetTransientPackage() as outer for temporary items that will be moved to inventory
+	UItemBase* NewItem = NewObject<UItemBase>(GetTransientPackage(), UItemBase::StaticClass());
+	if (NewItem)
+	{
+		NewItem->ItemData = ItemData;
+		NewItem->Quantity = FMath::Max(1, Quantity);
+
+		UE_LOG(LogTemp, Verbose, TEXT("ItemDatabase::CreateItem - Item instance created (will be stored in InventoryComponent): %s"),
+			*ItemData->ItemName.ToString());
+	}
 
 	return NewItem;
 }

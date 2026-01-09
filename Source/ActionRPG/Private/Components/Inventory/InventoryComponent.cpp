@@ -2,6 +2,7 @@
 
 #include "Components/Inventory/InventoryComponent.h"
 #include "Items/Core/ItemDataAsset.h"
+#include "Engine/World.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -14,6 +15,27 @@ UInventoryComponent::UInventoryComponent()
 
 void UInventoryComponent::BeginPlay()
 {
+	UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::BeginPlay - CALLED! This will initialize/reset slots."));
+	
+	// Check if we have any items before clearing
+	int32 ItemsBeforeBeginPlay = 0;
+	for (int32 i = 0; i < InventorySlots.Num(); i++)
+	{
+		if (InventorySlots[i].Item && InventorySlots[i].Quantity > 0)
+		{
+			ItemsBeforeBeginPlay++;
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::BeginPlay - WARNING: Slot %d has item before BeginPlay! Item=%s, Quantity=%d"),
+				i,
+				InventorySlots[i].Item->ItemData ? *InventorySlots[i].Item->ItemData->ItemName.ToString() : TEXT("NULL ItemData"),
+				InventorySlots[i].Quantity);
+		}
+	}
+	
+	if (ItemsBeforeBeginPlay > 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryComponent::BeginPlay - ERROR: %d items will be lost because BeginPlay is clearing slots!"), ItemsBeforeBeginPlay);
+	}
+
 	Super::BeginPlay();
 
 	// Ensure all slots are initialized as empty
@@ -24,34 +46,61 @@ void UInventoryComponent::BeginPlay()
 			InventorySlots[i].bIsEmpty = true;
 			InventorySlots[i].Quantity = 0;
 		}
+		else
+		{
+			// If item exists, update bIsEmpty based on quantity
+			InventorySlots[i].bIsEmpty = (InventorySlots[i].Quantity <= 0);
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryComponent: Initialized with %d slots, Max Weight: %.2f"), MaxCapacity, MaxWeight);
+	UE_LOG(LogTemp, Log, TEXT("  This InventoryComponent is UNIQUE to this player/actor."));
+	UE_LOG(LogTemp, Log, TEXT("  Items stored here are separate from other players' inventories."));
+
+	// Start debug reporting timer
+	StartDebugReporting();
+}
+
+void UInventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Clear debug timer
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(DebugReportTimerHandle);
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 {
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Called with Item: %s, Quantity: %d"),
+		Item && Item->ItemData ? *Item->ItemData->ItemName.ToString() : TEXT("NULL"), Quantity);
+
 	if (!Item || !Item->ItemData || Quantity <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - Invalid item or quantity"));
 		return false;
 	}
 
-	// Check if inventory has space (weight and capacity)
-	if (!HasSpaceFor(Item))
+	// Check if inventory has space (weight and capacity) - use the Quantity parameter
+	if (!HasSpaceFor(Item, Quantity))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - No space for item: %s"), *Item->ItemData->ItemName.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - No space for item: %s (Quantity: %d)"), 
+			*Item->ItemData->ItemName.ToString(), Quantity);
 		return false;
 	}
 
 	int32 RemainingQuantity = Quantity;
 	FName ItemID = Item->ItemData->ItemID;
 
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Attempting to stack items (RemainingQuantity: %d)"), RemainingQuantity);
+
 	// Try to stack with existing items first
-	if (!TryStackItem(Item, RemainingQuantity, RemainingQuantity))
-	{
-		// If stacking failed or partial, we still need to handle remaining quantity
-	}
+	bool bStacked = TryStackItem(Item, RemainingQuantity, RemainingQuantity);
+	
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - TryStackItem returned: %s, RemainingQuantity: %d"),
+		bStacked ? TEXT("TRUE") : TEXT("FALSE"), RemainingQuantity);
 
 	// Add remaining quantity to new slots
 	while (RemainingQuantity > 0)
@@ -59,15 +108,28 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 		int32 EmptySlot = FindEmptySlot();
 		if (EmptySlot == INDEX_NONE)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - No empty slots available"));
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - No empty slots available (RemainingQuantity: %d)"), RemainingQuantity);
 			return false; // Couldn't add all items
 		}
 
 		// Calculate how many we can add to this slot (respecting MaxStackSize)
 		int32 StackSize = FMath::Min(RemainingQuantity, Item->ItemData->MaxStackSize);
 
-		// Create new item instance for this slot
-		UItemBase* NewItem = NewObject<UItemBase>(this);
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Creating new item instance for slot %d (StackSize: %d)"), EmptySlot, StackSize);
+
+		// Create new item instance for this slot - use GetWorld() as outer to prevent GC issues
+		// Use GetWorld() as outer if available, otherwise use GetOwner(), fallback to this
+		UObject* OuterObject = GetWorld();
+		if (!OuterObject)
+		{
+			OuterObject = GetOwner();
+		}
+		if (!OuterObject)
+		{
+			OuterObject = this;
+		}
+		
+		UItemBase* NewItem = NewObject<UItemBase>(OuterObject, UItemBase::StaticClass());
 		if (!NewItem)
 		{
 			UE_LOG(LogTemp, Error, TEXT("InventoryComponent::AddItem - Failed to create new item instance"));
@@ -77,10 +139,31 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 		NewItem->ItemData = Item->ItemData;
 		NewItem->Quantity = StackSize;
 
-		// Add to slot
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Item instance created: %s (Quantity: %d, ItemData: %s, Outer: %s)"),
+			NewItem ? TEXT("Valid") : TEXT("NULL"),
+			NewItem ? NewItem->Quantity : 0,
+			NewItem && NewItem->ItemData ? *NewItem->ItemData->ItemName.ToString() : TEXT("NULL"),
+			OuterObject ? *OuterObject->GetName() : TEXT("NULL"));
+
+		// Add to slot - CRITICAL: Set Item pointer FIRST, then Quantity, then bIsEmpty
+		// This ensures the TObjectPtr maintains a reference to prevent GC
 		InventorySlots[EmptySlot].Item = NewItem;
 		InventorySlots[EmptySlot].Quantity = StackSize;
 		InventorySlots[EmptySlot].bIsEmpty = false;
+
+		// Verify the slot was set correctly
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Slot %d updated: Item=%s (Ptr: %p), Quantity=%d, bIsEmpty=%s"),
+			EmptySlot,
+			InventorySlots[EmptySlot].Item ? TEXT("Valid") : TEXT("NULL"),
+			InventorySlots[EmptySlot].Item.Get(),
+			InventorySlots[EmptySlot].Quantity,
+			InventorySlots[EmptySlot].bIsEmpty ? TEXT("TRUE") : TEXT("FALSE"));
+		
+		// Double-check immediately after setting
+		if (!InventorySlots[EmptySlot].Item)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryComponent::AddItem - CRITICAL: Item pointer is NULL immediately after setting!"));
+		}
 
 		RemainingQuantity -= StackSize;
 
@@ -88,8 +171,33 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 		BroadcastInventoryChanged(EmptySlot, NewItem);
 		OnItemAdded.Broadcast(NewItem);
 
-		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Added %d of %s to slot %d"), 
-			StackSize, *Item->ItemData->ItemName.ToString(), EmptySlot);
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Successfully added %d of %s to slot %d (RemainingQuantity: %d)"), 
+			StackSize, *Item->ItemData->ItemName.ToString(), EmptySlot, RemainingQuantity);
+	}
+
+	// Verify the item was actually added
+	if (RemainingQuantity == 0)
+	{
+		// Double-check that at least one item was added
+		bool bFoundItem = false;
+		for (int32 i = 0; i < InventorySlots.Num(); i++)
+		{
+			if (!InventorySlots[i].bIsEmpty && InventorySlots[i].Item && InventorySlots[i].Item->ItemData)
+			{
+				if (InventorySlots[i].Item->ItemData->ItemID == ItemID)
+				{
+					bFoundItem = true;
+					UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Verification: Found item in slot %d (Quantity: %d)"),
+						i, InventorySlots[i].Quantity);
+					break;
+				}
+			}
+		}
+
+		if (!bFoundItem)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryComponent::AddItem - ERROR: Item was not found in inventory after adding!"));
+		}
 	}
 
 	return true;
@@ -293,18 +401,21 @@ int32 UInventoryComponent::FindItemSlot(const FName& ItemID) const
 	return INDEX_NONE;
 }
 
-bool UInventoryComponent::HasSpaceFor(UItemBase* Item) const
+bool UInventoryComponent::HasSpaceFor(UItemBase* Item, int32 Quantity) const
 {
-	if (!Item || !Item->ItemData)
+	if (!Item || !Item->ItemData || Quantity <= 0)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::HasSpaceFor - Invalid item or quantity"));
 		return false;
 	}
 
-	// Check weight limit
-	float ItemWeight = Item->ItemData->Weight * Item->Quantity;
-	if (GetCurrentWeight() + ItemWeight > MaxWeight)
+	// Check weight limit - use the Quantity parameter, not Item->Quantity
+	float ItemWeight = Item->ItemData->Weight * Quantity;
+	float CurrentWeight = GetCurrentWeight();
+	if (CurrentWeight + ItemWeight > MaxWeight)
 	{
-		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::HasSpaceFor - Weight limit would be exceeded"));
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::HasSpaceFor - Weight limit would be exceeded (Current: %.2f + Item: %.2f = %.2f > Max: %.2f)"),
+			CurrentWeight, ItemWeight, CurrentWeight + ItemWeight, MaxWeight);
 		return false;
 	}
 
@@ -317,17 +428,27 @@ bool UInventoryComponent::HasSpaceFor(UItemBase* Item) const
 
 	// Check if we can stack with existing items
 	FName ItemID = Item->ItemData->ItemID;
+	int32 RemainingQuantity = Quantity;
+	
 	for (const FInventorySlot& Slot : InventorySlots)
 	{
 		if (!Slot.bIsEmpty && Slot.Item && Slot.Item->ItemData)
 		{
 			if (Slot.Item->ItemData->ItemID == ItemID && Slot.Quantity < Slot.Item->ItemData->MaxStackSize)
 			{
-				return true; // Can stack with existing
+				int32 AvailableSpace = Slot.Item->ItemData->MaxStackSize - Slot.Quantity;
+				RemainingQuantity -= FMath::Min(RemainingQuantity, AvailableSpace);
+				
+				if (RemainingQuantity <= 0)
+				{
+					return true; // Can stack all items with existing
+				}
 			}
 		}
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::HasSpaceFor - No space available (Need %d slots for %d items, Empty slots: %d)"),
+		Quantity, Quantity, EmptySlots);
 	return false; // No space
 }
 
@@ -401,14 +522,26 @@ bool UInventoryComponent::TryStackItem(UItemBase* Item, int32 Quantity, int32& R
 				{
 					int32 StackAmount = FMath::Min(AvailableSpace, RemainingQuantity);
 					Slot.Quantity += StackAmount;
+					// Also update the Item's Quantity to match Slot.Quantity for consistency
+					if (Slot.Item)
+					{
+						Slot.Item->Quantity = Slot.Quantity;
+					}
 					RemainingQuantity -= StackAmount;
+
+					UE_LOG(LogTemp, Log, TEXT("InventoryComponent::TryStackItem - Stacked %d of %s in slot %d (New Slot.Quantity: %d)"), 
+						StackAmount, *Item->ItemData->ItemName.ToString(), i, Slot.Quantity);
+					UE_LOG(LogTemp, Log, TEXT("InventoryComponent::TryStackItem - Slot state: Item=%s, Quantity=%d, bIsEmpty=%s"),
+						Slot.Item ? TEXT("Valid") : TEXT("NULL"),
+						Slot.Quantity,
+						Slot.bIsEmpty ? TEXT("TRUE") : TEXT("FALSE"));
 
 					// Broadcast event
 					BroadcastInventoryChanged(i, Slot.Item);
 					OnItemAdded.Broadcast(Slot.Item);
 
-					UE_LOG(LogTemp, Log, TEXT("InventoryComponent::TryStackItem - Stacked %d of %s in slot %d"), 
-						StackAmount, *Item->ItemData->ItemName.ToString(), i);
+					UE_LOG(LogTemp, Log, TEXT("InventoryComponent::TryStackItem - After BroadcastInventoryChanged: bIsEmpty=%s"),
+						Slot.bIsEmpty ? TEXT("TRUE") : TEXT("FALSE"));
 				}
 			}
 		}
@@ -423,10 +556,12 @@ int32 UInventoryComponent::FindEmptySlot() const
 	{
 		if (InventorySlots[i].bIsEmpty)
 		{
+			UE_LOG(LogTemp, Verbose, TEXT("InventoryComponent::FindEmptySlot - Found empty slot: %d"), i);
 			return i;
 		}
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::FindEmptySlot - No empty slots found (Total slots: %d)"), InventorySlots.Num());
 	return INDEX_NONE;
 }
 
@@ -438,11 +573,98 @@ void UInventoryComponent::UpdateSlotEmptyStatus(int32 SlotIndex)
 	}
 
 	FInventorySlot& Slot = InventorySlots[SlotIndex];
+	bool bWasEmpty = Slot.bIsEmpty;
 	Slot.bIsEmpty = (Slot.Item == nullptr || Slot.Quantity <= 0);
+	
+	if (bWasEmpty != Slot.bIsEmpty)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UpdateSlotEmptyStatus - Slot %d: bIsEmpty changed from %s to %s (Item=%s, Quantity=%d)"),
+			SlotIndex,
+			bWasEmpty ? TEXT("TRUE") : TEXT("FALSE"),
+			Slot.bIsEmpty ? TEXT("TRUE") : TEXT("FALSE"),
+			Slot.Item ? TEXT("Valid") : TEXT("NULL"),
+			Slot.Quantity);
+	}
 }
 
 void UInventoryComponent::BroadcastInventoryChanged(int32 SlotIndex, UItemBase* Item)
 {
 	OnInventoryChanged.Broadcast(SlotIndex, Item);
 	UpdateSlotEmptyStatus(SlotIndex);
+}
+
+void UInventoryComponent::StartDebugReporting()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	// Set up timer to report inventory contents every 5 seconds
+	GetWorld()->GetTimerManager().SetTimer(
+		DebugReportTimerHandle,
+		this,
+		&UInventoryComponent::ReportInventoryContents,
+		5.0f, // Interval in seconds
+		true  // Loop
+	);
+
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent: Debug reporting started (every 5 seconds)"));
+}
+
+void UInventoryComponent::ReportInventoryContents() const
+{
+	UE_LOG(LogTemp, Warning, TEXT("========================================"));
+	UE_LOG(LogTemp, Warning, TEXT("=== INVENTORY DEBUG REPORT ==="));
+	UE_LOG(LogTemp, Warning, TEXT("========================================"));
+	
+	float CurrentWeight = GetCurrentWeight();
+	int32 TotalItems = GetTotalItemCount();
+	int32 EmptySlots = GetEmptySlotCount();
+	int32 UsedSlots = MaxCapacity - EmptySlots;
+
+	UE_LOG(LogTemp, Warning, TEXT("Capacity: %d/%d slots used (%d empty)"), UsedSlots, MaxCapacity, EmptySlots);
+	UE_LOG(LogTemp, Warning, TEXT("Weight: %.2f/%.2f"), CurrentWeight, MaxWeight);
+	UE_LOG(LogTemp, Warning, TEXT("Total Item Count: %d"), TotalItems);
+	UE_LOG(LogTemp, Warning, TEXT("---"));
+
+	int32 ItemCount = 0;
+	for (int32 i = 0; i < InventorySlots.Num(); i++)
+	{
+		const FInventorySlot& Slot = InventorySlots[i];
+		
+		// Log ALL slots for debugging
+		UE_LOG(LogTemp, Warning, TEXT("Slot %d: Item=%s, Quantity=%d, bIsEmpty=%s, ItemData=%s"),
+			i,
+			Slot.Item ? TEXT("Valid") : TEXT("NULL"),
+			Slot.Quantity,
+			Slot.bIsEmpty ? TEXT("TRUE") : TEXT("FALSE"),
+			Slot.Item && Slot.Item->ItemData ? TEXT("Valid") : TEXT("NULL"));
+		
+		if (!Slot.bIsEmpty && Slot.Item && Slot.Item->ItemData)
+		{
+			ItemCount++;
+			FString ItemName = Slot.Item->ItemData->ItemName.ToString();
+			FString ItemID = Slot.Item->ItemData->ItemID.ToString();
+			float SlotWeight = Slot.Item->ItemData->Weight * Slot.Quantity;
+			EItemType ItemType = Slot.Item->ItemData->Type;
+			EItemRarity ItemRarity = Slot.Item->ItemData->Rarity;
+
+			UE_LOG(LogTemp, Warning, TEXT("  -> %s (ID: %s)"), *ItemName, *ItemID);
+			UE_LOG(LogTemp, Warning, TEXT("     Quantity: %d | Weight: %.2f | Type: %d | Rarity: %d"),
+				Slot.Quantity, SlotWeight, (int32)ItemType, (int32)ItemRarity);
+		}
+		else if (Slot.Item != nullptr)
+		{
+			// Log slots that have an item pointer but are marked as empty or have invalid data
+			UE_LOG(LogTemp, Warning, TEXT("  -> INCONSISTENT STATE - Item exists but slot marked empty or invalid"));
+		}
+	}
+
+	if (ItemCount == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Inventory is empty"));
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("========================================"));
 }
