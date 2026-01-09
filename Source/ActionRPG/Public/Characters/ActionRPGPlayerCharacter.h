@@ -9,6 +9,11 @@
 class USpringArmComponent;
 class UCameraComponent;
 
+/**
+ * Player-specific Character class for ActionRPG.
+ * Handles player movement, camera setup, and input.
+ * Configured for top-down action RPG gameplay with mouse-driven rotation.
+ */
 UCLASS(Blueprintable)
 class ACTIONRPG_API AActionRPGPlayerCharacter : public AActionRPGCharacter
 {

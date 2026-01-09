@@ -9,6 +9,11 @@
 
 class USkillDataAsset;
 
+/**
+ * Singleton database for managing Skill Data Assets.
+ * Provides lookup and retrieval of skill data assets by ID, type, or category.
+ * Automatically loads all skill data assets via Asset Manager on initialization.
+ */
 UCLASS()
 class ACTIONRPG_API USkillDatabase : public UObject
 {

@@ -6,6 +6,11 @@
 #include "GameFramework/Character.h"
 #include "ActionRPGCharacter.generated.h"
 
+/**
+ * Base Character class for ActionRPG.
+ * All characters (player and NPCs) inherit from this class.
+ * Provides foundation for character functionality.
+ */
 UCLASS(Blueprintable)
 class ACTIONRPG_API AActionRPGCharacter : public ACharacter
 {

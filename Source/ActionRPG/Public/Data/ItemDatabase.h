@@ -9,6 +9,11 @@
 
 class UItemDataAsset;
 
+/**
+ * Singleton database for managing Item Data Assets.
+ * Provides lookup and retrieval of item data assets by ID, type, or rarity.
+ * Automatically loads all item data assets via Asset Manager on initialization.
+ */
 UCLASS()
 class ACTIONRPG_API UItemDatabase : public UObject
 {

@@ -7,6 +7,11 @@
 #include "ItemTypes.h"
 #include "ItemDataAsset.generated.h"
 
+/**
+ * Data Asset for defining item properties.
+ * Used by the Item System to store static item data (name, description, stats, etc.).
+ * Can be created and edited in Blueprint.
+ */
 UCLASS(BlueprintType)
 class ACTIONRPG_API UItemDataAsset : public UPrimaryDataAsset
 {

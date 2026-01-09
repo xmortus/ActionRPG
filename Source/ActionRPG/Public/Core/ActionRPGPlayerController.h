@@ -10,6 +10,11 @@
 class UInputMappingContext;
 class UInputAction;
 
+/**
+ * PlayerController for ActionRPG.
+ * Handles Enhanced Input System integration and routes input to the player character.
+ * Supports movement, look, and action inputs (interact, attack, dodge, inventory, skill slots 1-8).
+ */
 UCLASS()
 class ACTIONRPG_API AActionRPGPlayerController : public APlayerController
 {

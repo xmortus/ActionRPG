@@ -7,6 +7,11 @@
 #include "SkillTypes.h"
 #include "SkillDataAsset.generated.h"
 
+/**
+ * Data Asset for defining skill properties.
+ * Used by the Skill System to store static skill data (name, description, cooldown, costs, etc.).
+ * Can be created and edited in Blueprint.
+ */
 UCLASS(BlueprintType)
 class ACTIONRPG_API USkillDataAsset : public UPrimaryDataAsset
 {
