@@ -132,11 +132,11 @@ Content/
        - `Inventory Slots` (Array, should be empty initially)
        - `Max Capacity` (int32, default: 50)
        - `Max Weight` (float, default: 100.0)
-     - **Events** category:
-       - `On Inventory Changed` (Event)
-       - `On Item Added` (Event)
-       - `On Item Removed` (Event)
-       - `On Item Used` (Event)
+       - `On Inventory Changed` (Delegate property - has a "+" button to bind)
+       - `On Item Added` (Delegate property - has a "+" button to bind)
+       - `On Item Removed` (Delegate property - has a "+" button to bind)
+       - `On Item Used` (Delegate property - has a "+" button to bind)
+   - **Note:** These events appear as assignable delegate properties in the "Inventory" category, not as separate event nodes. They can be bound in the Event Graph by clicking the "+" button next to each one.
 
 4. **Adjust Default Values (Optional)**
    - Set `Max Capacity` to desired value (default: 50 is fine)
@@ -291,9 +291,9 @@ Content/
      - Recompile Blueprint
      - Restart editor if needed
 
-### 6.2 Verify Component Methods (Optional)
+### 6.2 Verify Component Methods and Events (Optional)
 
-1. **In Event Graph**
+1. **In Event Graph - Methods**
    - Right-click in graph
    - Search for: `Inventory Component`
    - You should see various methods:
@@ -301,15 +301,39 @@ Content/
      - `Remove Item`
      - `Get Item At`
      - `Use Item`
+     - `Get Current Weight`
+     - `Get Total Item Count`
      - etc.
 
-2. **Test Method Access**
+2. **In Event Graph - Events (How to Bind)**
+   - To bind to events, you have two options:
+   
+   **Option A: Bind via Details Panel**
+   - Select the InventoryComponent in Components panel
+   - In Details panel, scroll to "Inventory" category
+   - Find the event properties (On Inventory Changed, On Item Added, etc.)
+   - Click the "+" button next to each event
+   - This creates a Custom Event node in Event Graph that triggers when the event fires
+   
+   **Option B: Bind via Event Graph**
+   - Right-click in Event Graph
+   - Search for: "Assign On Inventory Changed" (or "Assign On Item Added", etc.)
+   - Connect the delegate to a Custom Event node
+   - Create a Custom Event node that will be called when the event fires
+
+3. **Test Method Access**
    - If methods appear, component is properly exposed
    - If methods don't appear:
      - Check C++ code has `BlueprintCallable` on methods
      - Recompile C++ code
      - Recompile Blueprint
      - Restart editor if needed
+   
+4. **Test Event Binding**
+   - Create a simple Custom Event (e.g., "On Item Added Handler")
+   - Bind it to "On Item Added" delegate via Details panel "+" button
+   - Or use "Assign On Item Added" node and connect to Custom Event
+   - If binding works, events are properly exposed
 
 ---
 
@@ -395,6 +419,7 @@ Content/
 2. **Check Category**
    - Properties are in "Inventory" category
    - Make sure category is expanded
+   - Scroll down in Details panel if needed
 
 3. **Check UPROPERTY Specifiers**
    - Verify `EditAnywhere` or `BlueprintReadWrite` is set
@@ -404,6 +429,41 @@ Content/
 4. **Restart Editor**
    - Sometimes editor needs restart after adding new properties
    - Close and reopen Unreal Editor
+
+### Issue: Events Not Showing Up
+
+**Symptoms:** Can't see events (On Inventory Changed, On Item Added, etc.)
+
+**Important Note:** Events declared with `BlueprintAssignable` appear as **delegate properties** in the Details panel under the "Inventory" category, NOT as separate event nodes.
+
+**Solutions:**
+1. **Check Details Panel**
+   - Select InventoryComponent in Components panel
+   - In Details panel, scroll to "Inventory" category
+   - Look for delegate properties (they have a "+" button next to them)
+   - Events appear as: `On Inventory Changed`, `On Item Added`, etc.
+
+2. **Check Category**
+   - Events are in "Inventory" category (same as other properties)
+   - Not in a separate "Events" category
+   - Make sure category is expanded and scroll down
+
+3. **Verify BlueprintAssignable**
+   - Check C++ code has `UPROPERTY(BlueprintAssignable, Category = "Inventory")`
+   - Recompile C++ code if needed
+   - Recompile Blueprint
+
+4. **Use Event Graph to Bind**
+   - Events can be bound in Event Graph using "Assign" nodes
+   - Right-click in Event Graph
+   - Search for: "Assign On Inventory Changed" (or other event names)
+   - Connect to Custom Event nodes
+
+5. **Alternative: Use Details Panel "+" Button**
+   - Select InventoryComponent in Components panel
+   - In Details panel, find the event delegate property
+   - Click the "+" button next to the event
+   - This automatically creates a Custom Event node in Event Graph
 
 ### Issue: Blueprint Compile Errors
 

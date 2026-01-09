@@ -5,6 +5,7 @@
 #include "GameFramework/Controller.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include "Engine/World.h"
 #include "Kismet/KismetMathLibrary.h"
 
@@ -49,6 +50,9 @@ AActionRPGPlayerCharacter::AActionRPGPlayerCharacter(const FObjectInitializer& O
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	CameraComponent->SetupAttachment(SpringArmComponent, USpringArmComponent::SocketName);
 	CameraComponent->bUsePawnControlRotation = false; // Camera doesn't rotate with controller
+
+	// Create Inventory Component
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 }
 
 void AActionRPGPlayerCharacter::BeginPlay()
