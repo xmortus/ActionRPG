@@ -304,45 +304,173 @@
 
 ### Day 22-23: Inventory UI Foundation
 
+#### Overview
+Create the foundation for the inventory UI system. This includes creating C++ widget classes, designing the UI layout in Blueprint, implementing widget communication with the InventoryComponent, and adding the inventory toggle functionality.
+
 #### Tasks
+
+**Day 22: C++ Widget Classes and Structure**
+
 1. **Create UI Widget Structure**
-   - Create `Source/ActionRPG/Public/UI/Inventory/`
-   - Create `Content/UI/Inventory/`
-   - Create InventoryWidget class (C++)
-   - Create InventorySlotWidget class (C++)
+   - Create `Source/ActionRPG/Public/UI/Inventory/` folder
+   - Create `Source/ActionRPG/Private/UI/Inventory/` folder
+   - Create `Content/UI/Inventory/` folder in Content Browser
+   - Create InventoryWidget class (C++) inheriting from UUserWidget
+   - Create InventorySlotWidget class (C++) inheriting from UUserWidget
 
-2. **Design Inventory Widget Layout**
-   - Grid panel for inventory slots (default 10x5 = 50 slots)
-   - Item icon display
-   - Quantity text overlay
-   - Weight/capacity display
-   - Close button
+2. **Implement InventoryWidget Header (C++)**
+   - Add widget references (UniformGridPanel, TextBlocks for weight/capacity)
+   - Add TSubclassOf<UInventorySlotWidget> for slot widget class
+   - Add TArray<UInventorySlotWidget*> to store slot widgets
+   - Add TObjectPtr<UInventoryComponent> reference
+   - Declare NativeConstruct/NativeDestruct overrides
+   - Declare UpdateInventoryDisplay() method
+   - Declare OnInventorySlotClicked() and OnInventorySlotRightClicked() methods
+   - Declare InitializeSlots() and RefreshSlot() helper methods
 
-3. **Create InventorySlotWidget**
-   - Image widget for item icon
-   - Text widget for quantity
-   - Border widget for slot background
-   - Highlight border for selected/hovered slots
-   - Click and right-click handlers
+3. **Implement InventoryWidget Implementation (C++)**
+   - NativeConstruct: Get InventoryComponent from PlayerCharacter
+   - NativeConstruct: Bind to InventoryComponent events (OnInventoryChanged, OnItemAdded, OnItemRemoved)
+   - NativeConstruct: Initialize slot widgets array
+   - NativeDestruct: Unbind from events
+   - UpdateInventoryDisplay(): Refresh all slots and weight/capacity displays
+   - InitializeSlots(): Create slot widgets and add to grid (10x5 = 50 slots)
+   - RefreshSlot(): Update individual slot widget with item data
+   - OnInventorySlotClicked(): Handle left-click (prepare for drag and drop in Day 24)
+   - OnInventorySlotRightClicked(): Handle right-click (use item)
 
-4. **Implement Widget Communication**
-   - InventoryWidget gets inventory reference from PlayerCharacter
-   - Bind to InventoryComponent events (OnItemAdded, OnItemRemoved, etc.)
-   - Update slot widgets when inventory changes
-   - Refresh display on inventory change events
+4. **Implement InventorySlotWidget Header (C++)**
+   - Add widget references (Image for icon, TextBlock for quantity, Border for background)
+   - Add slot index property (int32)
+   - Add TObjectPtr<UItemBase> for current item
+   - Declare SetSlotData() and ClearSlot() methods
+   - Declare UpdateSlotVisuals() helper method
+   - Declare NativeOnMouseButtonDown() override for click detection
+   - Add hover detection (OnMouseEnter, OnMouseLeave) for future tooltip
 
-5. **Add Inventory Toggle**
-   - Implement OnOpenInventory() in PlayerController
-   - Toggle inventory widget visibility
-   - Pause game when inventory open (optional)
-   - Update input mode (GameAndUI vs GameOnly)
+5. **Implement InventorySlotWidget Implementation (C++)**
+   - NativeConstruct: Initialize default empty state
+   - SetSlotData(): Set slot index, item, and quantity; update visuals
+   - ClearSlot(): Clear item data and reset to empty state
+   - UpdateSlotVisuals(): Update icon, quantity text, and border based on item data
+   - NativeOnMouseButtonDown(): Detect left/right click and call parent widget handlers
+
+**Day 23: Blueprint Widgets and Integration**
+
+6. **Create Blueprint Widget Classes**
+   - Create WBP_InventoryWidget (Blueprint) based on InventoryWidget C++ class
+   - Create WBP_InventorySlotWidget (Blueprint) based on InventorySlotWidget C++ class
+   - Design inventory widget layout in UMG:
+     - Background panel/border
+     - UniformGridPanel (10 columns x 5 rows = 50 slots)
+     - TextBlocks for "Weight: X / Y" and "Capacity: X / Y"
+     - Close button
+     - Title text ("Inventory")
+
+7. **Design InventorySlotWidget Layout (UMG)**
+   - Border widget as base (slot background)
+   - Image widget for item icon (centered, 64x64 recommended)
+   - TextBlock for quantity (bottom-right corner, bold font)
+   - Optional: Border overlay for hover/selected states (initially hidden)
+
+8. **Bind Widget References in Blueprint**
+   - In WBP_InventoryWidget: Bind all widget references using BindWidget meta
+   - Set InventoryGrid reference
+   - Set WeightText and CapacityText references
+   - Set CloseButton reference
+   - Set SlotWidgetClass to WBP_InventorySlotWidget
+
+9. **Implement Widget Communication**
+   - In InventoryWidget::NativeConstruct: Get PlayerCharacter and InventoryComponent
+   - Bind to OnInventoryChanged event: Call UpdateInventoryDisplay()
+   - Bind to OnItemAdded event: Call RefreshSlot() for affected slot
+   - Bind to OnItemRemoved event: Call RefreshSlot() for affected slot
+   - Update weight/capacity text when inventory changes
+   - Handle Close button: Hide inventory widget and restore game input
+
+10. **Implement Inventory Toggle**
+    - Complete OnOpenInventory() in PlayerController C++:
+      - Get InventoryWidget from HUD or PlayerController
+      - Toggle widget visibility
+      - Set input mode: GameAndUI when open, GameOnly when closed
+      - Optionally pause game (SetPause(true/false))
+      - Show/hide mouse cursor
+    - Create or update BP_ActionRPGHUD:
+      - Add InventoryWidget reference as property
+      - Create widget in BeginPlay
+      - Initially hidden
+    - Or add widget directly to PlayerController (simpler approach)
+
+11. **Test Inventory UI**
+    - Test widget creation and display
+    - Test inventory toggle (I key or configured input)
+    - Test slot widget creation (50 slots should appear)
+    - Test weight/capacity display updates
+    - Test slot updates when items added/removed
+    - Test visual feedback (icons, quantities)
+
+#### Code Structure Examples
+
+**InventoryWidget.h Key Features:**
+```cpp
+// Widget References (BindWidget)
+UPROPERTY(meta = (BindWidget))
+class UUniformGridPanel* InventoryGrid;
+
+UPROPERTY(meta = (BindWidget))
+class UTextBlock* WeightText;
+
+UPROPERTY(meta = (BindWidget))
+class UTextBlock* CapacityText;
+
+UPROPERTY(meta = (BindWidget))
+class UButton* CloseButton;
+
+// Slot Widget Class
+UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+TSubclassOf<class UInventorySlotWidget> SlotWidgetClass;
+
+// Runtime Data
+UPROPERTY()
+TArray<UInventorySlotWidget*> SlotWidgets;
+
+UPROPERTY()
+TObjectPtr<class UInventoryComponent> InventoryComponent;
+```
+
+**InventorySlotWidget.h Key Features:**
+```cpp
+// Widget References (BindWidget)
+UPROPERTY(meta = (BindWidget))
+class UImage* ItemIcon;
+
+UPROPERTY(meta = (BindWidget))
+class UTextBlock* QuantityText;
+
+UPROPERTY(meta = (BindWidget))
+class UBorder* SlotBorder;
+
+// Runtime Data
+UPROPERTY()
+int32 SlotIndex;
+
+UPROPERTY()
+TObjectPtr<UItemBase> CurrentItem;
+```
 
 #### Deliverables
-- InventoryWidget class created
-- InventorySlotWidget class created
-- UI layout designed and functional
-- Inventory toggle working
-- Widget communication implemented
+- ✅ InventoryWidget C++ class created and compiled
+- ✅ InventorySlotWidget C++ class created and compiled
+- ✅ WBP_InventoryWidget Blueprint created and designed
+- ✅ WBP_InventorySlotWidget Blueprint created and designed
+- ✅ UI layout functional (50 slots in grid)
+- ✅ Widget references bound correctly
+- ✅ Inventory toggle working (OnOpenInventory implemented)
+- ✅ Widget communication with InventoryComponent working
+- ✅ Weight/capacity display updating correctly
+- ✅ Slot widgets updating when inventory changes
+- ✅ Visual feedback working (icons, quantities display)
+- ✅ Ready for drag and drop implementation (Day 24)
 
 ---
 
