@@ -4,6 +4,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
+#include "Items/Pickups/ItemPickupActor.h"
+#include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -170,8 +173,69 @@ void AActionRPGPlayerController::OnLook(const FInputActionValue& Value)
 
 void AActionRPGPlayerController::OnInteract()
 {
-	// TODO: Implement interaction in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Interact pressed"));
+	UE_LOG(LogTemp, Log, TEXT("OnInteract called"));
+
+	// Get player character
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnInteract: Pawn is not AActionRPGPlayerCharacter or is NULL"));
+		return;
+	}
+
+	// Find all ItemPickupActors in the world
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AItemPickupActor::StaticClass(), FoundActors);
+
+	if (FoundActors.Num() == 0)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("OnInteract: No item pickups found in world"));
+		return;
+	}
+
+	// Find the nearest pickup in range
+	AItemPickupActor* NearestPickup = nullptr;
+	float NearestDistance = MAX_FLT;
+	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+
+	for (AActor* Actor : FoundActors)
+	{
+		if (AItemPickupActor* Pickup = Cast<AItemPickupActor>(Actor))
+		{
+			// Check if player is in range
+			if (Pickup->IsPlayerInRange(PlayerCharacter))
+			{
+				float Distance = FVector::Dist(PlayerLocation, Pickup->GetActorLocation());
+				if (Distance < NearestDistance)
+				{
+					NearestDistance = Distance;
+					NearestPickup = Pickup;
+				}
+			}
+		}
+	}
+
+	// Try to interact with the nearest pickup
+	if (NearestPickup)
+	{
+		UE_LOG(LogTemp, Log, TEXT("OnInteract: Attempting to interact with pickup: %s (Distance: %.2f)"), 
+		       *NearestPickup->GetName(), NearestDistance);
+		
+		if (NearestPickup->TryInteract(PlayerCharacter))
+		{
+			UE_LOG(LogTemp, Log, TEXT("OnInteract: Successfully interacted with pickup: %s"), 
+			       *NearestPickup->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("OnInteract: Failed to interact with pickup: %s"), 
+			       *NearestPickup->GetName());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("OnInteract: No pickups in range"));
+	}
 }
 
 void AActionRPGPlayerController::OnAttack()

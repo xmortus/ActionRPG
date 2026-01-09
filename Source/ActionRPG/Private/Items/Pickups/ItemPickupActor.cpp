@@ -86,14 +86,22 @@ void AItemPickupActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActo
 		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor: Player overlapped - %s (Player: %s)"), 
 		       *GetName(), *Player->GetName());
 
-		// Check if pickup is valid
-		if (CanPickup(Player))
+		// Only auto-pickup if enabled
+		if (bAutoPickupOnOverlap)
 		{
-			PickupItem(Player);
+			// Check if pickup is valid
+			if (CanPickup(Player))
+			{
+				PickupItem(Player);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor: Cannot pickup item - validation failed"));
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor: Cannot pickup item - validation failed"));
+			UE_LOG(LogTemp, Verbose, TEXT("ItemPickupActor: Auto-pickup disabled - player must press interact key"));
 		}
 	}
 	else
@@ -299,6 +307,47 @@ void AItemPickupActor::UpdateMaterialBasedOnRarity()
 	UE_LOG(LogTemp, Verbose, TEXT("ItemPickupActor: Item rarity - %d"), (int32)ItemData->Rarity);
 }
 
+bool AItemPickupActor::IsPlayerInRange(AActionRPGPlayerCharacter* Player) const
+{
+	if (!Player)
+	{
+		return false;
+	}
+
+	FVector PlayerLocation = Player->GetActorLocation();
+	FVector PickupLocation = GetActorLocation();
+	float Distance = FVector::Dist(PlayerLocation, PickupLocation);
+
+	return Distance <= InteractionRange;
+}
+
+bool AItemPickupActor::TryInteract(AActionRPGPlayerCharacter* Player)
+{
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::TryInteract - Player is NULL"));
+		return false;
+	}
+
+	// Check if player is in range
+	if (!IsPlayerInRange(Player))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("ItemPickupActor::TryInteract - Player is not in range"));
+		return false;
+	}
+
+	// Check if pickup is valid
+	if (!CanPickup(Player))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::TryInteract - Cannot pickup item - validation failed"));
+		return false;
+	}
+
+	// Attempt pickup
+	PickupItem(Player);
+	return true;
+}
+
 void AItemPickupActor::DebugCollisionSettings() const
 {
 	if (!CollisionComponent)
@@ -319,5 +368,8 @@ void AItemPickupActor::DebugCollisionSettings() const
 	       (int32)CollisionComponent->GetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn));
 	UE_LOG(LogTemp, Warning, TEXT("Is Root Component: %s"), 
 	       (RootComponent == CollisionComponent) ? TEXT("TRUE") : TEXT("FALSE"));
+	UE_LOG(LogTemp, Warning, TEXT("Interaction Range: %.2f"), InteractionRange);
+	UE_LOG(LogTemp, Warning, TEXT("Auto Pickup on Overlap: %s"), 
+	       bAutoPickupOnOverlap ? TEXT("TRUE") : TEXT("FALSE"));
 	UE_LOG(LogTemp, Warning, TEXT("========================================"));
 }

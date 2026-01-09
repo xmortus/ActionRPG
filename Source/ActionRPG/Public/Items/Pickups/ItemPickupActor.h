@@ -13,7 +13,7 @@ class AActionRPGPlayerCharacter;
 
 /**
  * Actor that represents an item pickup in the world.
- * When player overlaps, item is added to their inventory.
+ * Supports both automatic pickup on overlap (if enabled) and manual interaction via IA_Interact.
  * Supports visual representation, collision detection, and inventory integration.
  */
 UCLASS(BlueprintType, Blueprintable)
@@ -24,6 +24,13 @@ class ACTIONRPG_API AItemPickupActor : public AActor
 public:
 	AItemPickupActor();
 
+	// Interaction Functions
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	bool IsPlayerInRange(AActionRPGPlayerCharacter* Player) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	bool TryInteract(AActionRPGPlayerCharacter* Player);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -33,6 +40,13 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
 	int32 Quantity = 1;
+
+	// Interaction Settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
+	float InteractionRange = 150.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
+	bool bAutoPickupOnOverlap = false;
 
 	// Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
