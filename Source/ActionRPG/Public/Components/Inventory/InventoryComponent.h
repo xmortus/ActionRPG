@@ -71,7 +71,7 @@ public:
 	int32 FindItemSlot(const FName& ItemID) const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	bool HasSpaceFor(UItemBase* Item, int32 Quantity = 1) const;
+	bool HasSpaceFor(const UItemBase* Item, int32 Quantity = 1) const;
 
 	// Getters
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")

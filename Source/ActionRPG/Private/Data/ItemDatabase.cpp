@@ -148,6 +148,7 @@ TArray<UItemDataAsset*> UItemDatabase::GetAllItemDataAssets() const
 TArray<UItemDataAsset*> UItemDatabase::GetItemsByType(EItemType ItemType) const
 {
 	TArray<UItemDataAsset*> Items;
+	Items.Reserve(ItemRegistry.Num() / 4); // Reserve approximate size (assuming roughly 4 types)
 	for (const auto& Pair : ItemRegistry)
 	{
 		if (Pair.Value && Pair.Value->Type == ItemType)
@@ -161,6 +162,7 @@ TArray<UItemDataAsset*> UItemDatabase::GetItemsByType(EItemType ItemType) const
 TArray<UItemDataAsset*> UItemDatabase::GetItemsByRarity(EItemRarity Rarity) const
 {
 	TArray<UItemDataAsset*> Items;
+	Items.Reserve(ItemRegistry.Num() / 5); // Reserve approximate size (assuming roughly 5 rarities)
 	for (const auto& Pair : ItemRegistry)
 	{
 		if (Pair.Value && Pair.Value->Rarity == Rarity)

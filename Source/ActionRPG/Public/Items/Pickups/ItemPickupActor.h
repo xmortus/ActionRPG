@@ -42,7 +42,7 @@ protected:
 	int32 Quantity = 1;
 
 	// Interaction Settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup", meta = (ClampMin = "0.0", ClampMax = "1000.0"))
 	float InteractionRange = 150.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")

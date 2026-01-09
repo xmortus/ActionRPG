@@ -143,6 +143,7 @@ TArray<USkillDataAsset*> USkillDatabase::GetAllSkillDataAssets() const
 TArray<USkillDataAsset*> USkillDatabase::GetSkillsByType(ESkillType SkillType) const
 {
 	TArray<USkillDataAsset*> Skills;
+	Skills.Reserve(SkillRegistry.Num() / 5); // Reserve approximate size (assuming roughly 5 skill types)
 	for (const auto& Pair : SkillRegistry)
 	{
 		if (Pair.Value && Pair.Value->Type == SkillType)
@@ -156,6 +157,7 @@ TArray<USkillDataAsset*> USkillDatabase::GetSkillsByType(ESkillType SkillType) c
 TArray<USkillDataAsset*> USkillDatabase::GetSkillsByCategory(ESkillCategory SkillCategory) const
 {
 	TArray<USkillDataAsset*> Skills;
+	Skills.Reserve(SkillRegistry.Num() / 4); // Reserve approximate size (assuming roughly 4 categories)
 	for (const auto& Pair : SkillRegistry)
 	{
 		if (Pair.Value && Pair.Value->Category == SkillCategory)

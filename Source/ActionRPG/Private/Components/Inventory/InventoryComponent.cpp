@@ -112,19 +112,10 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 
 		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Creating new item instance for slot %d (StackSize: %d)"), EmptySlot, StackSize);
 
-		// Create new item instance for this slot - use GetWorld() as outer to prevent GC issues
-		// Use GetWorld() as outer if available, otherwise use GetOwner(), fallback to this
-		UObject* OuterObject = GetWorld();
-		if (!OuterObject)
-		{
-			OuterObject = GetOwner();
-		}
-		if (!OuterObject)
-		{
-			OuterObject = this;
-		}
-		
-		UItemBase* NewItem = NewObject<UItemBase>(OuterObject, UItemBase::StaticClass());
+		// Create new item instance for this slot
+		// Use component as outer - component owns inventory items
+		// This ensures items are not garbage collected while component exists
+		UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
 		if (!NewItem)
 		{
 			UE_LOG(LogTemp, Error, TEXT("InventoryComponent::AddItem - Failed to create new item instance"));
@@ -134,11 +125,10 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 		NewItem->ItemData = Item->ItemData;
 		NewItem->Quantity = StackSize;
 
-		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Item instance created: %s (Quantity: %d, ItemData: %s, Outer: %s)"),
-			NewItem ? TEXT("Valid") : TEXT("NULL"),
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Item instance created: %s (Quantity: %d, ItemData: %s, Outer: Component)"),
+			NewItem ? TEXT("Valid") : TEXT("nullptr"),
 			NewItem ? NewItem->Quantity : 0,
-			NewItem && NewItem->ItemData ? *NewItem->ItemData->ItemName.ToString() : TEXT("NULL"),
-			OuterObject ? *OuterObject->GetName() : TEXT("NULL"));
+			NewItem && NewItem->ItemData ? *NewItem->ItemData->ItemName.ToString() : TEXT("nullptr"));
 
 		// Add to slot - CRITICAL: Set Item pointer FIRST, then Quantity, then bIsEmpty
 		// This ensures the TObjectPtr maintains a reference to prevent GC
@@ -486,7 +476,7 @@ int32 UInventoryComponent::FindItemSlot(const FName& ItemID) const
 	return INDEX_NONE;
 }
 
-bool UInventoryComponent::HasSpaceFor(UItemBase* Item, int32 Quantity) const
+bool UInventoryComponent::HasSpaceFor(const UItemBase* Item, int32 Quantity) const
 {
 	if (!Item || !Item->ItemData || Quantity <= 0)
 	{
