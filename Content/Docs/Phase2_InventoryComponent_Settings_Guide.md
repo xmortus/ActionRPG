@@ -11,6 +11,24 @@ This guide explains what settings/properties are visible in the BP_InventoryComp
 
 ## Settings Categories in Details Panel
 
+### 0. Component Instance Settings (Header Section)
+
+**Location:** Details Panel → Top section (component header) → Click dropdown arrow
+
+**Settings:**
+- `Instance Editable` - Should be **CHECKED** (allows editing per instance)
+- `Visible` - Should be **CHECKED** (component is visible in viewport/details)
+- `Can Edit Class` - Should be **AVAILABLE** (allows editing component class in Blueprint)
+
+**How to Access:**
+1. Select the component in Components panel (left side)
+2. In Details panel, look at the **top section** (component header)
+3. There should be a **dropdown arrow** or **gear icon** next to the component name
+4. Click it to expand component instance settings
+5. These checkboxes should be visible there
+
+**Note:** These settings control whether the component can be edited per-instance vs per-class. With `EditAnywhere` on the property, these should be enabled by default.
+
 ### 1. Component Tick
 
 **Location:** Details Panel → Component Tick category
@@ -188,8 +206,12 @@ The events are declared as `DECLARE_DYNAMIC_MULTICAST_DELEGATE` with `UPROPERTY(
 
 After recompiling with the updated code:
 
-- [ ] Open BP_InventoryComponent or BP_ActionRPGPlayerCharacter
-- [ ] Select InventoryComponent in Components panel
+- [ ] Open BP_ActionRPGPlayerCharacter (not BP_InventoryComponent)
+- [ ] Select InventoryComponent in Components panel (left side)
+- [ ] In Details panel, check **component header section** (top of Details panel):
+  - [ ] **Instance Editable** checkbox is visible and **CHECKED**
+  - [ ] **Visible** checkbox is visible and **CHECKED**
+  - [ ] **Can Edit Class** option is available (may be in dropdown)
 - [ ] In Details panel, find "Inventory" category
 - [ ] Expand "Inventory" category
 - [ ] Scroll down to find "Events" subcategory (or events listed in Inventory category)
@@ -208,15 +230,26 @@ After recompiling with the updated code:
 ## Code Changes Made
 
 **Updated:**
-1. Events category changed to "Inventory|Events" (creates subcategory)
-2. Added DisplayName metadata for better readability
-3. Component Tick properly disabled in constructor
-4. Verified all UPROPERTY specifiers are correct
+1. **Component Property** (ActionRPGPlayerCharacter.h):
+   - Changed from `VisibleAnywhere, BlueprintReadOnly` to `EditAnywhere, BlueprintReadWrite`
+   - Added `meta = (InstanceEditable = true)` to ensure instance editing is enabled
+   - This makes the component instance editable and visible
+
+2. **Component Class** (InventoryComponent.h):
+   - Added `ShowCategories = ("Component")` metadata to ensure component categories are shown
+
+3. **Events Category:**
+   - Changed to "Inventory|Events" (creates subcategory)
+   - Added DisplayName metadata for better readability
+
+4. **Component Tick:**
+   - Properly disabled in constructor (`bCanEverTick = false`, `bStartWithTickEnabled = false`)
 
 **After Recompiling:**
+- Component instance settings (Instance Editable, Visible, Can Edit Class) should be visible in Details panel header
 - Events should appear in "Inventory|Events" subcategory
 - Events should be visible when component is selected on an actor
-- All properties should be visible
+- All properties should be visible and editable
 
 ---
 

@@ -34,7 +34,7 @@ public:
 	TObjectPtr<UCameraComponent> CameraComponent;
 
 	// Inventory
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = true))
 	TObjectPtr<class UInventoryComponent> InventoryComponent;
 
 protected:
