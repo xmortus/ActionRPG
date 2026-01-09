@@ -1,5 +1,6 @@
 # ItemDatabase Troubleshooting Guide
-**Date:** 2025-01-07
+**Date:** 2025-01-07  
+**Last Updated:** 2025-01-07 (UE 5.7 Compliance Update)
 
 ---
 
@@ -368,6 +369,41 @@ If items still aren't found after checking everything:
    - Create a test item with ID: `TestItem`
    - See if that one works
    - If it works, the issue is with the specific Item ID
+
+---
+
+## Architecture Notes
+
+### ItemDatabase vs InventoryComponent
+
+**Important:** The ItemDatabase and InventoryComponent serve different purposes:
+
+- **ItemDatabase (Singleton):**
+  - Stores ItemDataAssets (templates/definitions)
+  - Shared by all players
+  - Used to look up item data and create item instances
+  - Does NOT store actual inventory items
+  - Logs will say "Registered ItemDataAsset (template)" to clarify this
+
+- **InventoryComponent (Per-Player):**
+  - Each player has their own InventoryComponent
+  - Stores actual inventory items (UItemBase instances)
+  - Unique per player character
+  - Items stored here are separate from other players
+
+When you see logs about "ItemDatabase", it's creating item instances from templates, not storing them. Actual items are stored in the player's InventoryComponent.
+
+### Item Creation Process
+
+1. **ItemDatabase::CreateItem()** creates a temporary item instance from an ItemDataAsset template
+2. This instance is used as a template by InventoryComponent::AddItem()
+3. AddItem creates new item instances and stores them in the inventory slots
+4. The template item is not stored - it's just used to create the actual inventory items
+
+**UE 5.7 Updates:**
+- Temporary items are created with `GetTransientPackage()` as outer
+- Items are automatically garbage collected when not referenced
+- No need to call `ConditionalBeginDestroy()` - GC handles cleanup
 
 ---
 

@@ -1,5 +1,6 @@
 # InventoryComponent Settings Guide
-**Understanding Blueprint Details Panel Settings**
+**Understanding Blueprint Details Panel Settings**  
+**Last Updated:** 2025-01-07 (UE 5.7 Compliance Update)
 
 ---
 
@@ -50,8 +51,10 @@ This guide explains what settings/properties are visible in the BP_InventoryComp
 
 **Properties:**
 - `Inventory Slots` (Array) - 50 array elements (runtime slots, not editable directly)
-- `Max Capacity` (int32) - Default: 50 (editable)
-- `Max Weight` (float) - Default: 100.0 (editable)
+- `Max Capacity` (int32) - Default: 50 (editable, clamped 1-1000)
+- `Max Weight` (float) - Default: 100.0 (editable, clamped 0.0-10000.0)
+
+**Note:** Max Capacity and Max Weight have clamp metadata to prevent invalid values in the editor.
 
 **Note:** Inventory Slots array shows 50 elements, but they're initialized at runtime. You don't need to edit them directly.
 
@@ -118,6 +121,9 @@ When the component is added to an actor (e.g., BP_ActionRPGPlayerCharacter):
 2. `On Item Added` - Delegate
 3. `On Item Removed` - Delegate
 4. `On Item Used` - Delegate
+
+**Inventory|Debug Subcategory:**
+1. `Report Inventory Contents` - Function (can be called to manually trigger debug report)
 
 **Component Tick:**
 1. `Start with Tick Enabled` - Unchecked (component doesn't tick)
@@ -244,6 +250,17 @@ After recompiling with the updated code:
 
 4. **Component Tick:**
    - Properly disabled in constructor (`bCanEverTick = false`, `bStartWithTickEnabled = false`)
+
+5. **UE 5.7 Compliance Updates:**
+   - Added `BlueprintPure` flags to all getter functions
+   - Added clamp metadata to MaxCapacity and MaxWeight
+   - Changed `GetInventorySlots()` to return const reference instead of by value
+   - Added `AllowPrivateAccess = "true"` metadata to InventorySlots
+
+6. **Debug Features:**
+   - Added automatic debug reporting every 5 seconds
+   - Added `ReportInventoryContents()` function for manual reporting
+   - Enhanced logging throughout all functions
 
 **After Recompiling:**
 - Component instance settings (Instance Editable, Visible, Can Edit Class) should be visible in Details panel header
