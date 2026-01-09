@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/Inventory/InventoryComponent.h"
+#include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
+#include "Items/Core/ItemTypes.h"
+#include "Characters/ActionRPGPlayerCharacter.h"
 #include "Engine/World.h"
 
 UInventoryComponent::UInventoryComponent()
@@ -326,44 +329,134 @@ bool UInventoryComponent::SwapItems(int32 SlotA, int32 SlotB)
 
 bool UInventoryComponent::UseItem(int32 SlotIndex)
 {
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Attempting to use item from slot %d"), SlotIndex);
+
+	// Validate slot index
 	if (!InventorySlots.IsValidIndex(SlotIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Invalid slot index: %d"), SlotIndex);
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Invalid slot index: %d (Max: %d)"), 
+			SlotIndex, InventorySlots.Num() - 1);
 		return false;
 	}
 
 	FInventorySlot& Slot = InventorySlots[SlotIndex];
+	
+	// Check if slot is empty
 	if (Slot.bIsEmpty || !Slot.Item)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Slot %d is empty"), SlotIndex);
 		return false;
 	}
 
-	// Check if item can be used
-	if (!Slot.Item->CanUse())
+	// Validate item data exists
+	if (!Slot.Item->ItemData)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Item cannot be used: %s"), 
-			Slot.Item->ItemData ? *Slot.Item->ItemData->ItemName.ToString() : TEXT("NULL"));
+		UE_LOG(LogTemp, Error, TEXT("InventoryComponent::UseItem - Slot %d has item with NULL ItemData"), SlotIndex);
 		return false;
 	}
 
-	// Use the item
-	Slot.Item->Use();
-
-	// Broadcast event
-	OnItemUsed.Broadcast(Slot.Item);
-
-	// Check if item should be consumed (consumables typically reduce quantity)
-	// For now, we'll remove 1 quantity for consumables
-	// This can be customized per item type later
-	if (Slot.Item->ItemData && Slot.Item->ItemData->Type == EItemType::Consumable)
+	// Check quantity > 0
+	if (Slot.Quantity <= 0)
 	{
-		RemoveItem(SlotIndex, 1);
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Slot %d has quantity 0 (Item: %s)"), 
+			SlotIndex, *Slot.Item->ItemData->ItemName.ToString());
+		return false;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Used item: %s"), 
-		Slot.Item->ItemData ? *Slot.Item->ItemData->ItemName.ToString() : TEXT("NULL"));
+	// Get item ID for type-specific validation
+	FName ItemID = Slot.Item->ItemData->ItemID;
 
+	// Special validation for health potions - check if player health is at max
+	if (ItemID == FName("HealthPotion") || ItemID == FName("healthpotion"))
+	{
+		// Get the owner (should be the player character)
+		if (AActor* Owner = GetOwner())
+		{
+			if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(Owner))
+			{
+				if (PlayerCharacter->IsHealthAtMax())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Cannot use health potion: Health already at max (%.1f/%.1f)"), 
+						PlayerCharacter->CurrentHealth, PlayerCharacter->MaxHealth);
+					return false;
+				}
+			}
+		}
+	}
+
+	// Check if item can be used (item-specific validation)
+	if (!Slot.Item->CanUse())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Item cannot be used: %s (Slot: %d)"), 
+			*Slot.Item->ItemData->ItemName.ToString(), SlotIndex);
+		return false;
+	}
+
+	// Get item type for type-specific handling
+	EItemType ItemType = Slot.Item->ItemData->Type;
+	FText ItemName = Slot.Item->ItemData->ItemName;
+
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Using item: %s (Type: %d, Quantity: %d)"), 
+		*ItemName.ToString(), (int32)ItemType, Slot.Quantity);
+
+	// Handle different item types
+	bool bShouldConsume = false;
+	
+	switch (ItemType)
+	{
+	case EItemType::Consumable:
+		// Consumables are used and consumed
+		bShouldConsume = true;
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Consumable item, will consume 1 quantity"));
+		break;
+
+	case EItemType::Equipment:
+		// Equipment items are not consumed, they should be equipped (Phase 3)
+		// For now, just use them without consuming
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Equipment item, not consumed (equip system in Phase 3)"));
+		break;
+
+	case EItemType::SkillItem:
+	case EItemType::SkillStone:
+	case EItemType::BeastCore:
+		// Skill-related items are not consumed, they grant skills (Phase 3)
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Skill item, not consumed (skill system in Phase 3)"));
+		break;
+
+	case EItemType::Misc:
+	default:
+		// Misc items can be used but not consumed
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Misc item, not consumed"));
+		break;
+	}
+
+	// Use the item (calls ItemBase::Use() which broadcasts OnItemUsed)
+	Slot.Item->Use();
+
+	// Broadcast inventory event
+	OnItemUsed.Broadcast(Slot.Item);
+
+	// Consume item if needed (for consumables)
+	if (bShouldConsume)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Consuming 1 quantity of %s"), *ItemName.ToString());
+		
+		// Remove 1 quantity (RemoveItem will handle quantity = 0 and slot cleanup)
+		bool bRemoved = RemoveItem(SlotIndex, 1);
+		
+		if (!bRemoved)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Failed to remove item after use"));
+			// Item was used but not removed - this is an error state
+			// The item effect was applied, but inventory state may be inconsistent
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Item consumed successfully"));
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Successfully used item: %s"), *ItemName.ToString());
 	return true;
 }
 

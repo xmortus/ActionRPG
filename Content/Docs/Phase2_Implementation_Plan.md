@@ -175,44 +175,56 @@
 ### Day 19-20: Item Usage System
 
 #### Tasks
-1. **Implement UseItem in InventoryComponent**
-   - Call ItemBase::Use() method
-   - Handle item consumption (remove if consumable)
-   - Handle equipment items (equip/unequip)
-   - Handle skill items (grant skills - Phase 3)
-   - Update quantity after use
-   - Remove item if quantity reaches 0
+1. **Enhance UseItem in InventoryComponent**
+   - ✅ Basic UseItem implementation exists (calls ItemBase::Use())
+   - Enhance item consumption logic
+   - Add support for different item types (Consumable, Equipment, SkillItem, etc.)
+   - Handle quantity management properly
+   - Remove item when quantity reaches 0
+   - Add proper error handling and logging
 
 2. **Add Item Usage Validation**
-   - Check CanUse() before using
-   - Check quantity > 0
-   - Check item type-specific requirements
-   - Handle usage failures gracefully
+   - ✅ Basic validation exists (CanUse() check)
+   - Enhance validation for different item types
+   - Check quantity > 0 before use
+   - Add item type-specific requirements
+   - Handle usage failures gracefully with user feedback
+   - Add validation for equipment items (can't use, must equip)
 
 3. **Connect to Input System**
-   - Implement OnInteract() in PlayerController (for pickup)
-   - Implement OnUseItem() handler (for quick-use)
-   - Connect inventory UI to UseItem
-   - Add hotkey support for quick-use slots (future)
+   - ✅ OnInteract() implemented (for pickup)
+   - Add quick-use item functionality (optional for Phase 2)
+   - Connect inventory UI to UseItem (when UI is implemented)
+   - Add right-click use item support
+   - Prepare for hotkey support (Phase 3)
 
 4. **Create Item Usage Feedback**
-   - Log item usage to console (debug)
-   - Visual feedback (particles, UI updates)
-   - Audio feedback (sound effects)
-   - Health/mana/stamina changes (for consumables)
+   - ✅ Logging exists (console debug)
+   - Add visual feedback (particles, UI updates)
+   - Add audio feedback (sound effects)
+   - Connect consumables to character stats (health/mana/stamina)
+   - Add usage success/failure messages
 
-5. **Test Item Usage**
+5. **Implement Item Type-Specific Behavior**
+   - Consumable items: Reduce quantity, apply effects, remove when quantity = 0
+   - Equipment items: Mark as "equipable" (equip system in Phase 3)
+   - Skill items: Prepare for skill granting (Phase 3)
+   - Misc items: Basic use with no consumption
+
+6. **Test Item Usage**
    - Test consumable item usage
    - Test item quantity decrease
    - Test item removal when quantity = 0
    - Test multiple item types
+   - Test edge cases (empty inventory, invalid slots, etc.)
 
 #### Deliverables
-- UseItem method fully implemented
-- Item consumption working
-- Input integration complete
-- Visual/audio feedback added
+- Enhanced UseItem method with proper item type handling
+- Item consumption working correctly
+- Input integration complete (OnInteract for pickup)
+- Visual/audio feedback system ready
 - Item usage tested with multiple item types
+- Proper validation and error handling
 
 ---
 

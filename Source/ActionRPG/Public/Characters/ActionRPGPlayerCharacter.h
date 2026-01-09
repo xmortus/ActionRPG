@@ -34,8 +34,25 @@ public:
 	TObjectPtr<UCameraComponent> CameraComponent;
 
 	// Inventory
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = true))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
 	TObjectPtr<class UInventoryComponent> InventoryComponent;
+
+	// Health Stats
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (ClampMin = "0.0", ClampMax = "1000.0"))
+	float MaxHealth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (ClampMin = "0.0"))
+	float CurrentHealth = 50.0f;
+
+	// Health Functions
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void Heal(float HealAmount);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Stats")
+	bool IsHealthAtMax() const { return CurrentHealth >= MaxHealth; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Stats")
+	float GetHealthPercent() const { return MaxHealth > 0.0f ? CurrentHealth / MaxHealth : 0.0f; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -43,5 +60,9 @@ protected:
 
 	// Rotate character to face mouse cursor
 	void RotateToMouseCursor();
+
+	// Item usage handler
+	UFUNCTION()
+	void OnItemUsed(class UItemBase* Item);
 };
 
