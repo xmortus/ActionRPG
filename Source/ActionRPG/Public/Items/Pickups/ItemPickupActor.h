@@ -45,6 +45,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pickup")
 	int32 GetQuantity() const { return Quantity; }
 
+	// Pickup Logic (public for cursor-based pickup)
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	void PickupItem(AActionRPGPlayerCharacter* Player);
+	
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	bool CanPickup(AActionRPGPlayerCharacter* Player) const;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -69,17 +76,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USphereComponent> CollisionComponent;
 
-	// Pickup Logic
+	// Pickup Logic (protected for internal use)
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	                    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
 	                    bool bFromSweep, const FHitResult& SweepResult);
-
-	UFUNCTION(BlueprintCallable, Category = "Pickup")
-	void PickupItem(AActionRPGPlayerCharacter* Player);
-	
-	UFUNCTION(BlueprintCallable, Category = "Pickup")
-	bool CanPickup(AActionRPGPlayerCharacter* Player) const;
 	
 	void SpawnPickupEffect();
 	void DestroyPickup();

@@ -7,9 +7,11 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Items/Pickups/ItemPickupActor.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Inventory/InventoryWidget.h"
+#include "Camera/CameraComponent.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -197,58 +199,153 @@ void AActionRPGPlayerController::OnInteract()
 		return;
 	}
 
-	// Find all ItemPickupActors in the world
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AItemPickupActor::StaticClass(), FoundActors);
-
-	if (FoundActors.Num() == 0)
+	// Get world context
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("OnInteract: No item pickups found in world"));
+		UE_LOG(LogTemp, Warning, TEXT("OnInteract: World is null"));
 		return;
 	}
 
-	// Find the nearest pickup in range
-	AItemPickupActor* NearestPickup = nullptr;
-	float NearestDistance = MAX_FLT;
-	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
-
-	for (AActor* Actor : FoundActors)
+	// Get mouse cursor position and direction for line trace (cursor-based pickup)
+	FVector TraceStart;
+	FVector TraceDirection;
+	FVector MouseWorldLocation;
+	FVector MouseWorldDirection;
+	
+	if (DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
 	{
-		if (AItemPickupActor* Pickup = Cast<AItemPickupActor>(Actor))
+		// Use camera position as trace start for top-down gameplay
+		if (PlayerCharacter->CameraComponent)
 		{
-			// Check if player is in range
-			if (Pickup->IsPlayerInRange(PlayerCharacter))
+			TraceStart = PlayerCharacter->CameraComponent->GetComponentLocation();
+		}
+		else
+		{
+			// Fallback: use player location elevated for top-down view
+			TraceStart = PlayerCharacter->GetActorLocation();
+			TraceStart.Z += 500.0f;
+		}
+		TraceDirection = MouseWorldDirection;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnInteract: Failed to deproject mouse position to world"));
+		return;
+	}
+
+	// Calculate trace end (trace from camera through mouse cursor direction)
+	// For top-down view, trace a reasonable distance (1000 units should be enough)
+	FVector TraceEnd = TraceStart + (TraceDirection * 1000.0f);
+
+	// Use sphere sweep to create a cone-like detection area
+	// This makes it easier to pick up small items
+	// Cone parameters: start small at camera, expand as it goes down
+	float ConeStartRadius = 10.0f;  // Small radius at start (camera)
+	float ConeEndRadius = 100.0f;    // Larger radius at end (ground level)
+	
+	// Calculate distance for radius interpolation
+	float TraceDistance = (TraceEnd - TraceStart).Size();
+	
+	// Use the larger radius for the sweep (sweep uses a single radius, so we use the max)
+	// The expanding effect comes from doing multiple sweeps or using the end radius
+	float SweepRadius = ConeEndRadius;
+	
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(PlayerCharacter); // Ignore player character
+	QueryParams.bTraceComplex = false; // Use simple collision for performance
+	
+	// Perform sphere sweep to find items in cone area
+	TArray<FHitResult> HitResults;
+	FCollisionShape SweepShape = FCollisionShape::MakeSphere(SweepRadius);
+	
+	// Sweep against world dynamic objects (item pickups use ECC_WorldDynamic)
+	bool bHit = World->SweepMultiByChannel(
+		HitResults,
+		TraceStart,
+		TraceEnd,
+		FQuat::Identity,
+		ECC_WorldDynamic,
+		SweepShape,
+		QueryParams
+	);
+	
+	// Find the closest ItemPickupActor in the sweep results
+	AItemPickupActor* ClosestPickup = nullptr;
+	float ClosestDistance = MAX_FLT;
+	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+	
+	if (bHit && HitResults.Num() > 0)
+	{
+		for (const FHitResult& Hit : HitResults)
+		{
+			if (AItemPickupActor* Pickup = Cast<AItemPickupActor>(Hit.GetActor()))
 			{
+				// Find the closest pickup to the player (or to the trace center)
 				float Distance = FVector::Dist(PlayerLocation, Pickup->GetActorLocation());
-				if (Distance < NearestDistance)
+				if (Distance < ClosestDistance)
 				{
-					NearestDistance = Distance;
-					NearestPickup = Pickup;
+					ClosestDistance = Distance;
+					ClosestPickup = Pickup;
 				}
 			}
 		}
 	}
-
-	// Try to interact with the nearest pickup
-	if (NearestPickup)
+	
+	// If no dynamic objects found, try world static
+	if (!ClosestPickup)
 	{
-		UE_LOG(LogTemp, Log, TEXT("OnInteract: Attempting to interact with pickup: %s (Distance: %.2f)"), 
-		       *NearestPickup->GetName(), NearestDistance);
+		HitResults.Empty();
+		bHit = World->SweepMultiByChannel(
+			HitResults,
+			TraceStart,
+			TraceEnd,
+			FQuat::Identity,
+			ECC_WorldStatic,
+			SweepShape,
+			QueryParams
+		);
 		
-		if (NearestPickup->TryInteract(PlayerCharacter))
+		if (bHit && HitResults.Num() > 0)
 		{
-			UE_LOG(LogTemp, Log, TEXT("OnInteract: Successfully interacted with pickup: %s"), 
-			       *NearestPickup->GetName());
+			for (const FHitResult& Hit : HitResults)
+			{
+				if (AItemPickupActor* Pickup = Cast<AItemPickupActor>(Hit.GetActor()))
+				{
+					float Distance = FVector::Dist(PlayerLocation, Pickup->GetActorLocation());
+					if (Distance < ClosestDistance)
+					{
+						ClosestDistance = Distance;
+						ClosestPickup = Pickup;
+					}
+				}
+			}
+		}
+	}
+	
+	// Try to pickup the closest item found
+	if (ClosestPickup)
+	{
+		UE_LOG(LogTemp, Log, TEXT("OnInteract: Found item pickup in cone area: %s (Distance: %.2f)"), 
+		       *ClosestPickup->GetName(), ClosestDistance);
+		
+		if (ClosestPickup->CanPickup(PlayerCharacter))
+		{
+			UE_LOG(LogTemp, Log, TEXT("OnInteract: Attempting to pickup item: %s"), 
+			       *ClosestPickup->GetName());
+			
+			ClosestPickup->PickupItem(PlayerCharacter);
+			UE_LOG(LogTemp, Log, TEXT("OnInteract: Successfully picked up item: %s"), 
+			       *ClosestPickup->GetName());
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("OnInteract: Failed to interact with pickup: %s"), 
-			       *NearestPickup->GetName());
+			UE_LOG(LogTemp, Warning, TEXT("OnInteract: Cannot pickup item - validation failed"));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("OnInteract: No pickups in range"));
+		UE_LOG(LogTemp, Verbose, TEXT("OnInteract: No item pickup found in cone area"));
 	}
 }
 
