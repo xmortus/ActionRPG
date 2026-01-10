@@ -85,8 +85,9 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
        UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
        int32 SourceQuantity;
 
-       // Create a visual preview widget for the drag operation
-       virtual void OnDragCancelled(const FDragDropEvent& DragDropEvent) override;
+       // Is this a partial stack split (right-click drag)?
+       UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
+       bool bIsSplitOperation;
    };
    ```
 
@@ -110,20 +111,13 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
 
    UItemDragDropOperation::UItemDragDropOperation()
    {
-       SourceSlotIndex = INDEX_NONE;
+       SourceSlotIndex = -1;
        Item = nullptr;
        Quantity = 0;
        SourceQuantity = 0;
-   }
-
-   void UItemDragDropOperation::OnDragCancelled(const FDragDropEvent& DragDropEvent)
-   {
-       Super::OnDragCancelled(DragDropEvent);
+       bIsSplitOperation = false;
        
-       UE_LOG(LogTemp, Log, TEXT("ItemDragDropOperation::OnDragCancelled - Drag cancelled from slot %d"), SourceSlotIndex);
-       
-       // Drag cancelled - item stays in source slot
-       // No action needed, item is still in original slot
+       UE_LOG(LogTemp, Verbose, TEXT("ItemDragDropOperation::UItemDragDropOperation - Created drag operation"));
    }
    ```
 
@@ -159,10 +153,25 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      ```cpp
      // Drag and Drop
      virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-     virtual FReply NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+     virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
      virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
      virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
      virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+     
+     /**
+      * Set the parent InventoryWidget reference (needed for drag and drop).
+      * @param InventoryWidget The parent InventoryWidget
+      */
+     UFUNCTION(BlueprintCallable, Category = "Inventory Slot")
+     void SetParentInventoryWidget(UInventoryWidget* InventoryWidget);
+     ```
+
+4. **Add Parent Widget Reference Property**
+   - In the `private` section, add:
+     ```cpp
+     // Reference to parent InventoryWidget (set when slot is created)
+     UPROPERTY()
+     TObjectPtr<class UInventoryWidget> ParentInventoryWidget;
      ```
 
 4. **Add Visual Feedback Properties** (optional, for hover/drag feedback)
@@ -201,9 +210,10 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
          Super::NativeConstruct();
 
          // Initialize to empty state
-         SlotIndex = INDEX_NONE;
+         SlotIndex = -1;
          CurrentItem = nullptr;
          CurrentQuantity = 0;
+         ParentInventoryWidget = nullptr;
          
          // Initialize visual feedback colors
          DefaultBorderColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);  // Dark gray
@@ -218,15 +228,16 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      ```
 
 4. **Implement NativeOnDragDetected**
-   - Replace or update existing `NativeOnMouseButtonDown` if needed:
+   - **Important:** In UE 5.7, `NativeOnDragDetected` returns `void`, not `FReply`.
+   - Add implementation for `NativeOnDragDetected`:
      ```cpp
-     FReply UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+     void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
      {
          // Only allow drag if slot has an item
-         if (SlotIndex == INDEX_NONE || !CurrentItem || CurrentQuantity <= 0)
+         if (SlotIndex == -1 || !CurrentItem || CurrentQuantity <= 0)
          {
              UE_LOG(LogTemp, Warning, TEXT("InventorySlotWidget::NativeOnDragDetected - Cannot drag empty slot or invalid item"));
-             return FReply::Unhandled();
+             return;
          }
 
          // Create drag drop operation
@@ -234,7 +245,7 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
          if (!DragOperation)
          {
              UE_LOG(LogTemp, Error, TEXT("InventorySlotWidget::NativeOnDragDetected - Failed to create drag operation"));
-             return FReply::Unhandled();
+             return;
          }
 
          // Set drag operation data
@@ -242,10 +253,11 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
          DragOperation->Item = CurrentItem;
          DragOperation->Quantity = CurrentQuantity;  // Default: drag entire stack
          DragOperation->SourceQuantity = CurrentQuantity;
+         DragOperation->bIsSplitOperation = false;  // Left-click drag = full stack
 
-         // Create drag preview (optional - can use a custom widget)
-         // For now, use default preview
-         UWidgetBlueprintLibrary::SetDragDropPayload(DragOperation, FName("Item"), CurrentItem);
+         // Note: Drag preview is handled automatically by UE 5.7
+         // If you want a custom preview, you can create a widget and set it as DefaultDragVisual
+         // For now, using default preview
 
          OutOperation = DragOperation;
 
@@ -253,9 +265,6 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
              SlotIndex,
              CurrentItem && CurrentItem->ItemData ? *CurrentItem->ItemData->ItemName.ToString() : TEXT("Unknown"),
              CurrentQuantity);
-
-         // Return handled to indicate drag started
-         return FReply::Handled().BeginDragDrop(OutOperation);
      }
      ```
 
@@ -265,27 +274,41 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
      {
          // Only handle clicks if slot has an item or is in a valid state
-         if (SlotIndex != INDEX_NONE)
+         if (SlotIndex != -1)
          {
              if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
              {
-                 // Left click - initiate drag after a small delay/movement
-                 // Return Unhandled to allow UMG to handle drag detection
-                 UE_LOG(LogTemp, Verbose, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Left clicked slot %d (will detect drag)"), SlotIndex);
-                 return FReply::Handled().DetectDrag(this, EKeys::LeftMouseButton);
+                 // Left click - start drag detection for drag and drop
+                 // Only allow drag if slot has an item
+                 if (CurrentItem && CurrentQuantity > 0)
+                 {
+                     // Get the Slate widget for drag detection
+                     TSharedPtr<SWidget> SlateWidget = GetCachedWidget();
+                     if (SlateWidget.IsValid())
+                     {
+                         return FReply::Handled().DetectDrag(SlateWidget.ToSharedRef(), EKeys::LeftMouseButton);
+                     }
+                 }
+                 // Fall back to just handling the click
+                 OnSlotClicked.Broadcast(SlotIndex);
+                 return FReply::Handled();
              }
              else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
              {
-                 // Right click - use item (already implemented)
-                 OnSlotRightClicked.Broadcast(SlotIndex);
-                 UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Right clicked slot %d (use item)"), SlotIndex);
-                 return FReply::Handled();
+                 // Right click - use item (only if slot has item)
+                 if (CurrentItem && CurrentQuantity > 0)
+                 {
+                     OnSlotRightClicked.Broadcast(SlotIndex);
+                     UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Right clicked slot %d (use item)"), SlotIndex);
+                     return FReply::Handled();
+                 }
              }
          }
 
          return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
      }
      ```
+   - **Important:** Use `GetCachedWidget().ToSharedRef()` for `DetectDrag`, not `this`. The `DetectDrag` method requires a Slate widget reference.
 
 6. **Implement NativeOnDragEnter**
    ```cpp
@@ -341,7 +364,7 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
          }
 
          // Can always drop on empty slot
-         if (SlotIndex == INDEX_NONE || !CurrentItem || CurrentQuantity <= 0)
+         if (SlotIndex == -1 || !CurrentItem || CurrentQuantity <= 0)
          {
              return true;
          }
@@ -368,7 +391,31 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      bool CanDropItem(UItemDragDropOperation* DragOperation) const;
      ```
 
-10. **Compile Code**
+10. **Implement SetParentInventoryWidget**
+   - In `InventorySlotWidget.cpp`, add:
+     ```cpp
+     void UInventorySlotWidget::SetParentInventoryWidget(UInventoryWidget* InventoryWidget)
+     {
+         ParentInventoryWidget = InventoryWidget;
+     }
+     ```
+
+11. **Update InventoryWidget to Set Parent Reference**
+   - **Important:** When creating slot widgets in `InventoryWidget::InitializeSlots()`, you must call `SetParentInventoryWidget(this)` for each slot widget.
+   - In `InventoryWidget.cpp`, in the `InitializeSlots()` method, after creating each slot widget, add:
+     ```cpp
+     // Set parent inventory widget reference (for drag and drop)
+     SlotWidget->SetParentInventoryWidget(this);
+     ```
+   - This must be called BEFORE binding events or adding to the grid.
+
+12. **Add Forward Declaration**
+   - In `InventorySlotWidget.h`, add forward declaration:
+     ```cpp
+     class UInventoryWidget;
+     ```
+
+13. **Compile Code**
     - Save all files
     - Build Solution
     - Wait for compilation
@@ -398,11 +445,11 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
            return false;
        }
 
-       // Get parent inventory widget
-       UInventoryWidget* InventoryWidget = Cast<UInventoryWidget>(GetOwningWidget());
+       // Get parent inventory widget (stored when slot was created)
+       UInventoryWidget* InventoryWidget = ParentInventoryWidget;
        if (!InventoryWidget)
        {
-           UE_LOG(LogTemp, Error, TEXT("InventorySlotWidget::NativeOnDrop - Parent widget is not InventoryWidget"));
+           UE_LOG(LogTemp, Error, TEXT("InventorySlotWidget::NativeOnDrop - ParentInventoryWidget is not set! Make sure SetParentInventoryWidget is called when creating slots."));
            return false;
        }
 
@@ -410,7 +457,7 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
        int32 TargetSlot = SlotIndex;
 
        // Validate slots
-       if (SourceSlot == INDEX_NONE || TargetSlot == INDEX_NONE)
+       if (SourceSlot == -1 || TargetSlot == -1)
        {
            UE_LOG(LogTemp, Warning, TEXT("InventorySlotWidget::NativeOnDrop - Invalid slot indices (Source: %d, Target: %d)"), SourceSlot, TargetSlot);
            return false;
@@ -447,10 +494,10 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
       * Handle item drop between slots.
       * @param SourceSlotIndex The slot where the item is being dragged from
       * @param TargetSlotIndex The slot where the item is being dropped
-      * @param Quantity The quantity being moved (for partial stack splits)
+      * @param Quantity The quantity being moved (-1 for entire stack)
       */
      UFUNCTION(BlueprintCallable, Category = "Inventory UI")
-     void HandleItemDrop(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = INDEX_NONE);
+     void HandleItemDrop(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = -1);
      ```
 
 2. **Open InventoryWidget.cpp**
@@ -490,7 +537,7 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
          }
 
          // Determine quantity to move (default: all items in source slot)
-         int32 MoveQuantity = (Quantity == INDEX_NONE) ? SourceSlot.Quantity : FMath::Clamp(Quantity, 1, SourceSlot.Quantity);
+         int32 MoveQuantity = (Quantity == -1) ? SourceSlot.Quantity : FMath::Clamp(Quantity, 1, SourceSlot.Quantity);
 
          // Handle different drop scenarios
          if (TargetSlot.bIsEmpty)
@@ -586,12 +633,18 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      ```cpp
      FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
      {
-         if (SlotIndex != INDEX_NONE)
+         if (SlotIndex != -1)
          {
              if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
              {
                  // Left click - drag entire stack
-                 return FReply::Handled().DetectDrag(this, EKeys::LeftMouseButton);
+                 // Use GetCachedWidget() for proper Slate widget reference
+                 TSharedPtr<SWidget> SlateWidget = GetCachedWidget();
+                 if (SlateWidget.IsValid())
+                 {
+                     return FReply::Handled().DetectDrag(SlateWidget.ToSharedRef(), EKeys::LeftMouseButton);
+                 }
+                 return FReply::Handled();
              }
              else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
              {
@@ -628,9 +681,16 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
    - Set size: 64x64 (same as slot size)
    - Set semi-transparent background
 
-3. **Set as Drag Preview in Code**
-   - In `ItemDragDropOperation.cpp` constructor or `OnDragStarted`, create preview widget
-   - This is optional - default UMG drag preview works fine for Phase 2
+3. **Drag Preview in UE 5.7 (Automatic)**
+   - **Important:** UE 5.7 automatically handles drag preview creation. No manual code is needed.
+   - The drag preview is automatically created by UMG when `NativeOnDragDetected` sets `OutOperation`
+   - If you want a custom preview widget, you would need to:
+     1. Create a UMG widget (e.g., using `WBP_ItemDragPreview` created above)
+     2. Convert it to a Slate widget using `TakeWidget()` or `GetCachedWidget()`
+     3. Set it as `DragOperation->DefaultDragVisual = Widget->TakeWidget()`
+     4. Do this in `NativeOnDragDetected` in `InventorySlotWidget.cpp`, NOT in the constructor
+   - **For Phase 2:** The default automatic preview is sufficient. Custom preview can be added in Phase 3 if desired.
+   - **Note:** `UDragDropOperation` does NOT have an `OnDragStarted` method. The preview must be set in `NativeOnDragDetected` when creating the operation.
 
 ---
 
@@ -729,13 +789,16 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
 
 **Solutions:**
 1. **Check NativeOnMouseButtonDown**
-   - Verify it returns `FReply::Handled().DetectDrag(this, EKeys::LeftMouseButton)`
+   - Verify it returns `FReply::Handled().DetectDrag(GetCachedWidget().ToSharedRef(), EKeys::LeftMouseButton)`
+   - **Important:** Use `GetCachedWidget().ToSharedRef()`, not `this` (DetectDrag requires Slate widget reference)
    - Check slot has valid item (`CurrentItem != nullptr`)
+   - Check `GetCachedWidget()` returns valid widget before calling `ToSharedRef()`
 
 2. **Check NativeOnDragDetected**
-   - Verify it's overridden and returns `FReply::Handled().BeginDragDrop(OutOperation)`
+   - Verify it's overridden and returns `void` (not `FReply` in UE 5.7)
    - Check drag operation is created correctly
    - Verify `OutOperation` is set
+   - UE 5.7 handles drag start automatically when `OutOperation` is set
 
 3. **Check Widget Focus**
    - Ensure inventory widget has input enabled

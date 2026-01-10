@@ -347,25 +347,31 @@ void UInventoryWidget::InitializeSlots()
 			}
 
 			// Create slot widget
-			UInventorySlotWidget* SlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass);
+			// Use UUserWidget as base type for CreateWidget, then cast
+			UUserWidget* UserWidget = CreateWidget<UUserWidget>(this, SlotWidgetClass);
+			UInventorySlotWidget* SlotWidget = Cast<UInventorySlotWidget>(UserWidget);
 			if (!SlotWidget)
 			{
-				UE_LOG(LogTemp, Error, TEXT("InventoryWidget::InitializeSlots - Failed to create slot widget for index %d"), SlotIndex);
+				UE_LOG(LogTemp, Error, TEXT("InventoryWidget::InitializeSlots - Failed to create slot widget for index %d (SlotWidgetClass may not be a UInventorySlotWidget subclass)"), SlotIndex);
 				continue;
 			}
 
-			// Bind slot events
+			// Bind slot events (before adding to grid)
 			SlotWidget->OnSlotClicked.AddDynamic(this, &UInventoryWidget::OnInventorySlotClicked);
 			SlotWidget->OnSlotRightClicked.AddDynamic(this, &UInventoryWidget::OnInventorySlotRightClicked);
 
-			// Add to grid
+			// Add to grid (this will trigger NativeConstruct)
 			InventoryGrid->AddChildToUniformGrid(SlotWidget, Row, Col);
 			
-			// Store reference
+			// Set parent inventory widget reference AFTER adding to grid (after NativeConstruct)
+			// This ensures the parent is set and won't be reset by NativeConstruct
+			SlotWidget->SetParentInventoryWidget(this);
+			UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::InitializeSlots - Set parent widget for slot %d"), SlotIndex);
+			
+			// Store reference (SlotWidgets is TArray<TObjectPtr<UInventorySlotWidget>>)
 			SlotWidgets.Add(SlotWidget);
 
-			// Initialize as empty
-			SlotWidget->ClearSlot();
+			// Initialize as empty slot - use SetSlotData to preserve SlotIndex (don't use ClearSlot which resets it)
 			SlotWidget->SetSlotData(SlotIndex, nullptr, 0);
 		}
 	}
@@ -405,9 +411,11 @@ void UInventoryWidget::RefreshSlot(int32 SlotIndex)
 	}
 
 	// Update slot widget with inventory slot data
+	// Always set slot data with the correct index, even for empty slots
+	// This ensures SlotIndex is always valid for drag and drop operations
 	if (InventorySlot.bIsEmpty || !InventorySlot.Item || InventorySlot.Quantity <= 0)
 	{
-		SlotWidget->ClearSlot();
+		SlotWidget->SetSlotData(SlotIndex, nullptr, 0);
 	}
 	else
 	{

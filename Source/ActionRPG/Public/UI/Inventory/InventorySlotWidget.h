@@ -10,6 +10,9 @@
 #include "Items/Core/ItemBase.h"
 #include "InventorySlotWidget.generated.h"
 
+class UItemDragDropOperation;
+class UInventoryWidget;
+
 /**
  * Widget representing a single inventory slot.
  * Displays item icon, quantity, and handles click events.
@@ -30,6 +33,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Inventory Slot")
 	void SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 InQuantity);
+
+	/**
+	 * Set the parent InventoryWidget reference.
+	 * @param InventoryWidget The parent InventoryWidget
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory Slot")
+	void SetParentInventoryWidget(UInventoryWidget* InventoryWidget);
 
 	/**
 	 * Clear the slot (set to empty state).
@@ -61,6 +71,12 @@ public:
 
 protected:
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	
+	// Drag and Drop
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
@@ -82,8 +98,27 @@ private:
 	UPROPERTY()
 	int32 CurrentQuantity;
 
+	// Reference to parent InventoryWidget (set when slot is created)
+	UPROPERTY()
+	TObjectPtr<class UInventoryWidget> ParentInventoryWidget;
+
+	// Visual feedback during drag
+	FLinearColor DefaultBorderColor;
+	FLinearColor HoverBorderColor;
+	FLinearColor ValidDropColor;
+	FLinearColor InvalidDropColor;
+	
+	bool bIsDragOver;
+
 	/**
 	 * Update the visual appearance of the slot based on item data.
 	 */
 	void UpdateSlotVisuals();
+
+	/**
+	 * Check if an item can be dropped on this slot.
+	 * @param DragOperation The drag operation being performed
+	 * @return True if the drop is valid, false otherwise
+	 */
+	bool CanDropItem(UItemDragDropOperation* DragOperation) const;
 };
