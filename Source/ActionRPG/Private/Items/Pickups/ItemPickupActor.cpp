@@ -5,9 +5,11 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Data/ItemDatabase.h"
 #include "Items/Core/ItemBase.h"
+#include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
 #include "Components/SceneComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/StaticMesh.h"
 
 AItemPickupActor::AItemPickupActor()
 {
@@ -284,14 +286,32 @@ void AItemPickupActor::SetupVisuals()
 {
 	if (!MeshComponent)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetupVisuals - MeshComponent is NULL!"));
 		return;
 	}
 
-	// Update material based on rarity if ItemData is set
-	if (ItemData)
+	if (!ItemData)
 	{
-		UpdateMaterialBasedOnRarity();
+		UE_LOG(LogTemp, Verbose, TEXT("ItemPickupActor::SetupVisuals - ItemData is NULL, using default mesh (if any)"));
+		return;
 	}
+
+	// Set the static mesh from ItemData
+	if (ItemData->ItemPickupMesh)
+	{
+		MeshComponent->SetStaticMesh(ItemData->ItemPickupMesh);
+		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetupVisuals - Set mesh to: %s"), *ItemData->ItemPickupMesh->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetupVisuals - ItemData '%s' has no ItemPickupMesh set! Mesh will be invisible."), 
+			*ItemData->ItemName.ToString());
+		// Set to null to clear any previous mesh
+		MeshComponent->SetStaticMesh(nullptr);
+	}
+
+	// Update material based on rarity
+	UpdateMaterialBasedOnRarity();
 }
 
 void AItemPickupActor::UpdateMaterialBasedOnRarity()
@@ -376,18 +396,31 @@ void AItemPickupActor::DebugCollisionSettings() const
 
 void AItemPickupActor::SetItemData(UItemDataAsset* NewItemData)
 {
+	UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetItemData - Called with NewItemData: %s (Pointer: %p)"), 
+		NewItemData ? *NewItemData->ItemName.ToString() : TEXT("NULL"), NewItemData);
+	
 	if (NewItemData)
 	{
 		ItemData = NewItemData;
+		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetItemData - ItemData member set to: %s (Pointer: %p)"), 
+			ItemData ? *ItemData->ItemName.ToString() : TEXT("NULL"), ItemData.Get());
+		
 		// Update visuals after setting item data
 		SetupVisuals();
 		
-		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetItemData - Item data set: %s"), 
-			*ItemData->ItemName.ToString());
+		if (ItemData)
+		{
+			UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetItemData - Item data successfully set: %s (Quantity: %d)"), 
+				*ItemData->ItemName.ToString(), Quantity);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ItemPickupActor::SetItemData - ItemData became NULL after assignment!"));
+		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetItemData - NewItemData is null"));
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetItemData - NewItemData is null, cannot set item data"));
 	}
 }
 

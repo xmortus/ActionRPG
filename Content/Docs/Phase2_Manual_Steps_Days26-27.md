@@ -378,11 +378,11 @@ Since the C++ implementation for stack splitting and world item dropping is alre
        - Verify: Memory usage stays stable
        - Verify: No accumulation of errors or warnings
 
-### Step 2: Test World Item Dropping
+### Step 2: Test World Item Dropping (Drag to World)
 
-#### 2.1 Verify World Drop Functionality
+#### 2.1 Verify Drag-to-World Functionality
 
-**Note:** World item dropping requires additional UI implementation (e.g., a "Drop" button or key) to trigger `DropItemToWorld`. For now, you can test it via Blueprint Event Graph.
+**Note:** World item dropping is now fully implemented! You can drag items from the inventory and drop them outside the inventory widget to drop them to the world. The item will be dropped at the mouse cursor location (projected to the ground plane at the player's height). If the mouse location is too far from the player (more than 500 units), the item will be dropped at the maximum distance in that direction.
 
 **Prerequisites:**
 - Have test items in inventory
@@ -588,9 +588,67 @@ Since the C++ implementation for stack splitting and world item dropping is alre
       - Verify: Item pickup fails gracefully if inventory is full
       - Verify: Item stays in world for later pickup
 
-**Note:** Full world drop integration (drag outside inventory to drop) can be implemented in Phase 3. The C++ method is functional and ready to use. For now, this Blueprint test validates the core functionality.
+**Note:** Drag-to-world functionality is now fully implemented! When you drag an item from the inventory and drop it outside the inventory widget (on the game world), the item will be automatically dropped at the mouse cursor location. See the testing steps below.
 
-**Note:** Full world drop integration (drag outside inventory to drop) can be implemented in Phase 3. The C++ method is functional and ready to use.
+#### 2.2 Test Drag-to-World Feature (New!)
+
+**Note:** This feature is now fully implemented! You can drag items from the inventory and drop them outside the inventory widget to drop them to the world.
+
+1. **Open Inventory and Test Drag-to-World**
+   - Press `Play` button to start Play Mode
+   - Press inventory hotkey (typically `I` key) to open inventory
+   - Inventory widget should appear on screen
+
+2. **Locate Item to Drop**
+   - Find an item in inventory that you want to drop
+   - Verify the item is visible in a slot (e.g., Health Potion in slot 3)
+
+3. **Perform Drag-to-World**
+   - Move mouse cursor over the item slot (e.g., slot 3)
+   - Press and hold `Left Mouse Button` on the item
+   - While holding `Left Mouse Button`, drag the item OUTSIDE the inventory widget (over the game world)
+   - Release `Left Mouse Button` while the mouse cursor is over the game world (not over any inventory slot)
+
+4. **Verify Item Dropped to World**
+   - Look in the viewport where you dropped the item
+   - The item should appear at the mouse cursor location (projected to the ground plane)
+   - Verify: `ItemPickupActor` spawns in world at the drop location
+   - Verify: Item appears in world and can be picked up again
+   - Verify: Item is removed from inventory (or quantity reduced if partial drop)
+
+5. **Test Different Drop Locations**
+   - Try dragging items to different locations in the world
+   - Verify: Items spawn at the correct locations (at mouse cursor position)
+   - Verify: Items are always at ground level (same Z as player character)
+   - Verify: Items don't spawn underground or floating
+
+6. **Test Drop Distance Limits**
+   - Try dragging items very far from the player character
+   - Verify: Items are dropped at maximum 500 units from player (if mouse is too far)
+   - Verify: Items are still accessible and visible
+   - Verify: Items don't spawn out of bounds or in invalid locations
+
+7. **Test Partial Stack Drop**
+   - Try dragging a stackable item with quantity > 1
+   - Drop it outside the inventory widget
+   - Verify: Entire stack is dropped (normal drag drops full stack)
+   - Verify: Slot becomes empty after drop
+
+8. **Test Ctrl+Drag-to-World** (Split Stack Drop)
+   - Hold `Ctrl` + Left-click and drag a stackable item (quantity > 1)
+   - Drop it outside the inventory widget
+   - Verify: Half the stack is dropped to world
+   - Verify: Remaining quantity stays in source slot
+   - Verify: Split quantity is correct (half of original stack)
+
+9. **Check Output Log**
+   - Open `Output Log` (Window → Developer Tools → Output Log)
+   - Look for log messages: `ItemDragDropOperation::OnDragCancelled - Drag cancelled, handling world drop`
+   - Look for log messages: `InventoryWidget::HandleDragToWorld - Successfully dropped item...`
+   - Look for log messages: `UInventoryComponent::DropItemToWorld - Dropped...`
+   - Verify no errors occur during drop operations
+
+**Note:** The drag-to-world feature automatically handles screen-to-world coordinate conversion. The item is dropped at the mouse cursor location projected onto the ground plane at the player's height. If the mouse location is more than 500 units away from the player, the item is dropped at the maximum distance (500 units) in that direction.
 
 ---
 
@@ -1189,7 +1247,7 @@ Once Days 26-27 are complete:
   - Split stack goes directly to the slot where user drops it, not the next available slot
   - Full UI with quantity dialog can be deferred to Phase 3. Basic half-stack split is sufficient for Phase 2.
 - **Widget Lifecycle Management:** Widgets added via `AddToViewport()` use visibility toggling (`SetVisibility(ESlateVisibility::Collapsed)`) instead of `RemoveFromParent()` to avoid "no UMG parent" warnings. Widgets are created once and reused for efficiency.
-- **World Item Drop:** C++ method is functional. Full UI integration (drag outside inventory to drop) can be implemented in Phase 3.
+- **World Item Drop:** Fully implemented! Drag items outside the inventory widget to drop them to the world at the mouse cursor location. Supports both normal drag (full stack) and Ctrl+drag (split stack) operations.
 - **Quick-Use Bar:** C++ methods and hotkey support are complete. Full UI implementation is optional for Phase 2. Hotkeys work independently of UI.
 - **Quick-Use Slots 1-8:** These are prepared for Phase 3 (skills). They should be visible but disabled/non-functional in Phase 2.
 - **Item Tooltip:** Basic tooltip is optional for Phase 2. Can be fully implemented in Phase 3.

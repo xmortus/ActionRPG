@@ -230,6 +230,7 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 	DragOperation->SourceSlotIndex = SlotIndex;
 	DragOperation->Item = CurrentItem;
 	DragOperation->SourceQuantity = CurrentQuantity;
+	DragOperation->InventoryWidget = ParentInventoryWidget; // Set reference for world drop handling
 
 	// Note: Drag preview is handled automatically by UE
 	// If you want a custom preview, you can create a widget and set it as DefaultDragVisual
@@ -284,6 +285,10 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnDrop - Drop on same slot, ignoring"));
 		return false;
 	}
+
+	// Mark drag operation as handled BEFORE handling drop (to prevent double handling)
+	// This ensures that if the InventoryWidget's NativeOnDrop is also called, it won't handle it again
+	ItemDragOp->bWasHandled = true;
 
 	// Request parent widget to handle the drop
 	// Pass the drag operation so it can handle split operations properly
@@ -378,4 +383,32 @@ bool UInventorySlotWidget::CanDropItem(UItemDragDropOperation* DragOperation) co
 
 	// Can drop if different item (will swap)
 	return true;
+}
+
+void UInventorySlotWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
+
+	// Check if this is an item drag operation
+	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (!ItemDragOp)
+	{
+		// Not an item drag operation, ignore
+		return;
+	}
+
+	// Forward to parent InventoryWidget to handle world drop
+	if (ParentInventoryWidget)
+	{
+		ParentInventoryWidget->NativeOnDragCancelled(InDragDropEvent, InOperation);
+		UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnDragCancelled - Drag cancelled, forwarding to InventoryWidget"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventorySlotWidget::NativeOnDragCancelled - ParentInventoryWidget is null, cannot handle world drop"));
+	}
+
+	// Reset visual feedback
+	bIsDragOver = false;
+	UpdateSlotVisuals();
 }

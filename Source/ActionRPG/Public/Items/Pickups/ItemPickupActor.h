@@ -38,6 +38,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pickup")
 	void SetQuantity(int32 NewQuantity);
 
+	// Item Data Getters (for verification)
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	UItemDataAsset* GetItemData() const { return ItemData; }
+
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	int32 GetQuantity() const { return Quantity; }
+
 protected:
 	virtual void BeginPlay() override;
 

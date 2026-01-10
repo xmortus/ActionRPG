@@ -72,6 +72,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI", meta = (DeprecatedFunction, DeprecationMessage = "Use HandleItemDrop with ItemDragDropOperation instead"))
 	void HandleItemDropLegacy(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = -1);
 
+	/**
+	 * Handle drag over - accept all drag operations to enable world drops.
+	 * Override NativeOnDragOver to accept drops anywhere on the widget (including outside slots).
+	 */
+	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	/**
+	 * Handle drop - check if drop is on a valid slot, otherwise handle as world drop.
+	 * Override NativeOnDrop to accept drops anywhere and route to appropriate handler.
+	 */
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	/**
+	 * Handle drag cancellation - when item is dropped outside inventory widget, drop it to world.
+	 * Override NativeOnDragCancelled to detect when drag is cancelled.
+	 */
+	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+protected:
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UUniformGridPanel> InventoryGrid;
@@ -89,7 +108,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory UI")
 	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
 
-protected:
 	// Event handlers for InventoryComponent events
 	UFUNCTION()
 	void OnInventoryChanged(int32 SlotIndex, UItemBase* Item);
@@ -104,6 +122,25 @@ protected:
 	void OnCloseButtonClicked();
 
 private:
+	/**
+	 * Handle dragging item to world (when dropped outside inventory widget).
+	 * Calculates world location from mouse position and drops item using DropItemToWorld.
+	 * @param DragOperation The drag operation containing source slot and quantity info
+	 * @param DragDropEvent The drag drop event containing mouse position info
+	 */
+	void HandleDragToWorld(UItemDragDropOperation* DragOperation, const FDragDropEvent& DragDropEvent);
+
+	/**
+	 * Find the slot widget at the given screen coordinates.
+	 * @param ScreenPosition The screen position to check
+	 * @return The slot index if found, -1 otherwise
+	 */
+	int32 FindSlotAtScreenPosition(const FVector2D& ScreenPosition) const;
+
+	// Track active drag operation for world drop detection
+	UPROPERTY()
+	TObjectPtr<UItemDragDropOperation> ActiveDragOperation;
+
 	UPROPERTY()
 	TArray<TObjectPtr<UInventorySlotWidget>> SlotWidgets;
 

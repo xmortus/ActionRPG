@@ -294,10 +294,18 @@ void AActionRPGPlayerController::OnOpenInventory()
 	// Toggle widget visibility
 	if (InventoryWidget)
 	{
-		if (InventoryWidget->IsInViewport())
+		// Check if widget is in viewport AND visible
+		// A widget not in the viewport should always be treated as "hidden" (needs to be shown)
+		// A widget in the viewport should check its visibility state
+		bool bIsInViewport = InventoryWidget->IsInViewport();
+		ESlateVisibility CurrentVisibility = InventoryWidget->GetVisibility();
+		bool bIsVisible = bIsInViewport && (CurrentVisibility == ESlateVisibility::Visible || CurrentVisibility == ESlateVisibility::SelfHitTestInvisible || CurrentVisibility == ESlateVisibility::HitTestInvisible);
+		
+		if (bIsVisible)
 		{
-			// Hide inventory
-			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Hiding inventory"));
+			// Hide inventory (widget is currently visible in viewport)
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Hiding inventory (current visibility: %d, in viewport: %s)"), 
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
 			
 			// For widgets added via AddToViewport(), just hide them instead of removing
 			// This avoids the "no UMG parent" warning and allows widget reuse
@@ -310,11 +318,17 @@ void AActionRPGPlayerController::OnOpenInventory()
 		}
 		else
 		{
-			// Show inventory
-			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Showing inventory"));
+			// Show inventory (widget is currently hidden or not in viewport)
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Showing inventory (current visibility: %d, in viewport: %s)"), 
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
 			
-			// Add to viewport with Z-Order to ensure it's on top (higher number = on top)
-			InventoryWidget->AddToViewport(100);
+			// Add to viewport if not already added (only needed on first show)
+			if (!bIsInViewport)
+			{
+				// Add to viewport with Z-Order to ensure it's on top (higher number = on top)
+				InventoryWidget->AddToViewport(100);
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport"));
+			}
 			
 			// Ensure widget is visible
 			InventoryWidget->SetVisibility(ESlateVisibility::Visible);
@@ -323,7 +337,6 @@ void AActionRPGPlayerController::OnOpenInventory()
 			if (InventoryWidget)
 			{
 				FVector2D WidgetSize = InventoryWidget->GetDesiredSize();
-				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport"));
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget visibility: %d"), (int32)InventoryWidget->GetVisibility());
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget is in viewport: %s"), InventoryWidget->IsInViewport() ? TEXT("YES") : TEXT("NO"));
 				

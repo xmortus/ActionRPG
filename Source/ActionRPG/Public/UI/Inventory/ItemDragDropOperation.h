@@ -7,6 +7,9 @@
 #include "Items/Core/ItemBase.h"
 #include "ItemDragDropOperation.generated.h"
 
+// Forward declaration
+class UInventoryWidget;
+
 /**
  * Drag and drop operation for inventory items.
  * Handles dragging items between inventory slots.
@@ -38,4 +41,12 @@ public:
 	// Is this a partial stack split (Ctrl+drag)?
 	UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
 	bool bIsSplitOperation;
+
+	// Reference to the inventory widget that created this drag operation (for world drop handling)
+	UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
+	TObjectPtr<class UInventoryWidget> InventoryWidget;
+
+	// Flag to track if this drag operation was handled by a drop
+	UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
+	bool bWasHandled;
 };

@@ -9,6 +9,11 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/CameraComponent.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "DrawDebugHelpers.h"
+#include "Kismet/KismetMathLibrary.h"
 
 void UInventoryWidget::NativeConstruct()
 {
@@ -534,4 +539,272 @@ UInventoryComponent* UInventoryWidget::GetInventoryComponent() const
 	}
 
 	return InvComp;
+}
+
+bool UInventoryWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	// Accept all item drag operations to enable world drops
+	// This allows the widget to accept drops anywhere, including outside slots
+	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (ItemDragOp)
+	{
+		// Store active drag operation for world drop detection
+		ActiveDragOperation = ItemDragOp;
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnDragOver - Accepting item drag operation"));
+		return true; // Accept the drag operation
+	}
+
+	return Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
+}
+
+bool UInventoryWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+
+	// Check if this is an item drag operation
+	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (!ItemDragOp)
+	{
+		return false;
+	}
+
+	// Clear active drag operation since drop was handled
+	ActiveDragOperation = nullptr;
+
+	// Get the local position of the drop
+	FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
+	
+	// Find which slot (if any) the drop is over
+	int32 TargetSlotIndex = FindSlotAtScreenPosition(LocalPosition);
+
+	if (TargetSlotIndex >= 0 && TargetSlotIndex < SlotWidgets.Num())
+	{
+		// Drop is on a valid slot - handle normally
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop on slot %d, routing to HandleItemDrop"), TargetSlotIndex);
+		HandleItemDrop(ItemDragOp, TargetSlotIndex);
+		return true;
+	}
+	else
+	{
+		// Drop is outside any slot - handle as world drop
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop outside slots (target slot: %d), handling as world drop"), TargetSlotIndex);
+		HandleDragToWorld(ItemDragOp, InDragDropEvent);
+		return true;
+	}
+}
+
+int32 UInventoryWidget::FindSlotAtScreenPosition(const FVector2D& LocalPosition) const
+{
+	// Calculate which slot based on grid layout (10 columns)
+	// This is approximate - for exact slot detection, we'd need to check each slot's actual geometry
+	if (!InventoryGrid || SlotWidgets.Num() == 0)
+	{
+		return -1;
+	}
+
+	const int32 Columns = 10;
+	const int32 SlotSize = 64; // Approximate slot size in pixels (adjust based on your Blueprint)
+	
+	int32 Col = FMath::FloorToInt(LocalPosition.X / SlotSize);
+	int32 Row = FMath::FloorToInt(LocalPosition.Y / SlotSize);
+	int32 CalculatedIndex = Row * Columns + Col;
+	
+	// Validate the calculated index
+	if (CalculatedIndex >= 0 && CalculatedIndex < SlotWidgets.Num())
+	{
+		return CalculatedIndex;
+	}
+
+	// Could not determine slot - return -1 to indicate world drop
+	return -1;
+}
+
+
+void UInventoryWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
+
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Drag cancelled event received"));
+
+	// Check if this is an item drag operation
+	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (!ItemDragOp)
+	{
+		// Not an item drag operation, ignore
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnDragCancelled - Not an item drag operation, ignoring"));
+		return;
+	}
+
+	// Check if the drag was already handled by a drop
+	if (ItemDragOp->bWasHandled)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Drag operation was already handled, ignoring"));
+		ActiveDragOperation = nullptr;
+		return;
+	}
+
+	// Handle world drop - item was dropped outside the inventory widget
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Handling world drop (drag was not handled)"));
+	HandleDragToWorld(ItemDragOp, InDragDropEvent);
+	ActiveDragOperation = nullptr;
+}
+
+void UInventoryWidget::HandleDragToWorld(UItemDragDropOperation* DragOperation, const FDragDropEvent& DragDropEvent)
+{
+	if (!DragOperation || !InventoryComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - Invalid drag operation or inventory component"));
+		return;
+	}
+
+	// Get the source slot index and quantity
+	int32 SourceSlotIndex = DragOperation->SourceSlotIndex;
+	int32 Quantity = DragOperation->Quantity;
+
+	if (SourceSlotIndex < 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - Invalid source slot index: %d"), SourceSlotIndex);
+		return;
+	}
+
+	// Get player controller for screen-to-world conversion
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - PlayerController is null"));
+		return;
+	}
+
+	// Get player character for drop location calculation
+	APawn* Pawn = PlayerController->GetPawn();
+	if (!Pawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - Pawn is null"));
+		return;
+	}
+
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(Pawn);
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - Pawn is not AActionRPGPlayerCharacter"));
+		return;
+	}
+
+	// Calculate world drop location
+	// For top-down gameplay, drop item in front of player character at a fixed distance
+	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+	FVector ForwardVector = PlayerCharacter->GetActorForwardVector();
+	
+	// Drop item 150 units in front of player character
+	float DropDistance = 150.0f;
+	FVector DropLocation = PlayerLocation + (ForwardVector * DropDistance);
+	
+	// Alternative: Use mouse position to determine drop location
+	// This allows dropping where the mouse cursor is (for top-down camera)
+	FVector WorldLocation;
+	FVector WorldDirection;
+	
+	if (PlayerController->DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
+	{
+		// Calculate intersection point on the ground plane at player's height
+		float PlaneZ = PlayerLocation.Z;
+		
+		// Calculate intersection with horizontal plane using ray-plane intersection
+		if (FMath::Abs(WorldDirection.Z) > 0.001f) // Avoid division by zero
+		{
+			// Ray-plane intersection formula: T = (PlaneZ - RayOrigin.Z) / RayDirection.Z
+			float T = (PlaneZ - WorldLocation.Z) / WorldDirection.Z;
+			FVector MouseWorldLocation = WorldLocation + (WorldDirection * T);
+			
+			// Limit drop distance to reasonable range (max 500 units from player)
+			FVector ToMouseLocation = MouseWorldLocation - PlayerLocation;
+			float DistanceToMouse = ToMouseLocation.Size2D();
+			
+			if (DistanceToMouse <= 500.0f)
+			{
+				// Use mouse location if within range
+				DropLocation = MouseWorldLocation;
+			}
+			else
+			{
+				// Clamp to max distance if too far
+				FVector ClampedDirection = ToMouseLocation.GetSafeNormal2D();
+				DropLocation = PlayerLocation + (ClampedDirection * 500.0f);
+			}
+		}
+	}
+
+	// Find actual ground level at drop location using line trace
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		// Trace downward from above the drop location to find ground
+		// Start from a high point (player location + 500 units) to ensure we're above terrain
+		FVector TraceStart = DropLocation;
+		TraceStart.Z = FMath::Max(PlayerLocation.Z + 500.0f, DropLocation.Z + 500.0f);
+		
+		// Trace down to well below the player (player Z - 1000 units) to find ground
+		FVector TraceEnd = DropLocation;
+		TraceEnd.Z = PlayerLocation.Z - 1000.0f;
+		
+		// Use world's LineTraceSingleByChannel - FHitResult and FCollisionQueryParams should be available through Engine/World.h
+		FHitResult HitResult;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(PlayerCharacter); // Ignore player character
+		QueryParams.bTraceComplex = false; // Use simple collision for performance
+		
+		// Trace against world static objects (ground, terrain, etc.)
+		if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
+		{
+			// Found ground - use hit location, but add a small offset above ground to prevent clipping
+			DropLocation = HitResult.ImpactPoint;
+			DropLocation.Z += 5.0f; // Small offset to place item slightly above ground
+			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleDragToWorld - Found ground at Z=%.2f (adjusted to %.2f) using line trace"), 
+				HitResult.ImpactPoint.Z, DropLocation.Z);
+		}
+		else
+		{
+			// Try tracing against WorldDynamic as fallback (for platforms, etc.)
+			if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldDynamic, QueryParams))
+			{
+				DropLocation = HitResult.ImpactPoint;
+				DropLocation.Z += 5.0f; // Small offset above ground
+				UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleDragToWorld - Found surface (WorldDynamic) at Z=%.2f (adjusted to %.2f)"), 
+					HitResult.ImpactPoint.Z, DropLocation.Z);
+			}
+			else
+			{
+				// No ground found - use player's Z as fallback (but still try to place on ground plane)
+				// For top-down games, player Z is usually at ground level
+				DropLocation.Z = PlayerLocation.Z;
+				UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - No ground found via line trace, using player Z=%.2f as fallback"), DropLocation.Z);
+			}
+		}
+	}
+	else
+	{
+		// No world - use player's Z as fallback
+		DropLocation.Z = PlayerLocation.Z;
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleDragToWorld - World is null, using player Z=%.2f as fallback"), DropLocation.Z);
+	}
+
+	// Log drop attempt
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleDragToWorld - Attempting to drop item from slot %d (Quantity: %d) to world at location (%.2f, %.2f, %.2f)"), 
+		SourceSlotIndex, Quantity, DropLocation.X, DropLocation.Y, DropLocation.Z);
+	
+	// Drop item to world at calculated location
+	bool bSuccess = InventoryComponent->DropItemToWorld(SourceSlotIndex, Quantity, DropLocation);
+	
+	if (bSuccess)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleDragToWorld - Successfully dropped item from slot %d to world at location (%.2f, %.2f, %.2f)"), 
+			SourceSlotIndex, DropLocation.X, DropLocation.Y, DropLocation.Z);
+		
+		// Update inventory display to reflect item removal
+		UpdateInventoryDisplay();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryWidget::HandleDragToWorld - FAILED to drop item from slot %d to world. Check DropItemToWorld implementation and ItemPickupActor spawning."), SourceSlotIndex);
+	}
 }

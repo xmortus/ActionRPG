@@ -693,7 +693,8 @@ void UInventoryComponent::BroadcastInventoryChanged(int32 SlotIndex, UItemBase* 
 	UpdateSlotEmptyStatus(SlotIndex);
 	
 	// Report inventory contents on change (for debugging)
-	ReportInventoryContents();
+	// Disabled by user request - uncomment the line below to re-enable
+	// ReportInventoryContents();
 }
 
 
@@ -1041,11 +1042,45 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 		return false;
 	}
 
-	// Set item data and quantity
+	// Set item data and quantity BEFORE removing from inventory (to ensure actor is properly set up)
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Preparing to set item data: %s (Quantity: %d)"), 
+		ItemData ? *ItemData->ItemName.ToString() : TEXT("NULL"), Quantity);
+	
+	if (!ItemData)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - ItemData is NULL! Cannot drop item."));
+		PickupActor->Destroy();
+		return false;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Calling SetItemData with ItemData: %s (Pointer: %p)"), 
+		*ItemData->ItemName.ToString(), ItemData);
 	PickupActor->SetItemData(const_cast<UItemDataAsset*>(ItemData));
+	
+	// Verify ItemData was set correctly
+	UItemDataAsset* SetItemDataResult = PickupActor->GetItemData();
+	if (!SetItemDataResult)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - FAILED: SetItemData returned NULL! ItemData was not set on PickupActor."));
+		PickupActor->Destroy();
+		return false;
+	}
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Verified: ItemData was set successfully: %s"), 
+		*SetItemDataResult->ItemName.ToString());
+	
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Calling SetQuantity with Quantity: %d"), Quantity);
 	PickupActor->SetQuantity(Quantity);
+	
+	// Verify Quantity was set correctly
+	int32 SetQuantityResult = PickupActor->GetQuantity();
+	if (SetQuantityResult != Quantity)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::DropItemToWorld - Quantity mismatch: Expected %d, Got %d"), Quantity, SetQuantityResult);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - SetItemData and SetQuantity calls completed successfully"));
 
-	// Remove item from inventory
+	// Remove item from inventory AFTER ensuring actor is set up correctly
 	UItemBase* RemovedItem = Slot.Item;
 	if (Quantity >= Slot.Quantity)
 	{
