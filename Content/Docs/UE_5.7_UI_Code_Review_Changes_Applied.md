@@ -83,6 +83,53 @@ Completed comprehensive review of UI code against UE 5.7 best practices. Applied
 
 ---
 
+### ✅ Change 5: Added SplitStackToSlot Method (Day 26)
+
+**Files Modified:**
+- `Source/ActionRPG/Public/Components/Inventory/InventoryComponent.h`
+- `Source/ActionRPG/Private/Components/Inventory/InventoryComponent.cpp`
+- `Source/ActionRPG/Private/UI/Inventory/InventoryWidget.cpp`
+
+**What Changed:**
+- Added `SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity)` method to InventoryComponent
+- Method places split stack directly in the target slot where user drops it (instead of next available slot)
+- Handles three cases:
+  - Empty target slot: Creates new item instance and places directly in target slot
+  - Same item in target slot: Stacks the split quantity (respects MaxStackSize)
+  - Different item in target slot: Returns false (can't drop on different item)
+- Updated `HandleItemDrop` in InventoryWidget to use `SplitStackToSlot` for split operations instead of `SplitStack`
+
+**Benefits:**
+- Split stacks now go exactly where user drops them (not next available slot)
+- Better user experience and expected drag-and-drop behavior
+- Maintains separation of concerns (UI calls InventoryComponent method)
+
+**Status:** ✅ Applied
+
+---
+
+### ✅ Change 6: Fixed Widget Lifecycle Management (Day 26-27)
+
+**Files Modified:**
+- `Source/ActionRPG/Private/Core/ActionRPGPlayerController.cpp`
+- `Source/ActionRPG/Private/UI/Inventory/InventoryWidget.cpp`
+
+**What Changed:**
+- Fixed "no UMG parent" warning for widgets added via `AddToViewport()`
+- Changed from `RemoveFromParent()` to visibility toggling (`SetVisibility(ESlateVisibility::Collapsed)`)
+- Widget is created once and reused by toggling visibility (more efficient)
+- `OnOpenInventory` checks `IsInViewport()` and toggles visibility accordingly
+- `CloseInventory()` now uses visibility toggling instead of `RemoveFromParent()`
+
+**Benefits:**
+- Eliminates "no UMG parent" warnings in UE 5.7
+- More efficient widget lifecycle (create once, reuse)
+- Simpler code with better performance
+
+**Status:** ✅ Applied
+
+---
+
 ## Verification
 
 ### Compilation Status
@@ -137,7 +184,10 @@ After applying changes, verify:
 - [ ] Right-click use item works (expected: ✅ works)
 - [ ] Weight/capacity display updates (expected: ✅ works)
 - [ ] Left-click initiates drag detection (NEW - test after compilation)
-- [ ] Drag and drop works (NEW - test after Days 24-25 implementation)
+- [x] Drag and drop works (Days 24-25: ✅ implemented)
+- [x] Stack splitting works with Ctrl+drag (Day 26: ✅ implemented)
+- [x] Split stack goes to exact target slot (Day 26: ✅ fixed)
+- [x] No RemoveFromParent warnings (Day 26-27: ✅ fixed)
 - [ ] No memory leaks or GC issues (expected: ✅ works)
 - [ ] No crashes during rapid open/close (expected: ✅ works)
 
@@ -190,6 +240,9 @@ After applying changes, verify:
 3. `Source/ActionRPG/Private/UI/Inventory/InventorySlotWidget.cpp`
 4. `Source/ActionRPG/Public/Core/ActionRPGPlayerController.h`
 5. `Source/ActionRPG/Private/Core/ActionRPGPlayerController.cpp`
+6. `Source/ActionRPG/Public/Components/Inventory/InventoryComponent.h` (Day 26: SplitStackToSlot)
+7. `Source/ActionRPG/Private/Components/Inventory/InventoryComponent.cpp` (Day 26: SplitStackToSlot)
+8. `Source/ActionRPG/Public/UI/Inventory/ItemDragDropOperation.h` (Updated comment)
 
 ---
 

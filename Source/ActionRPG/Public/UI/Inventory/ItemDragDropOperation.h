@@ -35,7 +35,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
 	int32 SourceQuantity;
 
-	// Is this a partial stack split (right-click drag)?
+	// Is this a partial stack split (Ctrl+drag)?
 	UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
 	bool bIsSplitOperation;
 };

@@ -35,7 +35,7 @@
 - ✅ ItemPickupActor class (C++ and Blueprint-ready)
 - ✅ InventoryWidget and InventorySlotWidget (UMG widgets)
 - ✅ Drag and drop system (ItemDragDropOperation)
-- ✅ Stack splitting functionality (Ctrl+drag or right-click drag)
+- ✅ Stack splitting functionality (Ctrl+drag)
 - ✅ World item dropping (items spawn as ItemPickupActor in world)
 - ✅ Quick-use bar system (10 slots: 1-8 for skills, 9-10 for consumables)
 - ✅ Hotkey support for consumable quick-use slots (9-0 keys)
@@ -48,7 +48,7 @@
 - InventoryComponent compiles and attaches to player character
 - Items can be added to and removed from inventory
 - Item stacking works correctly
-- Stack splitting works (Ctrl+drag or right-click drag)
+- Stack splitting works (Ctrl+drag)
 - Items can be dropped from inventory to world (spawn as ItemPickupActor)
 - Dropped items can be picked up again
 - Item pickups spawn in world and can be collected
@@ -405,10 +405,14 @@ Create the foundation for the inventory UI system. This includes creating C++ wi
 10. **Implement Inventory Toggle**
     - Complete OnOpenInventory() in PlayerController C++:
       - Get InventoryWidget from HUD or PlayerController
-      - Toggle widget visibility
+      - Check if widget is in viewport using `IsInViewport()`
+      - If in viewport: Set visibility to `Collapsed` (hide inventory)
+      - If not in viewport: Call `AddToViewport()` then set visibility to `Visible` (show inventory)
+      - **Important:** Use visibility toggling instead of `RemoveFromParent()` for widgets added via `AddToViewport()` to avoid "no UMG parent" warnings in UE 5.7
       - Set input mode: GameAndUI when open, GameOnly when closed
       - Optionally pause game (SetPause(true/false))
-      - Show/hide mouse cursor
+      - Show/hide mouse cursor (keep visible for top-down gameplay)
+    - Widget Lifecycle: Widget is created once and reused by toggling visibility (more efficient than create/destroy)
     - Create or update BP_ActionRPGHUD:
       - Add InventoryWidget reference as property
       - Create widget in BeginPlay
@@ -545,16 +549,18 @@ Enhance the inventory system with advanced features including item tooltips, qui
 
 1. **Implement Stack Splitting**
    - Add split stack UI dialog/popup
-   - Detect right-click drag or Ctrl+drag for split mode
+   - Detect Ctrl+drag for split mode
    - Update ItemDragDropOperation to support split operations
-   - Add `SplitStack(int32 SlotIndex, int32 SplitQuantity)` method to InventoryComponent
+   - Add `SplitStack(int32 SlotIndex, int32 SplitQuantity)` method to InventoryComponent (places in next available slot)
+   - Add `SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity)` method to InventoryComponent (places directly in target slot)
    - Validate split quantity (must be > 0 and < current quantity)
    - Create new item instance with split quantity
    - Update source slot quantity (reduce by split amount)
-   - Handle split on drag: when dragging with split mode, only move split quantity
+   - Handle split on drag: when dragging with Ctrl held, only move split quantity (half stack) to target slot
    - Visual feedback for split mode (different drag preview or cursor)
-   - Update NativeOnDragDetected to detect Ctrl+drag or right-click drag
+   - Update NativeOnDragDetected to detect Ctrl+drag
    - Set `bIsSplitOperation = true` in ItemDragDropOperation when splitting
+   - Split stack is placed directly in target slot where user drops it (not next available slot)
 
 2. **Implement World Item Dropping**
    - Add "Drop Item" functionality when dragging outside inventory UI
@@ -569,8 +575,8 @@ Enhance the inventory system with advanced features including item tooltips, qui
    - Test dropped items persist in world and can be picked up again
 
 3. **Enhance Drag and Drop for Split Operations**
-   - Update NativeOnMouseButtonDown to detect Ctrl+LeftClick or RightClick drag
-   - Show split quantity dialog when initiating split drag
+   - Update NativeOnMouseButtonDown to detect Ctrl+LeftClick for split mode
+   - Show split quantity dialog when initiating split drag (optional - can use half stack for Phase 2)
    - Update drag operation to store split quantity vs full quantity
    - Update drop logic to handle split quantities correctly
    - Visual indicator when in split mode (different drag preview, cursor change)
@@ -712,6 +718,10 @@ FQuickUseSlot GetQuickUseSlot(int32 QuickUseSlotIndex) const;
 
 UFUNCTION(BlueprintCallable, Category = "Inventory")
 bool SplitStack(int32 SlotIndex, int32 SplitQuantity);
+
+// Split stack directly to a target slot (for drag and drop operations)
+UFUNCTION(BlueprintCallable, Category = "Inventory")
+bool SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity);
 ```
 
 **World Item Drop Method:**
@@ -722,7 +732,7 @@ bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocati
 ```
 
 #### Deliverables
-- ✅ Stack splitting functional (Ctrl+drag or right-click drag)
+- ✅ Stack splitting functional (Ctrl+drag)
 - ✅ World item dropping implemented (items spawn as ItemPickupActor)
 - ✅ Quick-use bar created with 10 slots (1-8 for skills, 9-10 for consumables)
 - ✅ Quick-use slots 9-10 functional for consumables
@@ -1115,8 +1125,10 @@ public:
 - [ ] Visual feedback works
 
 #### Day 26-27: UI Polish & Advanced Features
-- [ ] Stack splitting works (Ctrl+drag or right-click drag)
-- [ ] Split quantity dialog works correctly
+- [ ] Stack splitting works (Ctrl+drag)
+- [ ] Split stack appears in exact target slot where dropped (not next available slot)
+- [ ] Split stack can be dropped on empty slots correctly
+- [ ] Split stack can be stacked on existing stacks of same item (if space available)
 - [ ] World item dropping works (items spawn in world)
 - [ ] Dropped items can be picked up again
 - [ ] Quick-use bar displays correctly (10 slots)
@@ -1127,6 +1139,8 @@ public:
 - [ ] Drag and drop from quick-use slots back to inventory works
 - [ ] Quick-use items are consumed when hotkey pressed
 - [ ] Quick-use slots update when items removed from inventory
+- [ ] Widget visibility toggling works correctly (no RemoveFromParent warnings)
+- [ ] Inventory widget lifecycle managed correctly (reused via visibility toggle)
 - [ ] Tooltip displays on hover (inventory and quick-use slots)
 - [ ] Item details panel works (optional)
 - [ ] Filter/sort features work (optional)
@@ -1152,7 +1166,7 @@ public:
 - ✅ Drag and drop works between slots
 - ✅ Items can be used from inventory
 - ✅ Complete flow tested (pickup → inventory → use)
-- ✅ Stack splitting functional (Ctrl+drag or right-click drag)
+- ✅ Stack splitting functional (Ctrl+drag)
 - ✅ World item dropping implemented (items spawn in world)
 - ✅ Quick-use bar with slots 9-10 for consumables functional
 - ✅ Hotkeys 9-0 working for consumable quick-use slots
@@ -1213,13 +1227,18 @@ public:
 
 ### Issue: Stack Splitting Not Working
 **Symptoms:** Can't split stacks or split doesn't work correctly
+
 **Solutions:**
-- Verify Ctrl+drag or right-click drag detection is working
-- Check SplitStack method in InventoryComponent
+- Verify Ctrl+drag detection is working (hold Ctrl while dragging)
+- Check `SplitStackToSlot` method in InventoryComponent (used for drag and drop to target slot)
+- Check `SplitStack` method in InventoryComponent (places in next available slot)
 - Verify split quantity validation (must be > 0 and < current quantity)
-- Check ItemDragDropOperation has bIsSplitOperation flag set
+- Note: Right-click is used for item usage, not stack splitting
+- Check ItemDragDropOperation has `bIsSplitOperation` flag set
 - Verify new item instance is created correctly
 - Check source slot quantity is updated correctly
+- Verify split stack appears in target slot (not next available slot)
+- For drag and drop splits, ensure `HandleItemDrop` calls `SplitStackToSlot` (not `SplitStack`)
 
 ### Issue: World Item Drop Not Working
 **Symptoms:** Items don't spawn in world or can't be dropped
@@ -1262,12 +1281,37 @@ After Phase 2 completion, Phase 3 will focus on:
 
 ## Notes & Deviations
 
+### Implementation Changes from Original Plan
+
+#### Stack Splitting Implementation (Day 26)
+- **Added `SplitStackToSlot` Method:** To support drag and drop operations, a new method `SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity)` was added to place split stacks directly in the target slot where the user drops them, rather than using `SplitStack` which places them in the next available slot via `FindEmptySlot()`.
+- **Behavior:** Split stacks now go directly to the slot where they are dropped, not the next available slot. This provides better user experience and matches expected drag-and-drop behavior.
+- **Stacking Support:** `SplitStackToSlot` also handles stacking to existing stacks of the same item type, respecting `MaxStackSize` limits.
+
+#### Widget Lifecycle Management (Day 26-27)
+- **Visibility Toggling Instead of Removal:** Widgets added via `AddToViewport()` now use visibility toggling (`SetVisibility(ESlateVisibility::Collapsed)`) instead of `RemoveFromParent()` to avoid the "no UMG parent" warning in UE 5.7.
+- **Widget Reuse:** Inventory widget is created once and reused by toggling visibility, which is more efficient than creating/destroying widgets each time.
+- **Implementation:** `OnOpenInventory` in PlayerController checks `IsInViewport()` and toggles visibility accordingly. Widget stays in viewport but is hidden when inventory is closed.
+
+#### Drag and Drop Split Operations
+- **Split Detection:** Split mode is detected using `Ctrl+drag` only. Right-click is reserved for item usage.
+- **Split Quantity:** For Phase 2, split quantity is automatically calculated as half the stack. Full quantity dialog can be added in Phase 3.
+
 ### Document Any:
-- Changes from original plan
-- Issues encountered
-- Solutions found
-- Decisions made
-- Future considerations
+- Changes from original plan: See above
+- Issues encountered:
+  - Widget removal warning: Fixed by using visibility toggling for viewport widgets
+  - Split stack going to wrong slot: Fixed by implementing `SplitStackToSlot` method
+- Solutions found:
+  - Use `SetVisibility(ESlateVisibility::Collapsed)` for widgets added via `AddToViewport()`
+  - Use `SplitStackToSlot` for drag operations to place split stack in target slot
+- Decisions made:
+  - Right-click reserved for item usage, not drag splitting
+  - Widgets stay in viewport and toggle visibility instead of being removed
+  - Split stacks go directly to target slot for better UX
+- Future considerations:
+  - Add quantity dialog for stack splitting (Phase 3)
+  - Add drag outside inventory bounds to drop to world (Phase 3)
 
 ---
 

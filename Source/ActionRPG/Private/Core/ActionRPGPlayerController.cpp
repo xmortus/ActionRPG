@@ -298,7 +298,11 @@ void AActionRPGPlayerController::OnOpenInventory()
 		{
 			// Hide inventory
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Hiding inventory"));
-			InventoryWidget->RemoveFromParent();
+			
+			// For widgets added via AddToViewport(), just hide them instead of removing
+			// This avoids the "no UMG parent" warning and allows widget reuse
+			InventoryWidget->SetVisibility(ESlateVisibility::Collapsed);
+			
 			// Keep mouse cursor visible for top-down gameplay (targeting/interaction)
 			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
@@ -309,11 +313,11 @@ void AActionRPGPlayerController::OnOpenInventory()
 			// Show inventory
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Showing inventory"));
 			
-			// Ensure widget is visible
-			InventoryWidget->SetVisibility(ESlateVisibility::Visible);
-			
 			// Add to viewport with Z-Order to ensure it's on top (higher number = on top)
 			InventoryWidget->AddToViewport(100);
+			
+			// Ensure widget is visible
+			InventoryWidget->SetVisibility(ESlateVisibility::Visible);
 			
 			// Log widget status for debugging
 			if (InventoryWidget)

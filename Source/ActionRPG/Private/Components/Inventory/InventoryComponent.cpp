@@ -845,6 +845,150 @@ bool UInventoryComponent::SplitStack(int32 SlotIndex, int32 SplitQuantity)
 	return true;
 }
 
+bool UInventoryComponent::SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity)
+{
+	// Validate slot indices
+	if (!InventorySlots.IsValidIndex(SourceSlotIndex) || !InventorySlots.IsValidIndex(TargetSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Invalid slot indices (Source: %d, Target: %d)"), 
+			SourceSlotIndex, TargetSlotIndex);
+		return false;
+	}
+
+	// Can't split to same slot
+	if (SourceSlotIndex == TargetSlotIndex)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Cannot split to same slot"));
+		return false;
+	}
+
+	FInventorySlot& SourceSlot = InventorySlots[SourceSlotIndex];
+	FInventorySlot& TargetSlot = InventorySlots[TargetSlotIndex];
+
+	// Check if source slot is empty
+	if (SourceSlot.bIsEmpty || !SourceSlot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Source slot %d is empty"), SourceSlotIndex);
+		return false;
+	}
+
+	// Validate split quantity
+	if (SplitQuantity <= 0 || SplitQuantity >= SourceSlot.Quantity)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Invalid split quantity: %d (current: %d)"), 
+			SplitQuantity, SourceSlot.Quantity);
+		return false;
+	}
+
+	// Check if item can stack (MaxStackSize > 1)
+	if (!SourceSlot.Item->ItemData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Item has no ItemData"));
+		return false;
+	}
+
+	const UItemDataAsset* ItemData = SourceSlot.Item->ItemData;
+	if (ItemData->MaxStackSize <= 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Item cannot stack (MaxStackSize: %d)"), 
+			ItemData->MaxStackSize);
+		return false;
+	}
+
+	// Handle different target slot states
+	if (TargetSlot.bIsEmpty)
+	{
+		// Target slot is empty - create split stack directly in target slot
+		// Create new item instance with split quantity
+		UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
+		if (!NewItem)
+		{
+			UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::SplitStackToSlot - Failed to create new item instance"));
+			return false;
+		}
+
+		// Initialize new item with same data
+		NewItem->ItemData = SourceSlot.Item->ItemData;
+		NewItem->Quantity = SplitQuantity;
+
+		// Update source slot (reduce quantity)
+		SourceSlot.Quantity -= SplitQuantity;
+		if (SourceSlot.Quantity <= 0)
+		{
+			SourceSlot.Item = nullptr;
+			SourceSlot.bIsEmpty = true;
+			SourceSlot.Quantity = 0;
+		}
+		else
+		{
+			// Update source item quantity
+			SourceSlot.Item->Quantity = SourceSlot.Quantity;
+		}
+
+		// Place split stack in target slot
+		TargetSlot.Item = NewItem;
+		TargetSlot.Quantity = SplitQuantity;
+		TargetSlot.bIsEmpty = false;
+
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::SplitStackToSlot - Split %d from slot %d to slot %d"), 
+			SplitQuantity, SourceSlotIndex, TargetSlotIndex);
+
+		// Fire events
+		BroadcastInventoryChanged(SourceSlotIndex, SourceSlot.Item);
+		BroadcastInventoryChanged(TargetSlotIndex, NewItem);
+
+		return true;
+	}
+	else if (TargetSlot.Item && TargetSlot.Item->ItemData && 
+	         TargetSlot.Item->ItemData->ItemID == SourceSlot.Item->ItemData->ItemID)
+	{
+		// Same item: try to stack the split quantity
+		int32 MaxStackSize = TargetSlot.Item->ItemData->MaxStackSize;
+		int32 RemainingSpace = MaxStackSize - TargetSlot.Quantity;
+		
+		if (RemainingSpace <= 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Target slot is full, cannot stack"));
+			return false;
+		}
+
+		// Calculate how much can be stacked
+		int32 StackAmount = FMath::Min(SplitQuantity, RemainingSpace);
+		
+		// Add to target slot
+		TargetSlot.Quantity += StackAmount;
+		TargetSlot.Item->Quantity = TargetSlot.Quantity;
+
+		// Remove from source slot
+		SourceSlot.Quantity -= StackAmount;
+		if (SourceSlot.Quantity <= 0)
+		{
+			SourceSlot.Item = nullptr;
+			SourceSlot.bIsEmpty = true;
+			SourceSlot.Quantity = 0;
+		}
+		else
+		{
+			SourceSlot.Item->Quantity = SourceSlot.Quantity;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::SplitStackToSlot - Stacked %d from split (remaining space: %d)"), 
+			StackAmount, RemainingSpace);
+
+		// Fire events
+		BroadcastInventoryChanged(SourceSlotIndex, SourceSlot.Item);
+		BroadcastInventoryChanged(TargetSlotIndex, TargetSlot.Item);
+
+		return true;
+	}
+	else
+	{
+		// Different item: can't drop split stack on different item
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStackToSlot - Cannot drop split stack on different item"));
+		return false;
+	}
+}
+
 bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocation)
 {
 	// Validate slot index

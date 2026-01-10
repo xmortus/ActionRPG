@@ -616,20 +616,22 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
 
 ---
 
-### Step 4: Handle Partial Stack Splits (Optional - Right-Click Drag)
+### Step 4: Handle Partial Stack Splits (Optional - Deferred to Days 26-27)
 
-#### 4.1 Update Drag Detection for Split Mode
+**Note:** This step was completed in Days 26-27 with Ctrl+drag implementation. Right-click is reserved for item usage. Full split functionality with quantity dialog can be implemented in Phase 3 if needed.
+
+#### 4.1 Update Drag Detection for Split Mode (Days 26-27 Implementation)
 
 1. **Add Split Mode Property to ItemDragDropOperation.h**
-   - Add to `UItemDragDropOperation` class:
+   - Added to `UItemDragDropOperation` class:
      ```cpp
-     // Is this a partial stack split (right-click drag)?
+     // Is this a partial stack split (Ctrl+drag)?
      UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
      bool bIsSplitOperation;
      ```
 
-2. **Update InventorySlotWidget::NativeOnMouseButtonDown**
-   - Modify to detect right-click drag for split:
+2. **Update InventorySlotWidget::NativeOnDragDetected**
+   - Implemented to detect Ctrl+drag for split mode:
      ```cpp
      FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
      {
@@ -648,9 +650,8 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
              }
              else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
              {
-                 // Right click without modifier - use item
-                 // Right click with modifier (Ctrl/Shift) - split stack (optional for Phase 2)
-                 // For now, just use item
+                 // Right click - use item (not used for drag splitting)
+                 // Stack splitting uses Ctrl+drag (implemented in Days 26-27)
                  OnSlotRightClicked.Broadcast(SlotIndex);
                  return FReply::Handled();
              }
@@ -660,7 +661,7 @@ Days 24-25 focus on implementing drag and drop functionality for the inventory s
      }
      ```
 
-   **Note:** Full split functionality can be added in Phase 3. For now, focus on basic drag and drop.
+   **Note:** Stack splitting with Ctrl+drag was implemented in Days 26-27. Right-click is reserved for item usage. Full split functionality with quantity dialog can be added in Phase 3.
 
 ---
 
@@ -933,7 +934,7 @@ Once Days 24-25 are complete:
 ## Notes
 
 - **Drag Preview:** Default UMG drag preview is sufficient for Phase 2. Custom preview widget can be added in Phase 3.
-- **Split Stack:** Full split stack functionality (right-click drag for partial quantity) can be deferred to Phase 3 if needed.
+- **Split Stack:** Full split stack functionality with quantity dialog can be deferred to Phase 3. Basic Ctrl+drag split (half stack) is implemented in Days 26-27.
 - **Performance:** Drag operations are lightweight. No performance concerns unless dragging hundreds of items.
 - **Visual Polish:** Basic visual feedback (border colors) is sufficient for Phase 2. More advanced effects can be added in Days 26-27.
 

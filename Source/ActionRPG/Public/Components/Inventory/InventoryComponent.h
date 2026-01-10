@@ -101,6 +101,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool SplitStack(int32 SlotIndex, int32 SplitQuantity);
 
+	// Split stack directly to a target slot (for drag and drop operations)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 SplitQuantity);
+
 	// World Item Dropping
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocation);

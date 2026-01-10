@@ -136,7 +136,12 @@ InventoryWidget->AddToViewport(100);
 FVector2D WidgetSize = InventoryWidget->GetDesiredSize(); // May return 0.0
 ```
 
-**Status:** ✅ Already handled with appropriate logging. No change needed.
+**Widget Lifecycle Management Update (Day 26-27):**
+- Widgets added via `AddToViewport()` now use visibility toggling instead of `RemoveFromParent()` to avoid "no UMG parent" warnings in UE 5.7
+- Use `SetVisibility(ESlateVisibility::Collapsed)` to hide widgets, and `SetVisibility(ESlateVisibility::Visible)` to show them
+- Widgets are created once and reused by toggling visibility (more efficient than create/destroy)
+
+**Status:** ✅ Already handled with appropriate logging. Widget lifecycle updated to use visibility toggling.
 
 ---
 
@@ -465,7 +470,7 @@ After applying changes, test:
 - **Virtualization:** For very large inventories (100+ slots), consider widget virtualization
 
 ### Phase 3 Features:
-- **Split Stack:** Right-click drag for partial quantity moves
+- **Split Stack:** Ctrl+drag for half-stack split moves
 - **Quick-Use Slots:** Hotkey slots for frequently used items
 - **Filter/Sort:** Filter and sort inventory items
 - **Tooltips:** Hover tooltips with item details

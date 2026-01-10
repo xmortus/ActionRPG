@@ -189,8 +189,11 @@ void UInventoryWidget::CloseInventory()
 {
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::CloseInventory - Closing inventory"));
 	
-	// Remove from viewport (handled by PlayerController)
-	RemoveFromParent();
+	// Don't remove from parent here - let the PlayerController handle widget lifecycle
+	// If this widget was added via AddToViewport(), RemoveFromParent() will cause warnings
+	// Instead, we just hide the widget and let PlayerController's OnOpenInventory handle the toggle
+	// Using Collapsed instead of Hidden to prevent the widget from taking up layout space
+	SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UInventoryWidget::HandleItemDropLegacy(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity)
@@ -282,47 +285,17 @@ void UInventoryWidget::HandleItemDrop(UItemDragDropOperation* DragOperation, int
 		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleItemDrop - Split operation: Moving %d/%d from slot %d to slot %d"),
 			DragOperation->Quantity, DragOperation->SourceQuantity, SourceSlotIndex, TargetSlotIndex);
 
-		// For split operations, use SplitStack first to create the split portion
-		// Then move/stack the split portion to the target slot
-		// First, check if target slot is empty
-		const FInventorySlot& TargetSlot = InventorySlots[TargetSlotIndex];
-		const FInventorySlot& SourceSlot = InventorySlots[SourceSlotIndex];
-
-		if (TargetSlot.bIsEmpty)
+		// Use SplitStackToSlot to split directly to target slot
+		bool bSuccess = InventoryComponent->SplitStackToSlot(SourceSlotIndex, TargetSlotIndex, DragOperation->Quantity);
+		
+		if (bSuccess)
 		{
-			// Split stack first, then move the newly created split slot to target
-			// This is a simplified approach - full implementation would require a more sophisticated method
-			// For now, we'll use SplitStack which creates a new slot, then swap/move if needed
-			if (InventoryComponent->SplitStack(SourceSlotIndex, DragOperation->Quantity))
-			{
-				// Find the newly created split slot (should be the last empty slot that was filled)
-				// Actually, SplitStack already handles creating the split slot, so we just need to move it
-				// But SplitStack creates it in a new empty slot, not the target slot
-				// So we need to find where it was placed and move/swap it to target
-				// For Phase 2, this simplified approach: split creates in a new slot, user can manually move it
-				// Or we can enhance SplitStack to accept a target slot in Phase 3
-				UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleItemDrop - Split stack created, target slot was empty"));
-				UpdateInventoryDisplay();
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleItemDrop - Failed to split stack"));
-			}
-		}
-		else if (TargetSlot.Item && TargetSlot.Item->GetItemID() == DragOperation->Item->GetItemID())
-		{
-			// Same item: try to stack the split quantity
-			// This would need additional logic in InventoryComponent
-			// For Phase 2, fallback to normal move (which will try to stack)
-			UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleItemDrop - Split stack to same item not fully supported yet, using normal move"));
-			InventoryComponent->MoveItem(SourceSlotIndex, TargetSlotIndex);
+			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleItemDrop - Split stack successfully moved to target slot"));
 			UpdateInventoryDisplay();
 		}
 		else
 		{
-			// Different item: can't drop split stack on different item easily
-			// For Phase 2, cancel the split and refresh
-			UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleItemDrop - Cannot drop split stack on different item"));
+			UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleItemDrop - Failed to split stack to target slot"));
 			UpdateInventoryDisplay(); // Refresh to restore source slot
 		}
 	}
