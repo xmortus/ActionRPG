@@ -53,6 +53,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void CloseInventory();
 
+	/**
+	 * Handle item drop between slots (for drag and drop system).
+	 * @param SourceSlotIndex The slot where the item is being dragged from
+	 * @param TargetSlotIndex The slot where the item is being dropped
+	 * @param Quantity The quantity being moved (-1 for entire stack)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+	void HandleItemDrop(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = -1);
+
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UUniformGridPanel> InventoryGrid;
@@ -106,5 +115,6 @@ private:
 	 * Get the InventoryComponent from the player character.
 	 * @return The InventoryComponent or nullptr if not found
 	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	UInventoryComponent* GetInventoryComponent() const;
 };

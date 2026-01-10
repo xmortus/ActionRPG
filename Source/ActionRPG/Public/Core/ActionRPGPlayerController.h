@@ -10,6 +10,7 @@
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UInventoryWidget;
 
 /**
  * PlayerController for ActionRPG.
@@ -52,10 +53,10 @@ protected:
 
 	// UI Widgets
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UUserWidget> InventoryWidgetClass;
+	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
 
 	UPROPERTY()
-	TObjectPtr<UUserWidget> InventoryWidget;
+	TObjectPtr<UInventoryWidget> InventoryWidget;
 
 	// Skill Slot Input Actions
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")

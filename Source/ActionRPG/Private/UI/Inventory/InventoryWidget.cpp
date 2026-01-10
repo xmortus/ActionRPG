@@ -192,6 +192,54 @@ void UInventoryWidget::CloseInventory()
 	RemoveFromParent();
 }
 
+void UInventoryWidget::HandleItemDrop(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity)
+{
+	if (!InventoryComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryWidget::HandleItemDrop - InventoryComponent is null"));
+		return;
+	}
+
+	// Validate slot indices
+	const TArray<FInventorySlot>& InventorySlots = InventoryComponent->GetInventorySlots();
+	
+	if (!InventorySlots.IsValidIndex(SourceSlotIndex) || !InventorySlots.IsValidIndex(TargetSlotIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryWidget::HandleItemDrop - Invalid slot indices (Source: %d, Target: %d)"), 
+			SourceSlotIndex, TargetSlotIndex);
+		return;
+	}
+
+	// Handle same slot drop (do nothing)
+	if (SourceSlotIndex == TargetSlotIndex)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleItemDrop - Drop on same slot, ignoring"));
+		return;
+	}
+
+	// Note: Quantity parameter is reserved for future partial stack split functionality (right-click drag)
+	// Currently, -1 means "entire stack" and MoveItem handles moving the full stack
+	// When partial stack splits are implemented, check Quantity != -1 and handle accordingly
+	
+	// Use InventoryComponent's MoveItem method which handles:
+	// - Moving to empty slot
+	// - Stacking same items
+	// - Swapping different items
+	bool bMoved = InventoryComponent->MoveItem(SourceSlotIndex, TargetSlotIndex);
+	
+	if (bMoved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::HandleItemDrop - Item moved successfully from slot %d to %d"), 
+			SourceSlotIndex, TargetSlotIndex);
+		// Slots will be updated via OnInventoryChanged event
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::HandleItemDrop - Failed to move item from slot %d to %d"), 
+			SourceSlotIndex, TargetSlotIndex);
+	}
+}
+
 void UInventoryWidget::OnInventoryChanged(int32 SlotIndex, UItemBase* Item)
 {
 	UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::OnInventoryChanged - Slot %d changed"), SlotIndex);

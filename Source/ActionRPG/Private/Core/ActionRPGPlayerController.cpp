@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
+#include "UI/Inventory/InventoryWidget.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -260,7 +261,7 @@ void AActionRPGPlayerController::OnOpenInventory()
 	{
 		if (InventoryWidgetClass)
 		{
-			InventoryWidget = CreateWidget<UUserWidget>(this, InventoryWidgetClass);
+			InventoryWidget = CreateWidget<UInventoryWidget>(this, InventoryWidgetClass);
 			if (InventoryWidget)
 			{
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Inventory widget created"));

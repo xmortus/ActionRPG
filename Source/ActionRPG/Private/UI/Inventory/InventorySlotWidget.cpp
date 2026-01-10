@@ -95,17 +95,43 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
 	{
 		if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 		{
-			// Left click - prepare for drag and drop (Day 24)
-			OnSlotClicked.Broadcast(SlotIndex);
-			UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Left clicked slot %d"), SlotIndex);
-			return FReply::Handled();
+			// Left click - start drag detection for drag and drop
+			// Only allow drag if slot has an item
+			if (CurrentItem && CurrentQuantity > 0)
+			{
+				UE_LOG(LogTemp, Verbose, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Starting drag detection for slot %d"), SlotIndex);
+				// Get the Slate widget for drag detection
+				// NativeOnDragDetected will be called if drag actually starts
+				TSharedPtr<SWidget> SlateWidget = GetCachedWidget();
+				if (SlateWidget.IsValid())
+				{
+					return FReply::Handled().DetectDrag(SlateWidget.ToSharedRef(), EKeys::LeftMouseButton);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Cached widget is invalid, cannot start drag"));
+					// Fall back to just handling the click
+					OnSlotClicked.Broadcast(SlotIndex);
+					return FReply::Handled();
+				}
+			}
+			else
+			{
+				// Empty slot or invalid item - just broadcast click
+				OnSlotClicked.Broadcast(SlotIndex);
+				UE_LOG(LogTemp, Verbose, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Left clicked empty slot %d"), SlotIndex);
+				return FReply::Handled();
+			}
 		}
 		else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 		{
-			// Right click - use item
-			OnSlotRightClicked.Broadcast(SlotIndex);
-			UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Right clicked slot %d"), SlotIndex);
-			return FReply::Handled();
+			// Right click - use item (only if slot has item)
+			if (CurrentItem && CurrentQuantity > 0)
+			{
+				OnSlotRightClicked.Broadcast(SlotIndex);
+				UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnMouseButtonDown - Right clicked slot %d (use item)"), SlotIndex);
+				return FReply::Handled();
+			}
 		}
 	}
 
