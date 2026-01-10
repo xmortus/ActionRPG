@@ -322,32 +322,67 @@ Content/UI/Inventory/
    - If not visible, close and reopen editor, then try again
 
 4. **Design Slot Widget Layout**
+   - **Important:** In UE 5.7, a Border widget can only have one child. Since we need three separate widgets (Border, Image, TextBlock) that must be direct children of the root for BindWidget to work, we'll use the default Canvas Panel root and make all three widgets siblings (not nested).
    - In `Palette` panel, drag widgets into `Designer` view:
    
-   **a. Border (Base)**
-   - Drag `Border` from Palette
-   - Name: `SlotBorder` (must match BindWidget name!)
-   - Set Size: 64x64 (or desired slot size)
-   - Set Appearance → Brush Color: Dark gray (for empty slot)
-   - Set Appearance → Padding: 2px all sides
+   **a. Root Container (Canvas Panel)**
+   - The root widget should already be a Canvas Panel (this is the default)
+   - Select the root widget in the `Hierarchy` panel
+   - In `Details` panel, set Size: 64x64 (or desired slot size)
+   - **Note:** Canvas Panel allows multiple children with custom positioning
    
-   **b. Image (Item Icon)**
-   - Drag `Image` from Palette
-   - Name: `ItemIcon` (must match BindWidget name!)
-   - Place inside Border, centered
-   - Set Size: 60x60 (slightly smaller than border)
-   - Set Visibility: Hidden (initially empty)
+   **b. Border (Background)**
+   - Drag `Border` from Palette onto the root Canvas Panel
+   - Name: `SlotBorder` (must match BindWidget name exactly!)
+   - **Critical:** Make sure it's a direct child of the Canvas Panel root (not nested inside another widget)
+   - In `Details` panel → `Slot` section:
+     - Set Anchors: Full Screen (or Left=0, Top=0, Right=1, Bottom=1)
+     - Set Offsets: Left=0, Top=0, Right=0, Bottom=0 (fills entire parent)
+   - In `Details` panel → `Appearance`:
+     - Set Brush Color: Dark gray (for empty slot)
+     - Set Padding: 2px all sides
+   - This serves as the background/border for the slot
    
-   **c. Text Block (Quantity)**
-   - Drag `Text` from Palette
-   - Name: `QuantityText` (must match BindWidget name!)
-   - Place in bottom-right corner of Border
+   **c. Image (Item Icon)**
+   - Drag `Image` from Palette onto the root Canvas Panel (NOT inside the Border!)
+   - Name: `ItemIcon` (must match BindWidget name exactly!)
+   - **Critical:** Make sure it's a direct child of the Canvas Panel root (same level as SlotBorder, not inside it)
+   - In `Details` panel → `Slot` section:
+     - Set Anchors: Center (or Left=0.5, Top=0.5, Right=0.5, Bottom=0.5)
+     - Set Offsets: Left=-30, Top=-30, Right=30, Bottom=30 (for 60x60 size, centered)
+   - Set Size: 60x60 (or slightly smaller than slot size)
+   - In `Details` panel → `Slot` → `Size to Content`: Unchecked (use manual size)
+   - Set Visibility: Hidden (initially empty, will be shown when item is set)
+   - This will display on top of the Border background
+   
+   **d. Text Block (Quantity)**
+   - Drag `Text` from Palette onto the root Canvas Panel (NOT inside Border or Image!)
+   - Name: `QuantityText` (must match BindWidget name exactly!)
+   - **Critical:** Make sure it's a direct child of the Canvas Panel root (same level as SlotBorder and ItemIcon)
+   - In `Details` panel → `Slot` section:
+     - Set Anchors: Bottom-Right (or Left=1, Top=1, Right=1, Bottom=1)
+     - Set Offsets: Right=-8, Bottom=-8 (4px padding from edges, adjust width/height as needed)
    - Set Text: "1" (placeholder)
-   - Set Font Size: 14, Bold
-   - Set Color: White with slight shadow
-   - Set Visibility: Collapsed (hidden when quantity = 0)
+   - In `Details` panel → `Appearance`:
+     - Set Font Size: 14, Bold
+     - Set Color: White with slight shadow for visibility
+   - Set Visibility: Collapsed (hidden when quantity = 0 or quantity = 1)
    - Set Alignment: Right, Bottom
-   - Set Padding: 4px right, 4px bottom
+   - This will display on top of both Border and Image in the bottom-right corner
+   
+   **Widget Hierarchy Should Look Like:**
+   ```
+   WBP_InventorySlotWidget (Root - Canvas Panel)
+   ├── SlotBorder (Border - background, fills entire slot)
+   ├── ItemIcon (Image - centered, 60x60)
+   └── QuantityText (TextBlock - bottom-right corner)
+   ```
+   
+   **Critical Points:**
+   - All three widgets (SlotBorder, ItemIcon, QuantityText) must be direct children of the Canvas Panel root
+   - They must NOT be nested inside each other (e.g., Image should NOT be inside Border)
+   - This is required for the `UPROPERTY(meta = (BindWidget))` in C++ to find them correctly
+   - Widget order in Hierarchy determines draw order (Border draws first, then Image, then Text on top)
 
 5. **Verify Widget Names Match C++**
    - All widget names must exactly match the `UPROPERTY(meta = (BindWidget))` names in C++
@@ -376,46 +411,85 @@ Content/UI/Inventory/
    - Set `Parent Class` to: `Inventory Widget` (your C++ class)
 
 3. **Design Inventory Widget Layout**
+   - **Critical:** The root Canvas Panel must have a fixed size and be centered. The widget size showing as 0.0 means the root container doesn't have proper sizing.
    - In `Palette`, drag widgets into `Designer`:
 
-   **a. Background Panel**
-   - Drag `Canvas Panel` or `Border` as base
-   - Set Size: 800x600 (or desired inventory size)
-   - Set Appearance: Dark semi-transparent background
+   **a. Root Container (Canvas Panel)**
+   - The root widget should be a `Canvas Panel` (default)
+   - Select the root widget in the `Hierarchy` panel
+   - In `Details` panel → `Slot` section:
+     - **Set Anchors:** Center (or Left=0.5, Top=0.5, Right=0.5, Bottom=0.5)
+     - **Set Offsets:** Left=-400, Top=-300, Right=400, Bottom=300 (for 800x600 size)
+     - **Alternative:** Use Left=0.4, Top=0.3, Right=0.6, Bottom=0.7 to anchor from edges
+   - This centers a 800x600 widget on screen (adjust offsets if using different size)
+   
+   **b. Background Border**
+   - Drag `Border` widget onto the root Canvas Panel
+   - Set Anchors: Fill (or Left=0, Top=0, Right=0, Bottom=0)
+   - Set Offsets: All 0 (fills entire root container)
+   - In `Details` panel → `Appearance`:
+     - Set Brush Color: Dark semi-transparent (e.g., R=20, G=20, B=30, A=230)
+     - Or use a solid color with slight transparency
+   - This provides the background for the inventory panel
 
-   **b. Title Text**
-   - Drag `Text` widget
+   **c. Title Text**
+   - Drag `Text` widget onto the root Canvas Panel
+   - Set Anchors: Top-Center (or Left=0.5, Top=0.05, Right=0.5, Bottom=0.1)
    - Set Text: "INVENTORY"
    - Set Font Size: 24, Bold
-   - Position at top center
+   - Position at top center of the panel
 
-   **c. Uniform Grid Panel (Inventory Slots)**
-   - Drag `Uniform Grid Panel` from Palette
-   - Name: `InventoryGrid` (must match BindWidget!)
-   - Set Size: Appropriate for 10 columns x 5 rows
-   - Set Slot Padding: 4px (spacing between slots)
-   - Position below title
+   **d. Uniform Grid Panel (Inventory Slots)**
+   - Drag `Uniform Grid Panel` from Palette onto the root Canvas Panel
+   - **Name: `InventoryGrid`** (must match BindWidget exactly!)
+   - Set Anchors: Top-Left (or Left=0.1, Top=0.15, Right=0.9, Bottom=0.75)
+   - Set Offsets: Left=40, Top=100, Right=-40, Bottom=-100 (adjust for padding)
+   - In `Details` panel → `Slot` → `Size To Content`: **Unchecked**
+   - Set Slot Padding: 4px (spacing between slots in the grid)
+   - The grid will be populated programmatically with slot widgets
+   - Size should be enough for 10 columns x 5 rows (e.g., 640x320 pixels with 64px slots)
 
-   **d. Weight Text**
-   - Drag `Text` widget
-   - Name: `WeightText` (must match BindWidget!)
+   **e. Weight Text**
+   - Drag `Text` widget onto the root Canvas Panel
+   - **Name: `WeightText`** (must match BindWidget exactly!)
+   - Set Anchors: Bottom-Left (or Left=0.1, Top=0.8, Right=0.4, Bottom=0.85)
    - Set Text: "Weight: 0.0 / 100.0"
-   - Position below grid or in corner
    - Set Font Size: 14
+   - Position in bottom-left area of the panel
 
-   **e. Capacity Text**
-   - Drag `Text` widget
-   - Name: `CapacityText` (must match BindWidget!)
+   **f. Capacity Text**
+   - Drag `Text` widget onto the root Canvas Panel
+   - **Name: `CapacityText`** (must match BindWidget exactly!)
+   - Set Anchors: Bottom-Center (or Left=0.5, Top=0.8, Right=0.8, Bottom=0.85)
    - Set Text: "Capacity: 0 / 50"
-   - Position next to WeightText
    - Set Font Size: 14
+   - Position next to WeightText or in bottom-center area
 
-   **f. Close Button**
-   - Drag `Button` widget
-   - Name: `CloseButton` (must match BindWidget!)
-   - Set Text: "Close" or "X"
-   - Position in top-right corner
-   - Size: 40x40 (or appropriate)
+   **g. Close Button**
+   - Drag `Button` widget onto the root Canvas Panel
+   - **Name: `CloseButton`** (must match BindWidget exactly!)
+   - Set Anchors: Top-Right (or Left=0.9, Top=0.05, Right=0.98, Bottom=0.12)
+   - Set Size: 60x40 (or appropriate for button)
+   - Set Text on button: "Close" or "X"
+   - Position in top-right corner of the panel
+
+   **Important Structure:**
+   ```
+   WBP_InventoryWidget (Root - Canvas Panel, 800x600, centered)
+   ├── Background Border (fills entire root)
+   ├── Title Text (top center)
+   ├── InventoryGrid (UniformGridPanel - main content area)
+   ├── WeightText (bottom-left)
+   ├── CapacityText (bottom-center)
+   └── CloseButton (top-right)
+   ```
+   
+   **Critical Points:**
+   - Root Canvas Panel MUST have explicit size via anchors/offsets (not 0x0)
+   - Root Canvas Panel MUST be centered (anchors = center, not fill screen)
+   - All child widgets must be direct children of the root Canvas Panel
+   - Widget names (InventoryGrid, WeightText, CapacityText, CloseButton) must match C++ exactly
+   - If widget size shows as 0.0 in logs, check root widget anchors/offsets are set correctly
 
 4. **Verify Widget Names**
    - All widget names must match C++ BindWidget names exactly:

@@ -286,16 +286,43 @@ void AActionRPGPlayerController::OnOpenInventory()
 			// Hide inventory
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Hiding inventory"));
 			InventoryWidget->RemoveFromParent();
-			SetInputMode(FInputModeGameOnly());
-			bShowMouseCursor = false;
+			// Keep mouse cursor visible for top-down gameplay (targeting/interaction)
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+			bShowMouseCursor = true;
 			SetPause(false);
 		}
 		else
 		{
 			// Show inventory
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Showing inventory"));
-			InventoryWidget->AddToViewport();
-			SetInputMode(FInputModeGameAndUI());
+			
+			// Ensure widget is visible
+			InventoryWidget->SetVisibility(ESlateVisibility::Visible);
+			
+			// Add to viewport with Z-Order to ensure it's on top (higher number = on top)
+			InventoryWidget->AddToViewport(100);
+			
+			// Log widget status for debugging
+			if (InventoryWidget)
+			{
+				FVector2D WidgetSize = InventoryWidget->GetDesiredSize();
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport"));
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget visibility: %d"), (int32)InventoryWidget->GetVisibility());
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget is in viewport: %s"), InventoryWidget->IsInViewport() ? TEXT("YES") : TEXT("NO"));
+				
+				// Note: GetDesiredSize() may return 0.0 for Canvas Panel widgets until after layout pass
+				// This is normal for Canvas Panel-based widgets and doesn't indicate a problem if the widget renders correctly
+				if (WidgetSize.X > 0 && WidgetSize.Y > 0)
+				{
+					UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget size: %.1f x %.1f"), WidgetSize.X, WidgetSize.Y);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Verbose, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget size not yet calculated (%.1f x %.1f) - this is normal for Canvas Panel widgets. If widget renders correctly, size is set properly."), WidgetSize.X, WidgetSize.Y);
+				}
+			}
+			
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
 			// Optional: Pause game when inventory is open
 			// SetPause(true);

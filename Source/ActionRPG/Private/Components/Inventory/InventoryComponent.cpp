@@ -572,6 +572,11 @@ int32 UInventoryComponent::GetEmptySlotCount() const
 	return EmptyCount;
 }
 
+int32 UInventoryComponent::GetUsedSlotCount() const
+{
+	return MaxCapacity - GetEmptySlotCount();
+}
+
 bool UInventoryComponent::TryStackItem(UItemBase* Item, int32 Quantity, int32& RemainingQuantity)
 {
 	if (!Item || !Item->ItemData || Quantity <= 0)

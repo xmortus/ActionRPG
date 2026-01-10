@@ -92,6 +92,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetEmptySlotCount() const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	int32 GetUsedSlotCount() const;
+
 	// Debug
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
 	void ReportInventoryContents() const;

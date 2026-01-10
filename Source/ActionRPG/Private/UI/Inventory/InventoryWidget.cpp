@@ -15,6 +15,30 @@ void UInventoryWidget::NativeConstruct()
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Constructing inventory widget"));
 
+	// Verify widget bindings
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Checking widget bindings:"));
+	UE_LOG(LogTemp, Log, TEXT("  - InventoryGrid: %s"), InventoryGrid ? TEXT("Found") : TEXT("NOT FOUND - Check name matches in Blueprint!"));
+	UE_LOG(LogTemp, Log, TEXT("  - WeightText: %s"), WeightText ? TEXT("Found") : TEXT("NOT FOUND - Check name matches in Blueprint!"));
+	UE_LOG(LogTemp, Log, TEXT("  - CapacityText: %s"), CapacityText ? TEXT("Found") : TEXT("NOT FOUND - Check name matches in Blueprint!"));
+	UE_LOG(LogTemp, Log, TEXT("  - CloseButton: %s"), CloseButton ? TEXT("Found") : TEXT("NOT FOUND - Check name matches in Blueprint!"));
+	
+	if (!InventoryGrid)
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryWidget::NativeConstruct - InventoryGrid widget binding failed! Make sure widget named 'InventoryGrid' exists in Blueprint"));
+	}
+	if (!WeightText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::NativeConstruct - WeightText widget binding failed! Make sure widget named 'WeightText' exists in Blueprint"));
+	}
+	if (!CapacityText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::NativeConstruct - CapacityText widget binding failed! Make sure widget named 'CapacityText' exists in Blueprint"));
+	}
+	if (!CloseButton)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::NativeConstruct - CloseButton widget binding failed! Make sure widget named 'CloseButton' exists in Blueprint"));
+	}
+
 	// Get InventoryComponent from player character
 	InventoryComponent = GetInventoryComponent();
 	
@@ -42,16 +66,27 @@ void UInventoryWidget::NativeConstruct()
 		CloseButton->OnClicked.AddDynamic(this, &UInventoryWidget::OnCloseButtonClicked);
 		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Bound close button"));
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::NativeConstruct - CloseButton not found! Make sure it's named 'CloseButton' in Blueprint"));
-	}
 
 	// Initialize slot widgets
 	InitializeSlots();
 
 	// Initial display update
 	UpdateInventoryDisplay();
+
+	// Log widget status
+	// Note: GetDesiredSize() may return 0.0 for Canvas Panel widgets until after layout pass
+	// This is normal and doesn't indicate a problem if the widget renders correctly
+	FVector2D WidgetSize = GetDesiredSize();
+	if (WidgetSize.X > 0 && WidgetSize.Y > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Widget size: %.1f x %.1f, Visibility: %d"), 
+			WidgetSize.X, WidgetSize.Y, (int32)GetVisibility());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeConstruct - Widget size not yet calculated (%.1f x %.1f) - this is normal for Canvas Panel widgets. Visibility: %d"), 
+			WidgetSize.X, WidgetSize.Y, (int32)GetVisibility());
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Widget constructed successfully"));
 }
@@ -101,14 +136,14 @@ void UInventoryWidget::UpdateInventoryDisplay()
 		WeightText->SetText(WeightDisplayText);
 	}
 
-	// Update capacity display
+	// Update capacity display (slot-based, not item count)
 	if (CapacityText)
 	{
-		int32 TotalItems = InventoryComponent->GetTotalItemCount();
+		int32 UsedSlots = InventoryComponent->GetUsedSlotCount();
 		int32 MaxCapacity = InventoryComponent->GetMaxCapacity();
 		int32 EmptySlots = InventoryComponent->GetEmptySlotCount();
 		FText CapacityDisplayText = FText::Format(FText::FromString(TEXT("Capacity: {0} / {1} ({2} empty)")), 
-			FText::AsNumber(TotalItems), 
+			FText::AsNumber(UsedSlots), 
 			FText::AsNumber(MaxCapacity),
 			FText::AsNumber(EmptySlots));
 		CapacityText->SetText(CapacityDisplayText);
@@ -177,11 +212,11 @@ void UInventoryWidget::OnInventoryChanged(int32 SlotIndex, UItemBase* Item)
 
 	if (CapacityText)
 	{
-		int32 TotalItems = InventoryComponent->GetTotalItemCount();
+		int32 UsedSlots = InventoryComponent->GetUsedSlotCount();
 		int32 MaxCapacity = InventoryComponent->GetMaxCapacity();
 		int32 EmptySlots = InventoryComponent->GetEmptySlotCount();
 		FText CapacityDisplayText = FText::Format(FText::FromString(TEXT("Capacity: {0} / {1} ({2} empty)")), 
-			FText::AsNumber(TotalItems), 
+			FText::AsNumber(UsedSlots), 
 			FText::AsNumber(MaxCapacity),
 			FText::AsNumber(EmptySlots));
 		CapacityText->SetText(CapacityDisplayText);
