@@ -1172,13 +1172,29 @@ bool UInventoryComponent::AssignItemToQuickUseSlot(int32 InventorySlotIndex, int
 		return false;
 	}
 
-	// Clear existing assignment if any
-	if (QuickSlot.InventorySlotIndex != -1)
+	// Before assigning to the new slot, check if this inventory slot is already assigned to any other quick-use slot
+	// If so, remove it from the old slot first (prevents item from being in multiple quick-use slots)
+	for (int32 i = 0; i < QuickUseSlots.Num(); i++)
 	{
+		if (i != QuickUseSlotIndex && QuickUseSlots[i].InventorySlotIndex == InventorySlotIndex)
+		{
+			// This inventory slot is already assigned to a different quick-use slot
+			// Clear it from the old slot before assigning to the new one
+			UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Item from inventory slot %d is already assigned to quick-use slot %d, clearing old assignment"), 
+				InventorySlotIndex, i);
+			ClearQuickUseSlot(i);
+		}
+	}
+
+	// Clear existing assignment in the target slot if any (in case target slot has a different item)
+	if (QuickSlot.InventorySlotIndex != -1 && QuickSlot.InventorySlotIndex != InventorySlotIndex)
+	{
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Clearing existing item from quick-use slot %d (was inventory slot %d)"), 
+			QuickUseSlotIndex, QuickSlot.InventorySlotIndex);
 		ClearQuickUseSlot(QuickUseSlotIndex);
 	}
 
-	// Assign item
+	// Assign item to the new slot
 	QuickSlot.Item = InvSlot.Item;
 	QuickSlot.InventorySlotIndex = InventorySlotIndex;
 
@@ -1226,22 +1242,47 @@ bool UInventoryComponent::UseQuickUseSlot(int32 QuickUseSlotIndex)
 		return false;
 	}
 
-	// Use item from inventory slot
-	bool bSuccess = UseItem(QuickSlot.InventorySlotIndex);
+	// Save inventory slot index before using item (since UseItem might clear the quick-use slot)
+	int32 SavedInventorySlotIndex = QuickSlot.InventorySlotIndex;
 
-	// If item was consumed and quantity reached 0, clear quick-use slot
-	if (bSuccess)
+	// Use item from inventory slot
+	bool bSuccess = UseItem(SavedInventorySlotIndex);
+
+	// After UseItem returns, the quick-use slot might have been cleared by RemoveItem
+	// if the item was consumed (quantity reached 0). Check if the quick-use slot is still valid.
+	if (!QuickUseSlots.IsValidIndex(QuickUseSlotIndex))
 	{
-		const FInventorySlot& UpdatedInvSlot = InventorySlots[QuickSlot.InventorySlotIndex];
+		// Quick-use slot array was resized or invalidated (shouldn't happen, but safety check)
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::UseQuickUseSlot - Quick-use slot index became invalid after UseItem"));
+		return bSuccess;
+	}
+
+	// Get quick-use slot again (it might have been cleared, so check if it's still valid)
+	FQuickUseSlot& UpdatedQuickSlot = QuickUseSlots[QuickUseSlotIndex];
+
+	// If item was consumed and quantity reached 0, RemoveItem already cleared the quick-use slot
+	// Check if the slot was cleared (InventorySlotIndex == -1) or if the slot index changed
+	if (UpdatedQuickSlot.InventorySlotIndex == -1 || UpdatedQuickSlot.InventorySlotIndex != SavedInventorySlotIndex)
+	{
+		// Quick-use slot was already cleared by RemoveItem (item was consumed completely)
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::UseQuickUseSlot - Quick-use slot %d was cleared (item consumed completely)"), QuickUseSlotIndex);
+		return bSuccess;
+	}
+
+	// Item still exists in inventory (wasn't fully consumed), update quick-use slot
+	if (bSuccess && InventorySlots.IsValidIndex(SavedInventorySlotIndex))
+	{
+		const FInventorySlot& UpdatedInvSlot = InventorySlots[SavedInventorySlotIndex];
 		if (UpdatedInvSlot.bIsEmpty || !UpdatedInvSlot.Item)
 		{
+			// Slot became empty after use (shouldn't happen if RemoveItem cleared quick-use, but safety check)
 			ClearQuickUseSlot(QuickUseSlotIndex);
 		}
 		else
 		{
 			// Update quick-use slot item reference (in case item instance changed or quantity updated)
-			QuickSlot.Item = UpdatedInvSlot.Item;
-			OnQuickUseSlotChanged.Broadcast(QuickUseSlotIndex, QuickSlot.Item);
+			UpdatedQuickSlot.Item = UpdatedInvSlot.Item;
+			OnQuickUseSlotChanged.Broadcast(QuickUseSlotIndex, UpdatedQuickSlot.Item);
 		}
 	}
 

@@ -30,6 +30,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
 	void OnQuickUseSlotChanged(int32 QuickUseSlotIndex, UItemBase* Item);
 
+	/**
+	 * Get the InventoryComponent from the player character.
+	 * @return The InventoryComponent or nullptr if not found
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
+	UInventoryComponent* GetInventoryComponent() const;
+
 	// Widget References (bind in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UUniformGridPanel> QuickUseGrid;
@@ -39,9 +46,15 @@ public:
 	TSubclassOf<class UQuickUseSlotWidget> SlotWidgetClass;
 
 protected:
+	// Drag and Drop
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
 	// Event handlers for InventoryComponent events
 	UFUNCTION()
 	void OnQuickUseSlotChangedInternal(int32 QuickUseSlotIndex, UItemBase* Item);
+	
+	UFUNCTION()
+	void OnInventoryChangedInternal(int32 SlotIndex, UItemBase* Item);
 
 private:
 	UPROPERTY()
@@ -52,11 +65,4 @@ private:
 
 	void InitializeSlots();
 	void RefreshSlot(int32 SlotIndex);
-
-	/**
-	 * Get the InventoryComponent from the player character.
-	 * @return The InventoryComponent or nullptr if not found
-	 */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
-	UInventoryComponent* GetInventoryComponent() const;
 };

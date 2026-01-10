@@ -593,6 +593,48 @@ bool UInventoryWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDrop
 	}
 }
 
+FReply UInventoryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	// Get the local position of the click
+	FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+	
+	// Check if click is on an inventory slot using the same logic as FindSlotAtScreenPosition
+	int32 ClickedSlotIndex = FindSlotAtScreenPosition(LocalPosition);
+	bool bClickOnSlot = (ClickedSlotIndex >= 0 && ClickedSlotIndex < SlotWidgets.Num());
+	
+	// Also check if click is on the CloseButton
+	if (!bClickOnSlot && CloseButton && CloseButton->IsValidLowLevel())
+	{
+		FGeometry ButtonGeometry = CloseButton->GetCachedGeometry();
+		FVector2D ScreenPosition = InMouseEvent.GetScreenSpacePosition();
+		FVector2D ButtonScreenPos = ButtonGeometry.LocalToAbsolute(FVector2D::ZeroVector);
+		FVector2D ButtonScreenSize = ButtonGeometry.GetLocalSize() * ButtonGeometry.Scale;
+		
+		if (ScreenPosition.X >= ButtonScreenPos.X && ScreenPosition.X <= ButtonScreenPos.X + ButtonScreenSize.X &&
+			ScreenPosition.Y >= ButtonScreenPos.Y && ScreenPosition.Y <= ButtonScreenPos.Y + ButtonScreenSize.Y)
+		{
+			bClickOnSlot = true;
+			UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click on CloseButton"));
+		}
+	}
+	
+	if (bClickOnSlot)
+	{
+		// Click is on an inventory slot or close button - let the child widget handle it
+		// Return Unhandled so the child widget can receive the event (child widgets are in front and will receive it first)
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click on inventory slot/button %d, allowing child widget to handle"), ClickedSlotIndex);
+		return FReply::Unhandled();
+	}
+	else
+	{
+		// Click is outside inventory slots and buttons - allow click to pass through to widgets behind (like quick-use bar)
+		// This ensures the quick-use bar remains clickable when inventory is open
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click outside inventory slots/buttons (local pos: %.1f, %.1f), allowing click to pass through to quick-use bar"), 
+			LocalPosition.X, LocalPosition.Y);
+		return FReply::Unhandled();
+	}
+}
+
 int32 UInventoryWidget::FindSlotAtScreenPosition(const FVector2D& LocalPosition) const
 {
 	// Calculate which slot based on grid layout (10 columns)

@@ -10,6 +10,9 @@
 #include "Items/Core/ItemBase.h"
 #include "QuickUseSlotWidget.generated.h"
 
+// Forward declarations
+class UQuickUseBarWidget;
+
 /**
  * Widget representing a single quick-use slot.
  * Displays item icon, quantity, and hotkey label.
@@ -27,9 +30,10 @@ public:
 	 * @param SlotIndex The index of this slot in the quick-use bar (0-9)
 	 * @param Item The item to display (nullptr for empty slot)
 	 * @param InventorySlotIndex The inventory slot index (-1 if not assigned)
+	 * @param Quantity The current quantity from inventory slot (if -1, will use Item->Quantity)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
-	void SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 InInventorySlotIndex);
+	void SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 InInventorySlotIndex, int32 Quantity = -1);
 
 	/**
 	 * Clear the slot (set to empty state).
@@ -55,6 +59,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Slot")
 	UItemBase* GetCurrentItem() const { return CurrentItem; }
 
+	/**
+	 * Set the parent quick-use bar widget (for drag and drop operations).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
+	void SetParentQuickUseBar(class UQuickUseBarWidget* InParentQuickUseBar);
+
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UImage> ItemIcon;
@@ -67,6 +77,17 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UBorder> SlotBorder;
+
+protected:
+	// Mouse input
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual bool NativeIsInteractable() const override;
+	
+	// Drag and Drop
+	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 private:
 	UPROPERTY()
@@ -84,9 +105,25 @@ private:
 	// Visual feedback colors
 	FLinearColor DefaultBorderColor;
 	FLinearColor HoverBorderColor;
-
+	FLinearColor ValidDropBorderColor; // Green when valid item is dragged over
+	FLinearColor InvalidDropBorderColor; // Red when invalid item is dragged over
+	
+	// Parent widget reference (for accessing inventory component)
+	UPROPERTY()
+	TObjectPtr<class UQuickUseBarWidget> ParentQuickUseBar;
+	
+	// Drag state tracking
+	bool bIsDragOver;
+	
 	/**
 	 * Update the visual appearance of the slot based on item data.
 	 */
 	void UpdateSlotVisuals();
+	
+	/**
+	 * Check if an item can be assigned to this quick-use slot.
+	 * @param Item The item to check
+	 * @return True if the item type is valid for this slot
+	 */
+	bool CanAcceptItem(class UItemBase* Item) const;
 };

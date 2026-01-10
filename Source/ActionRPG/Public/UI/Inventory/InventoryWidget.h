@@ -90,6 +90,12 @@ public:
 	 */
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
+	/**
+	 * Handle mouse button down - only consume clicks on inventory slots, allow clicks outside to pass through.
+	 * This ensures the quick-use bar remains clickable when inventory is open.
+	 */
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+
 protected:
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))

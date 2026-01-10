@@ -422,9 +422,11 @@ void AActionRPGPlayerController::OnOpenInventory()
 			// Add to viewport if not already added (only needed on first show)
 			if (!bIsInViewport)
 			{
-				// Add to viewport with Z-Order to ensure it's on top (higher number = on top)
-				InventoryWidget->AddToViewport(100);
-				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport"));
+				// Add to viewport with Z-Order 50 (lower than quick-use bar which should be at 200+)
+				// This ensures the quick-use bar remains interactable when inventory is open
+				// NOTE: The quick-use bar widget must be added with Z-Order 200 or higher in Blueprint/HUD
+				InventoryWidget->AddToViewport(50);
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport with Z-Order 50 (quick-use bar should be at 200+)"));
 			}
 			
 			// Ensure widget is visible
