@@ -10,7 +10,7 @@ UItemDataAsset::UItemDataAsset()
 	ItemName = FText::GetEmpty();
 	ItemDescription = FText::GetEmpty();
 	ItemIcon = nullptr;
-	ItemPickupMesh = nullptr;
+	ItemPickupActorClass = nullptr;
 	Type = EItemType::Misc;
 	Rarity = EItemRarity::Common;
 	MaxStackSize = 1;

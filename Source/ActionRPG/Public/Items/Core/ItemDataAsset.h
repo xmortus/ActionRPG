@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "Engine/StaticMesh.h"
 #include "ItemTypes.h"
 #include "ItemDataAsset.generated.h"
+
+// Forward declaration
+class AItemPickupActor;
 
 /**
  * Data Asset for defining item properties.
@@ -40,9 +42,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
 	TObjectPtr<UTexture2D> ItemIcon;
 
-	// World representation for pickup actor (the static mesh to display when item is dropped in the world)
+	// World representation for pickup actor
+	// Blueprint class to spawn when item is dropped in the world
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|World")
-	TObjectPtr<UStaticMesh> ItemPickupMesh;
+	TSubclassOf<class AItemPickupActor> ItemPickupActorClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
 	EItemType Type;

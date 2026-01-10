@@ -296,19 +296,12 @@ void AItemPickupActor::SetupVisuals()
 		return;
 	}
 
-	// Set the static mesh from ItemData
-	if (ItemData->ItemPickupMesh)
-	{
-		MeshComponent->SetStaticMesh(ItemData->ItemPickupMesh);
-		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetupVisuals - Set mesh to: %s"), *ItemData->ItemPickupMesh->GetName());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetupVisuals - ItemData '%s' has no ItemPickupMesh set! Mesh will be invisible."), 
-			*ItemData->ItemName.ToString());
-		// Set to null to clear any previous mesh
-		MeshComponent->SetStaticMesh(nullptr);
-	}
+	// Note: Mesh setup is now handled by Blueprint classes
+	// The Blueprint version of ItemPickupActor should set up its own mesh in the Blueprint editor
+	// This function is kept for any additional visual setup that might be needed
+	
+	UE_LOG(LogTemp, Verbose, TEXT("ItemPickupActor::SetupVisuals - ItemData set: %s (mesh should be configured in Blueprint)"), 
+		*ItemData->ItemName.ToString());
 
 	// Update material based on rarity
 	UpdateMaterialBasedOnRarity();

@@ -1031,14 +1031,28 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 
 	const UItemDataAsset* ItemData = Slot.Item->ItemData;
 
-	// Spawn ItemPickupActor at drop location
+	// Determine which class to spawn: Blueprint class from DataAsset if specified, otherwise base class
+	TSubclassOf<AItemPickupActor> PickupActorClass = ItemData->ItemPickupActorClass;
+	if (!PickupActorClass)
+	{
+		// Fallback to base C++ class if no Blueprint class is specified
+		PickupActorClass = AItemPickupActor::StaticClass();
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - No Blueprint class specified in ItemDataAsset, using base AItemPickupActor class"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Using Blueprint class: %s"), *PickupActorClass->GetName());
+	}
+
+	// Spawn ItemPickupActor at drop location using the specified class (Blueprint or base class)
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	AItemPickupActor* PickupActor = World->SpawnActor<AItemPickupActor>(AItemPickupActor::StaticClass(), WorldLocation, FRotator::ZeroRotator, SpawnParams);
+	AItemPickupActor* PickupActor = World->SpawnActor<AItemPickupActor>(PickupActorClass, WorldLocation, FRotator::ZeroRotator, SpawnParams);
 	if (!PickupActor)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - Failed to spawn ItemPickupActor"));
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - Failed to spawn ItemPickupActor (Class: %s)"), 
+			PickupActorClass ? *PickupActorClass->GetName() : TEXT("NULL"));
 		return false;
 	}
 
