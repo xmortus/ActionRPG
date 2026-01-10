@@ -23,27 +23,41 @@
 - Implement InventoryComponent with item storage and management
 - Create ItemPickupActor for world item pickups
 - Build inventory UI system (InventoryWidget, InventorySlotWidget)
-- Implement drag and drop functionality
+- Implement drag and drop functionality with stack splitting
+- Implement world item dropping (inventory → world)
+- Create quick-use bar system (10 slots: 1-8 for skills, 9-10 for consumables)
+- Implement hotkey support for consumable quick-use slots (9-0 keys)
 - Create item usage system integration
-- Test complete inventory flow (pickup → inventory → use)
+- Test complete inventory flow (pickup → inventory → use → drop → pickup)
 
 ### Phase 2 Deliverables
 - ✅ InventoryComponent class (C++ and Blueprint-ready)
 - ✅ ItemPickupActor class (C++ and Blueprint-ready)
 - ✅ InventoryWidget and InventorySlotWidget (UMG widgets)
 - ✅ Drag and drop system (ItemDragDropOperation)
+- ✅ Stack splitting functionality (Ctrl+drag or right-click drag)
+- ✅ World item dropping (items spawn as ItemPickupActor in world)
+- ✅ Quick-use bar system (10 slots: 1-8 for skills, 9-10 for consumables)
+- ✅ Hotkey support for consumable quick-use slots (9-0 keys)
 - ✅ Item usage integration with character
 - ✅ Complete inventory UI with visual feedback
+- ✅ Item tooltip system
 - ✅ Sample item pickups in test level
 
 ### Success Metrics
 - InventoryComponent compiles and attaches to player character
 - Items can be added to and removed from inventory
 - Item stacking works correctly
+- Stack splitting works (Ctrl+drag or right-click drag)
+- Items can be dropped from inventory to world (spawn as ItemPickupActor)
+- Dropped items can be picked up again
 - Item pickups spawn in world and can be collected
 - Inventory UI displays correctly and responds to input
 - Drag and drop between slots works
-- Items can be used from inventory
+- Drag and drop to/from quick-use slots works
+- Quick-use bar displays with 10 slots (9-10 functional for consumables)
+- Hotkeys 9-0 activate consumable quick-use slots
+- Items can be used from inventory and quick-use slots
 - Weight/capacity limits function correctly
 
 ---
@@ -508,60 +522,218 @@ TObjectPtr<UItemBase> CurrentItem;
    - Drop on empty slot (move item)
    - Drop on item with same ID (stack if possible)
    - Drop on item with different ID (swap)
-   - Partial stack splits (right-click drag for split)
+   - Prepare for stack splitting (basic structure, full implementation in Days 26-27)
 
 #### Deliverables
 - ItemDragDropOperation class created
 - Drag detection working
 - Drop logic implemented
 - Visual feedback functional
-- Special cases handled
+- Special cases handled (move, swap, stack)
+- Basic structure for stack splitting (full implementation in Days 26-27)
 
 ---
 
 ### Day 26-27: UI Polish & Advanced Features
 
+#### Overview
+Enhance the inventory system with advanced features including item tooltips, quick-use bar for consumables, world item dropping, stack splitting, and UI polish. The quick-use bar will support 10 slots: slots 1-8 for skills (Phase 3) and slots 9-10 for consumable items.
+
 #### Tasks
-1. **Add Item Tooltip**
+
+**Day 26: Stack Splitting & World Item Dropping**
+
+1. **Implement Stack Splitting**
+   - Add split stack UI dialog/popup
+   - Detect right-click drag or Ctrl+drag for split mode
+   - Update ItemDragDropOperation to support split operations
+   - Add `SplitStack(int32 SlotIndex, int32 SplitQuantity)` method to InventoryComponent
+   - Validate split quantity (must be > 0 and < current quantity)
+   - Create new item instance with split quantity
+   - Update source slot quantity (reduce by split amount)
+   - Handle split on drag: when dragging with split mode, only move split quantity
+   - Visual feedback for split mode (different drag preview or cursor)
+   - Update NativeOnDragDetected to detect Ctrl+drag or right-click drag
+   - Set `bIsSplitOperation = true` in ItemDragDropOperation when splitting
+
+2. **Implement World Item Dropping**
+   - Add "Drop Item" functionality when dragging outside inventory UI
+   - Detect drag drop outside inventory widget bounds
+   - Create DropItemActor class or reuse ItemPickupActor for dropped items
+   - On drop outside UI: Spawn ItemPickupActor at player location or cursor world position
+   - Remove item from inventory when dropped to world
+   - Handle quantity: drop entire stack or split quantity based on drag operation
+   - Visual feedback: show drop preview/preview actor position
+   - Add cancel mechanism: if drop is cancelled, item stays in inventory
+   - Handle inventory full scenario when trying to pick up dropped item
+   - Test dropped items persist in world and can be picked up again
+
+3. **Enhance Drag and Drop for Split Operations**
+   - Update NativeOnMouseButtonDown to detect Ctrl+LeftClick or RightClick drag
+   - Show split quantity dialog when initiating split drag
+   - Update drag operation to store split quantity vs full quantity
+   - Update drop logic to handle split quantities correctly
+   - Visual indicator when in split mode (different drag preview, cursor change)
+
+**Day 27: Quick-Use Bar & UI Polish**
+
+4. **Create Quick-Use Bar System**
+   - Create QuickUseBarWidget class (C++ and Blueprint)
+   - Design UI layout: 10 slots in horizontal bar
+     - Slots 1-8: Skill slots (for Phase 3, initially empty/disabled)
+     - Slots 9-10: Consumable item slots (active in Phase 2)
+   - Create QuickUseSlotWidget class for individual slots
+   - Visual distinction between skill slots and consumable slots
+   - Display item icons and quantity for consumable slots
+   - Show hotkey labels (1-8 for skills, 9-0 for consumables)
+   - Position quick-use bar at bottom center of screen (always visible)
+   - Make quick-use bar always on top (high Z-order)
+
+5. **Implement Quick-Use Bar Functionality**
+   - Add `QuickUseSlots` array to InventoryComponent (10 slots, TArray<FQuickUseSlot>)
+   - Create FQuickUseSlot structure:
+     ```cpp
+     USTRUCT(BlueprintType)
+     struct FQuickUseSlot
+     {
+         UPROPERTY(BlueprintReadWrite)
+         TObjectPtr<UItemBase> Item;
+         
+         UPROPERTY(BlueprintReadWrite)
+         int32 InventorySlotIndex; // Reference to inventory slot
+         
+         UPROPERTY(BlueprintReadWrite)
+         EQuickUseSlotType SlotType; // Skill or Consumable
+     };
+     ```
+   - Add methods to InventoryComponent:
+     - `AssignItemToQuickUseSlot(int32 InventorySlotIndex, int32 QuickUseSlotIndex)`
+     - `UseQuickUseSlot(int32 QuickUseSlotIndex)` - Use item from quick-use slot
+     - `ClearQuickUseSlot(int32 QuickUseSlotIndex)`
+     - `GetQuickUseSlot(int32 QuickUseSlotIndex)` - Get item in quick-use slot
+   - Support drag and drop from inventory to quick-use slots (slots 9-10 only)
+   - Support drag and drop from quick-use slots back to inventory
+   - Update inventory slot display when item is assigned to quick-use slot (optional visual indicator)
+   - Remove item from quick-use slot if removed from inventory
+
+6. **Implement Hotkey Support for Quick-Use Bar**
+   - Add Input Actions for consumable hotkeys:
+     - `IA_QuickUseSlot9` (Hotkey: 9)
+     - `IA_QuickUseSlot10` (Hotkey: 0)
+   - Add Input Actions for skill hotkeys (prepare for Phase 3):
+     - `IA_QuickUseSlot1` through `IA_QuickUseSlot8` (Hotkeys: 1-8)
+   - Implement OnQuickUseSlot1-10 handlers in PlayerController
+   - Connect hotkeys to InventoryComponent::UseQuickUseSlot()
+   - Add visual feedback when hotkey pressed (slot highlight, cooldown indicator)
+   - Handle quick-use slot empty (no action, optional error sound/message)
+   - Handle item consumption from quick-use slot (reduce quantity, remove if empty)
+   - Auto-remove from quick-use slot if item quantity reaches 0
+
+7. **Add Item Tooltip**
    - Create ItemTooltipWidget class
    - Display item name, description, stats
-   - Show on hover over inventory slot
-   - Position tooltip near cursor
+   - Show on hover over inventory slot and quick-use slot
+   - Position tooltip near cursor (avoid screen edges)
    - Fade in/out animation
+   - Show item type, rarity, weight, stack info
+   - Show hotkey assignment if item is in quick-use slot
 
-2. **Add Item Details Panel**
-   - Side panel showing selected item details
+8. **Add Item Details Panel** (Optional, can be simplified)
+   - Side panel showing selected item details (when item is clicked)
    - Full item description
    - Item stats (damage, healing, etc.)
    - Item type and rarity display
    - Use button in details panel
+   - Assign to quick-use slot button (for consumables)
 
-3. **Add Quick-Use Slots**
-   - Horizontal bar of 10 quick-use slots
-   - Items can be dragged to quick-use slots
-   - Hotkey support (1-0 keys) for quick-use
-   - Visual indicators for assigned items
-   - Use items directly from quick-use slots
-
-4. **Add Filter/Sort Functionality**
+9. **Add Filter/Sort Functionality** (Optional, can be deferred)
    - Filter by item type (All, Consumable, Equipment, etc.)
    - Filter by rarity
    - Sort by name, type, rarity, weight
    - Search bar for item names (optional)
 
-5. **Polish UI Visuals**
-   - Add inventory background image/color
-   - Style slots with borders and backgrounds
-   - Add hover effects
-   - Add click animations
-   - Add open/close animations
+10. **Polish UI Visuals**
+    - Add inventory background image/color
+    - Style slots with borders and backgrounds
+    - Add hover effects for inventory slots
+    - Add click animations
+    - Add open/close animations for inventory
+    - Style quick-use bar with background and borders
+    - Add hover effects for quick-use slots
+    - Add visual feedback for hotkey presses
+    - Add cooldown indicators (for future skill cooldowns in Phase 3)
+
+#### Code Structure Examples
+
+**Quick-Use Slot Structure:**
+```cpp
+// Public/Components/Inventory/InventoryComponent.h
+UENUM(BlueprintType)
+enum class EQuickUseSlotType : uint8
+{
+    Skill,      // Slots 1-8 (for Phase 3)
+    Consumable  // Slots 9-10 (for Phase 2)
+};
+
+USTRUCT(BlueprintType)
+struct ACTIONRPG_API FQuickUseSlot
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+    TObjectPtr<UItemBase> Item;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+    int32 InventorySlotIndex; // -1 if not assigned
+
+    UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+    EQuickUseSlotType SlotType;
+
+    FQuickUseSlot()
+        : Item(nullptr), InventorySlotIndex(-1), SlotType(EQuickUseSlotType::Consumable)
+    {}
+};
+```
+
+**Quick-Use Methods in InventoryComponent:**
+```cpp
+// Public/Components/Inventory/InventoryComponent.h
+UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+bool AssignItemToQuickUseSlot(int32 InventorySlotIndex, int32 QuickUseSlotIndex);
+
+UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+bool UseQuickUseSlot(int32 QuickUseSlotIndex);
+
+UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+void ClearQuickUseSlot(int32 QuickUseSlotIndex);
+
+UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+FQuickUseSlot GetQuickUseSlot(int32 QuickUseSlotIndex) const;
+
+UFUNCTION(BlueprintCallable, Category = "Inventory")
+bool SplitStack(int32 SlotIndex, int32 SplitQuantity);
+```
+
+**World Item Drop Method:**
+```cpp
+// Public/Components/Inventory/InventoryComponent.h
+UFUNCTION(BlueprintCallable, Category = "Inventory")
+bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocation);
+```
 
 #### Deliverables
-- Item tooltip functional
-- Item details panel working
-- Quick-use slots implemented
-- Filter/sort features added
-- UI polished and visually appealing
+- ✅ Stack splitting functional (Ctrl+drag or right-click drag)
+- ✅ World item dropping implemented (items spawn as ItemPickupActor)
+- ✅ Quick-use bar created with 10 slots (1-8 for skills, 9-10 for consumables)
+- ✅ Quick-use slots 9-10 functional for consumables
+- ✅ Hotkeys 9-0 working for consumable quick-use slots
+- ✅ Hotkeys 1-8 prepared for skills (Phase 3)
+- ✅ Quick-use bar always visible at bottom of screen
+- ✅ Drag and drop to/from quick-use slots working
+- ✅ Item tooltip functional
+- ✅ Item details panel working (optional)
+- ✅ UI polished and visually appealing
+- ✅ Filter/sort features added (optional, can be deferred)
 
 ---
 
@@ -876,6 +1048,12 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
     int32 Quantity;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
+    int32 SourceQuantity; // Full quantity in source slot
+
+    UPROPERTY(BlueprintReadWrite, Category = "Drag Drop")
+    bool bIsSplitOperation; // True if this is a stack split operation
 };
 ```
 
@@ -936,11 +1114,22 @@ public:
 - [ ] Stacking works via drag and drop
 - [ ] Visual feedback works
 
-#### Day 26-27: UI Polish
-- [ ] Tooltip displays on hover
-- [ ] Item details panel works
-- [ ] Quick-use slots work
-- [ ] Filter/sort features work
+#### Day 26-27: UI Polish & Advanced Features
+- [ ] Stack splitting works (Ctrl+drag or right-click drag)
+- [ ] Split quantity dialog works correctly
+- [ ] World item dropping works (items spawn in world)
+- [ ] Dropped items can be picked up again
+- [ ] Quick-use bar displays correctly (10 slots)
+- [ ] Quick-use slots 9-10 accept consumable items
+- [ ] Quick-use slots 1-8 prepared for skills (Phase 3)
+- [ ] Hotkeys 9-0 work for consumable quick-use slots
+- [ ] Drag and drop to quick-use slots works
+- [ ] Drag and drop from quick-use slots back to inventory works
+- [ ] Quick-use items are consumed when hotkey pressed
+- [ ] Quick-use slots update when items removed from inventory
+- [ ] Tooltip displays on hover (inventory and quick-use slots)
+- [ ] Item details panel works (optional)
+- [ ] Filter/sort features work (optional)
 - [ ] UI animations work
 - [ ] Visual polish complete
 
@@ -963,14 +1152,19 @@ public:
 - ✅ Drag and drop works between slots
 - ✅ Items can be used from inventory
 - ✅ Complete flow tested (pickup → inventory → use)
+- ✅ Stack splitting functional (Ctrl+drag or right-click drag)
+- ✅ World item dropping implemented (items spawn in world)
+- ✅ Quick-use bar with slots 9-10 for consumables functional
+- ✅ Hotkeys 9-0 working for consumable quick-use slots
+- ✅ Drag and drop to/from quick-use slots working
 
 ### Nice to Have (Can Defer)
-- Tooltip system
-- Item details panel
-- Quick-use slots
-- Filter/sort functionality
-- Advanced UI animations
-- Split stack functionality (right-click drag)
+- Item tooltip system (highly recommended but can be basic)
+- Item details panel (can be simplified or deferred)
+- Quick-use slots 1-8 for skills (prepared for Phase 3)
+- Filter/sort functionality (optional enhancement)
+- Advanced UI animations (basic animations sufficient)
+- Split stack dialog/popup (basic implementation acceptable)
 
 ---
 
@@ -1016,6 +1210,37 @@ public:
 - Verify OnDrop validation logic
 - Check slot index is correct
 - Verify MoveItem/SwapItems methods work
+
+### Issue: Stack Splitting Not Working
+**Symptoms:** Can't split stacks or split doesn't work correctly
+**Solutions:**
+- Verify Ctrl+drag or right-click drag detection is working
+- Check SplitStack method in InventoryComponent
+- Verify split quantity validation (must be > 0 and < current quantity)
+- Check ItemDragDropOperation has bIsSplitOperation flag set
+- Verify new item instance is created correctly
+- Check source slot quantity is updated correctly
+
+### Issue: World Item Drop Not Working
+**Symptoms:** Items don't spawn in world or can't be dropped
+**Solutions:**
+- Verify DropItemToWorld method is implemented
+- Check ItemPickupActor spawning logic
+- Verify world location calculation (player position or cursor world position)
+- Check item removal from inventory after drop
+- Verify dropped items can be picked up again
+- Check inventory full scenario when picking up dropped item
+
+### Issue: Quick-Use Bar Not Working
+**Symptoms:** Quick-use slots don't accept items or hotkeys don't work
+**Solutions:**
+- Verify QuickUseBarWidget is created and visible
+- Check quick-use slots array is initialized (10 slots)
+- Verify drag and drop to quick-use slots (only slots 9-10 for consumables)
+- Check Input Actions for hotkeys 9-0 are set up correctly
+- Verify OnQuickUseSlot9/10 handlers are bound in PlayerController
+- Check UseQuickUseSlot method in InventoryComponent
+- Verify quick-use slot updates when inventory changes
 
 ---
 
