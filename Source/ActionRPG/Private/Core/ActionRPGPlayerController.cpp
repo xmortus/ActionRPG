@@ -4,6 +4,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include "Items/Pickups/ItemPickupActor.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -137,6 +138,17 @@ void AActionRPGPlayerController::SetupInputComponent()
 		if (SkillSlot8Action)
 		{
 			EnhancedInputComponent->BindAction(SkillSlot8Action, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnSkillSlot8);
+		}
+
+		// Quick-Use Bar bindings (for consumables - Phase 2)
+		if (QuickUseSlot9Action)
+		{
+			EnhancedInputComponent->BindAction(QuickUseSlot9Action, ETriggerEvent::Triggered, this, &AActionRPGPlayerController::OnQuickUseSlot9);
+		}
+
+		if (QuickUseSlot10Action)
+		{
+			EnhancedInputComponent->BindAction(QuickUseSlot10Action, ETriggerEvent::Triggered, this, &AActionRPGPlayerController::OnQuickUseSlot10);
 		}
 	}
 	else
@@ -377,4 +389,66 @@ void AActionRPGPlayerController::OnSkillSlot8()
 {
 	// TODO: Implement skill activation in Phase 2
 	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 8 pressed"));
+}
+
+void AActionRPGPlayerController::OnQuickUseSlot9(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+		if (!PlayerCharacter)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot9: Pawn is not AActionRPGPlayerCharacter or is NULL"));
+			return;
+		}
+
+		UInventoryComponent* InventoryComp = PlayerCharacter->InventoryComponent;
+		if (InventoryComp)
+		{
+			bool bSuccess = InventoryComp->UseQuickUseSlot(8); // Slot 9 (index 8)
+			if (bSuccess)
+			{
+				UE_LOG(LogTemp, Log, TEXT("OnQuickUseSlot9 - Used quick-use slot 9 successfully"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot9 - Failed to use quick-use slot 9 (slot may be empty)"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot9: InventoryComponent not found"));
+		}
+	}
+}
+
+void AActionRPGPlayerController::OnQuickUseSlot10(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+		if (!PlayerCharacter)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot10: Pawn is not AActionRPGPlayerCharacter or is NULL"));
+			return;
+		}
+
+		UInventoryComponent* InventoryComp = PlayerCharacter->InventoryComponent;
+		if (InventoryComp)
+		{
+			bool bSuccess = InventoryComp->UseQuickUseSlot(9); // Slot 10 (index 9)
+			if (bSuccess)
+			{
+				UE_LOG(LogTemp, Log, TEXT("OnQuickUseSlot10 - Used quick-use slot 10 successfully"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot10 - Failed to use quick-use slot 10 (slot may be empty)"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("OnQuickUseSlot10: InventoryComponent not found"));
+		}
+	}
 }

@@ -373,3 +373,33 @@ void AItemPickupActor::DebugCollisionSettings() const
 	       bAutoPickupOnOverlap ? TEXT("TRUE") : TEXT("FALSE"));
 	UE_LOG(LogTemp, Warning, TEXT("========================================"));
 }
+
+void AItemPickupActor::SetItemData(UItemDataAsset* NewItemData)
+{
+	if (NewItemData)
+	{
+		ItemData = NewItemData;
+		// Update visuals after setting item data
+		SetupVisuals();
+		
+		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetItemData - Item data set: %s"), 
+			*ItemData->ItemName.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetItemData - NewItemData is null"));
+	}
+}
+
+void AItemPickupActor::SetQuantity(int32 NewQuantity)
+{
+	if (NewQuantity > 0)
+	{
+		Quantity = NewQuantity;
+		UE_LOG(LogTemp, Log, TEXT("ItemPickupActor::SetQuantity - Quantity set: %d"), Quantity);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickupActor::SetQuantity - Invalid quantity: %d"), NewQuantity);
+	}
+}

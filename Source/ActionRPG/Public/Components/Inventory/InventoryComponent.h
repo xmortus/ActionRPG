@@ -31,6 +31,40 @@ struct ACTIONRPG_API FInventorySlot
 };
 
 /**
+ * Enum for quick-use slot type.
+ * Slots 1-8 are for skills (Phase 3), slots 9-10 are for consumables (Phase 2).
+ */
+UENUM(BlueprintType)
+enum class EQuickUseSlotType : uint8
+{
+	Skill		UMETA(DisplayName = "Skill"),      // Slots 1-8 (Phase 3)
+	Consumable	UMETA(DisplayName = "Consumable")  // Slots 9-10 (Phase 2)
+};
+
+/**
+ * Structure representing a quick-use slot.
+ * Contains item reference, inventory slot index, and slot type.
+ */
+USTRUCT(BlueprintType)
+struct ACTIONRPG_API FQuickUseSlot
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+	TObjectPtr<UItemBase> Item;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+	int32 InventorySlotIndex; // -1 if not assigned
+
+	UPROPERTY(BlueprintReadWrite, Category = "Quick Use")
+	EQuickUseSlotType SlotType;
+
+	FQuickUseSlot()
+		: Item(nullptr), InventorySlotIndex(-1), SlotType(EQuickUseSlotType::Consumable)
+	{}
+};
+
+/**
  * Inventory Component for managing player inventory.
  * Handles item storage, stacking, weight/capacity limits, and item operations.
  * Supports drag and drop, item usage, and inventory events.
@@ -62,6 +96,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool UseItem(int32 SlotIndex);
+
+	// Stack Splitting
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool SplitStack(int32 SlotIndex, int32 SplitQuantity);
+
+	// World Item Dropping
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocation);
 
 	// Query Methods
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
@@ -95,6 +137,22 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetUsedSlotCount() const;
 
+	// Quick-Use Bar Management
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+	bool AssignItemToQuickUseSlot(int32 InventorySlotIndex, int32 QuickUseSlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+	bool UseQuickUseSlot(int32 QuickUseSlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Quick Use")
+	void ClearQuickUseSlot(int32 QuickUseSlotIndex);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Quick Use")
+	FQuickUseSlot GetQuickUseSlot(int32 QuickUseSlotIndex) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Quick Use")
+	TArray<FQuickUseSlot> GetAllQuickUseSlots() const { return QuickUseSlots; }
+
 	// Debug
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
 	void ReportInventoryContents() const;
@@ -104,6 +162,7 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemAdded, UItemBase*, Item);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemRemoved, UItemBase*, Item, int32, Quantity);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemUsed, UItemBase*, Item);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnQuickUseSlotChanged, int32, QuickUseSlotIndex, UItemBase*, Item);
 
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events", meta = (DisplayName = "On Inventory Changed"))
 	FOnInventoryChanged OnInventoryChanged;
@@ -117,6 +176,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events", meta = (DisplayName = "On Item Used"))
 	FOnItemUsed OnItemUsed;
 
+	UPROPERTY(BlueprintAssignable, Category = "Inventory|Quick Use|Events", meta = (DisplayName = "On Quick Use Slot Changed"))
+	FOnQuickUseSlotChanged OnQuickUseSlotChanged;
+
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	TArray<FInventorySlot> InventorySlots;
@@ -126,6 +188,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory", meta = (ClampMin = "0.0", ClampMax = "10000.0"))
 	float MaxWeight = 100.0f;
+
+	// Quick-Use Bar (10 slots: 1-8 for skills, 9-10 for consumables)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quick Use", meta = (AllowPrivateAccess = "true"))
+	TArray<FQuickUseSlot> QuickUseSlots;
 
 private:
 	// Helper methods for item stacking

@@ -196,12 +196,40 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 		return;
 	}
 
+	// Check if this is a split operation (Ctrl+drag)
+	bool bIsSplitMode = InMouseEvent.IsControlDown();
+	
+	// Check if item can stack and quantity > 1 for split operation
+	if (bIsSplitMode && CurrentQuantity > 1 && CurrentItem->ItemData && CurrentItem->ItemData->MaxStackSize > 1)
+	{
+		// Split operation: move half the stack
+		int32 SplitQuantity = CurrentQuantity / 2;
+		if (SplitQuantity > 0 && SplitQuantity < CurrentQuantity)
+		{
+			DragOperation->Quantity = SplitQuantity;
+			DragOperation->bIsSplitOperation = true;
+			UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnDragDetected - Split mode: Dragging %d/%d from slot %d"),
+				SplitQuantity, CurrentQuantity, SlotIndex);
+		}
+		else
+		{
+			// Fallback to normal drag if split calculation fails
+			DragOperation->Quantity = CurrentQuantity;
+			DragOperation->bIsSplitOperation = false;
+			UE_LOG(LogTemp, Warning, TEXT("InventorySlotWidget::NativeOnDragDetected - Split mode failed, using normal drag"));
+		}
+	}
+	else
+	{
+		// Normal operation: drag entire stack
+		DragOperation->Quantity = CurrentQuantity;
+		DragOperation->bIsSplitOperation = false;
+	}
+
 	// Set drag operation data
 	DragOperation->SourceSlotIndex = SlotIndex;
 	DragOperation->Item = CurrentItem;
-	DragOperation->Quantity = CurrentQuantity;  // Default: drag entire stack
 	DragOperation->SourceQuantity = CurrentQuantity;
-	DragOperation->bIsSplitOperation = false;  // Left-click drag = full stack
 
 	// Note: Drag preview is handled automatically by UE
 	// If you want a custom preview, you can create a widget and set it as DefaultDragVisual
@@ -209,9 +237,11 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 
 	OutOperation = DragOperation;
 
-	UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnDragDetected - Started drag from slot %d (Item: %s, Quantity: %d)"),
+	UE_LOG(LogTemp, Log, TEXT("InventorySlotWidget::NativeOnDragDetected - Started %s drag from slot %d (Item: %s, Quantity: %d/%d)"),
+		DragOperation->bIsSplitOperation ? TEXT("SPLIT") : TEXT("NORMAL"),
 		SlotIndex,
 		CurrentItem && CurrentItem->ItemData ? *CurrentItem->ItemData->ItemName.ToString() : TEXT("Unknown"),
+		DragOperation->Quantity,
 		CurrentQuantity);
 }
 
@@ -256,8 +286,8 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 	}
 
 	// Request parent widget to handle the drop
-	// The parent widget has access to InventoryComponent
-	InventoryWidget->HandleItemDrop(SourceSlot, TargetSlot, ItemDragOp->Quantity);
+	// Pass the drag operation so it can handle split operations properly
+	InventoryWidget->HandleItemDrop(ItemDragOp, TargetSlot);
 
 	// Reset visual feedback
 	bIsDragOver = false;

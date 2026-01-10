@@ -31,6 +31,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pickup")
 	bool TryInteract(AActionRPGPlayerCharacter* Player);
 
+	// Item Data Setters (for world item dropping)
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	void SetItemData(UItemDataAsset* NewItemData);
+
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+	void SetQuantity(int32 NewQuantity);
+
 protected:
 	virtual void BeginPlay() override;
 

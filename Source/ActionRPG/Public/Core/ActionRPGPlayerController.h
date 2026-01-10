@@ -83,6 +83,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
 	TObjectPtr<UInputAction> SkillSlot8Action;
 
+	// Quick-Use Bar Input Actions (for consumables - Phase 2)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Quick Use")
+	TObjectPtr<UInputAction> QuickUseSlot9Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Quick Use")
+	TObjectPtr<UInputAction> QuickUseSlot10Action;
+
 	// Input Handlers
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
@@ -100,5 +107,12 @@ protected:
 	void OnSkillSlot6();
 	void OnSkillSlot7();
 	void OnSkillSlot8();
+
+	// Quick-Use Bar Handlers (for consumables - Phase 2)
+	UFUNCTION()
+	void OnQuickUseSlot9(const FInputActionValue& Value);
+
+	UFUNCTION()
+	void OnQuickUseSlot10(const FInputActionValue& Value);
 };
 

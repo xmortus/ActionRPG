@@ -4,6 +4,7 @@
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
+#include "Items/Pickups/ItemPickupActor.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "Engine/World.h"
 
@@ -14,6 +15,16 @@ UInventoryComponent::UInventoryComponent()
 	
 	// Initialize inventory slots
 	InventorySlots.SetNum(MaxCapacity);
+
+	// Initialize quick-use slots (10 slots: 1-8 for skills, 9-10 for consumables)
+	QuickUseSlots.SetNum(10);
+	for (int32 i = 0; i < 10; i++)
+	{
+		FQuickUseSlot& Slot = QuickUseSlots[i];
+		Slot.Item = nullptr;
+		Slot.InventorySlotIndex = -1;
+		Slot.SlotType = (i < 8) ? EQuickUseSlotType::Skill : EQuickUseSlotType::Consumable;
+	}
 }
 
 void UInventoryComponent::BeginPlay()
@@ -214,6 +225,15 @@ bool UInventoryComponent::RemoveItem(int32 SlotIndex, int32 Quantity)
 		Slot.Item = nullptr;
 		Slot.Quantity = 0;
 		Slot.bIsEmpty = true;
+
+		// Clear quick-use slots referencing this inventory slot
+		for (int32 i = 0; i < QuickUseSlots.Num(); i++)
+		{
+			if (QuickUseSlots[i].InventorySlotIndex == SlotIndex)
+			{
+				ClearQuickUseSlot(i);
+			}
+		}
 	}
 
 	// Broadcast events
@@ -431,7 +451,7 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 	{
 		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Consuming 1 quantity of %s"), *ItemName.ToString());
 		
-		// Remove 1 quantity (RemoveItem will handle quantity = 0 and slot cleanup)
+		// Remove 1 quantity (RemoveItem will handle quantity = 0 and slot cleanup, including clearing quick-use slots)
 		bool bRemoved = RemoveItem(SlotIndex, 1);
 		
 		if (!bRemoved)
@@ -732,4 +752,336 @@ void UInventoryComponent::ReportInventoryContents() const
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("========================================"));
+}
+
+bool UInventoryComponent::SplitStack(int32 SlotIndex, int32 SplitQuantity)
+{
+	// Validate slot index
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Invalid slot index: %d"), SlotIndex);
+		return false;
+	}
+
+	FInventorySlot& Slot = InventorySlots[SlotIndex];
+
+	// Check if slot is empty
+	if (Slot.bIsEmpty || !Slot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Slot %d is empty"), SlotIndex);
+		return false;
+	}
+
+	// Validate split quantity
+	if (SplitQuantity <= 0 || SplitQuantity >= Slot.Quantity)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Invalid split quantity: %d (current: %d)"), 
+			SplitQuantity, Slot.Quantity);
+		return false;
+	}
+
+	// Check if item can stack (MaxStackSize > 1)
+	if (!Slot.Item->ItemData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Item has no ItemData"));
+		return false;
+	}
+
+	const UItemDataAsset* ItemData = Slot.Item->ItemData;
+	if (ItemData->MaxStackSize <= 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Item cannot stack (MaxStackSize: %d)"), 
+			ItemData->MaxStackSize);
+		return false;
+	}
+
+	// Find empty slot for split stack
+	int32 EmptySlotIndex = FindEmptySlot();
+	if (EmptySlotIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - No empty slot available"));
+		return false;
+	}
+
+	// Create new item instance with split quantity
+	UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
+	if (!NewItem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::SplitStack - Failed to create new item instance"));
+		return false;
+	}
+
+	// Initialize new item with same data
+	NewItem->ItemData = Slot.Item->ItemData;
+	NewItem->Quantity = SplitQuantity;
+
+	// Update source slot (reduce quantity)
+	Slot.Quantity -= SplitQuantity;
+	if (Slot.Quantity <= 0)
+	{
+		Slot.Item = nullptr;
+		Slot.bIsEmpty = true;
+		Slot.Quantity = 0;
+	}
+	else
+	{
+		// Update source item quantity
+		Slot.Item->Quantity = Slot.Quantity;
+	}
+
+	// Add split stack to empty slot
+	FInventorySlot& NewSlot = InventorySlots[EmptySlotIndex];
+	NewSlot.Item = NewItem;
+	NewSlot.Quantity = SplitQuantity;
+	NewSlot.bIsEmpty = false;
+
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::SplitStack - Split %d from slot %d to slot %d"), 
+		SplitQuantity, SlotIndex, EmptySlotIndex);
+
+	// Fire events
+	BroadcastInventoryChanged(SlotIndex, Slot.Item);
+	BroadcastInventoryChanged(EmptySlotIndex, NewSlot.Item);
+
+	return true;
+}
+
+bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocation)
+{
+	// Validate slot index
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::DropItemToWorld - Invalid slot index: %d"), SlotIndex);
+		return false;
+	}
+
+	FInventorySlot& Slot = InventorySlots[SlotIndex];
+
+	// Check if slot is empty
+	if (Slot.bIsEmpty || !Slot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::DropItemToWorld - Slot %d is empty"), SlotIndex);
+		return false;
+	}
+
+	// Validate quantity
+	if (Quantity <= 0 || Quantity > Slot.Quantity)
+	{
+		Quantity = Slot.Quantity; // Drop entire stack if invalid quantity
+	}
+
+	// Get world context
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - World is null"));
+		return false;
+	}
+
+	// Get item data
+	if (!Slot.Item->ItemData)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - Item has no ItemData"));
+		return false;
+	}
+
+	const UItemDataAsset* ItemData = Slot.Item->ItemData;
+
+	// Spawn ItemPickupActor at drop location
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	AItemPickupActor* PickupActor = World->SpawnActor<AItemPickupActor>(AItemPickupActor::StaticClass(), WorldLocation, FRotator::ZeroRotator, SpawnParams);
+	if (!PickupActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::DropItemToWorld - Failed to spawn ItemPickupActor"));
+		return false;
+	}
+
+	// Set item data and quantity
+	PickupActor->SetItemData(const_cast<UItemDataAsset*>(ItemData));
+	PickupActor->SetQuantity(Quantity);
+
+	// Remove item from inventory
+	UItemBase* RemovedItem = Slot.Item;
+	if (Quantity >= Slot.Quantity)
+	{
+		// Remove entire stack
+		Slot.Item = nullptr;
+		Slot.Quantity = 0;
+		Slot.bIsEmpty = true;
+	}
+	else
+	{
+		// Reduce quantity
+		Slot.Quantity -= Quantity;
+		Slot.Item->Quantity = Slot.Quantity;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Dropped %d of %s at location (%.2f, %.2f, %.2f)"), 
+		Quantity, *ItemData->ItemName.ToString(), WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+
+	// Clear quick-use slots referencing this inventory slot
+	for (int32 i = 0; i < QuickUseSlots.Num(); i++)
+	{
+		if (QuickUseSlots[i].InventorySlotIndex == SlotIndex)
+		{
+			ClearQuickUseSlot(i);
+		}
+	}
+
+	// Fire events
+	BroadcastInventoryChanged(SlotIndex, Slot.Item);
+	OnItemRemoved.Broadcast(RemovedItem, Quantity);
+
+	return true;
+}
+
+bool UInventoryComponent::AssignItemToQuickUseSlot(int32 InventorySlotIndex, int32 QuickUseSlotIndex)
+{
+	// Validate indices
+	if (!InventorySlots.IsValidIndex(InventorySlotIndex) || !QuickUseSlots.IsValidIndex(QuickUseSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Invalid indices (Inventory: %d, QuickUse: %d)"), 
+			InventorySlotIndex, QuickUseSlotIndex);
+		return false;
+	}
+
+	FInventorySlot& InvSlot = InventorySlots[InventorySlotIndex];
+	
+	// Check if inventory slot is empty
+	if (InvSlot.bIsEmpty || !InvSlot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Inventory slot %d is empty"), InventorySlotIndex);
+		return false;
+	}
+
+	FQuickUseSlot& QuickSlot = QuickUseSlots[QuickUseSlotIndex];
+
+	// For Phase 2, only slots 9-10 (indices 8-9) accept consumables
+	if (QuickSlot.SlotType == EQuickUseSlotType::Skill)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Skill slots not available in Phase 2 (slot %d)"), QuickUseSlotIndex);
+		return false;
+	}
+
+	// Check if item is consumable (for Phase 2, slots 9-10 only accept consumables)
+	if (!InvSlot.Item->ItemData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Item has no ItemData"));
+		return false;
+	}
+
+	const UItemDataAsset* ItemData = InvSlot.Item->ItemData;
+	if (ItemData->Type != EItemType::Consumable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Only consumable items can be assigned to slots 9-10 (Item Type: %d)"), 
+			(int32)ItemData->Type);
+		return false;
+	}
+
+	// Clear existing assignment if any
+	if (QuickSlot.InventorySlotIndex != -1)
+	{
+		ClearQuickUseSlot(QuickUseSlotIndex);
+	}
+
+	// Assign item
+	QuickSlot.Item = InvSlot.Item;
+	QuickSlot.InventorySlotIndex = InventorySlotIndex;
+
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::AssignItemToQuickUseSlot - Assigned %s from slot %d to quick-use slot %d"), 
+		*ItemData->ItemName.ToString(), InventorySlotIndex, QuickUseSlotIndex);
+
+	// Fire event
+	OnQuickUseSlotChanged.Broadcast(QuickUseSlotIndex, QuickSlot.Item);
+
+	return true;
+}
+
+bool UInventoryComponent::UseQuickUseSlot(int32 QuickUseSlotIndex)
+{
+	// Validate index
+	if (!QuickUseSlots.IsValidIndex(QuickUseSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::UseQuickUseSlot - Invalid slot index: %d"), QuickUseSlotIndex);
+		return false;
+	}
+
+	FQuickUseSlot& QuickSlot = QuickUseSlots[QuickUseSlotIndex];
+
+	// Check if slot is empty
+	if (!QuickSlot.Item || QuickSlot.InventorySlotIndex == -1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::UseQuickUseSlot - Quick-use slot %d is empty"), QuickUseSlotIndex);
+		return false;
+	}
+
+	// Validate inventory slot index
+	if (!InventorySlots.IsValidIndex(QuickSlot.InventorySlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::UseQuickUseSlot - Invalid inventory slot index: %d"), QuickSlot.InventorySlotIndex);
+		ClearQuickUseSlot(QuickUseSlotIndex);
+		return false;
+	}
+
+	// Check if inventory slot still has the item
+	const FInventorySlot& InvSlot = InventorySlots[QuickSlot.InventorySlotIndex];
+	if (InvSlot.bIsEmpty || !InvSlot.Item || InvSlot.Item != QuickSlot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::UseQuickUseSlot - Item no longer in inventory slot %d"), QuickSlot.InventorySlotIndex);
+		ClearQuickUseSlot(QuickUseSlotIndex);
+		return false;
+	}
+
+	// Use item from inventory slot
+	bool bSuccess = UseItem(QuickSlot.InventorySlotIndex);
+
+	// If item was consumed and quantity reached 0, clear quick-use slot
+	if (bSuccess)
+	{
+		const FInventorySlot& UpdatedInvSlot = InventorySlots[QuickSlot.InventorySlotIndex];
+		if (UpdatedInvSlot.bIsEmpty || !UpdatedInvSlot.Item)
+		{
+			ClearQuickUseSlot(QuickUseSlotIndex);
+		}
+		else
+		{
+			// Update quick-use slot item reference (in case item instance changed or quantity updated)
+			QuickSlot.Item = UpdatedInvSlot.Item;
+			OnQuickUseSlotChanged.Broadcast(QuickUseSlotIndex, QuickSlot.Item);
+		}
+	}
+
+	return bSuccess;
+}
+
+void UInventoryComponent::ClearQuickUseSlot(int32 QuickUseSlotIndex)
+{
+	// Validate index
+	if (!QuickUseSlots.IsValidIndex(QuickUseSlotIndex))
+	{
+		return;
+	}
+
+	FQuickUseSlot& QuickSlot = QuickUseSlots[QuickUseSlotIndex];
+
+	// Clear slot
+	UItemBase* OldItem = QuickSlot.Item;
+	QuickSlot.Item = nullptr;
+	QuickSlot.InventorySlotIndex = -1;
+
+	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::ClearQuickUseSlot - Cleared quick-use slot %d"), QuickUseSlotIndex);
+
+	// Fire event
+	OnQuickUseSlotChanged.Broadcast(QuickUseSlotIndex, nullptr);
+}
+
+FQuickUseSlot UInventoryComponent::GetQuickUseSlot(int32 QuickUseSlotIndex) const
+{
+	if (QuickUseSlots.IsValidIndex(QuickUseSlotIndex))
+	{
+		return QuickUseSlots[QuickUseSlotIndex];
+	}
+
+	return FQuickUseSlot();
 }

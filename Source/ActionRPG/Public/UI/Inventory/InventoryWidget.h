@@ -8,6 +8,7 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "UI/Inventory/InventorySlotWidget.h"
+#include "UI/Inventory/ItemDragDropOperation.h"
 #include "InventoryWidget.generated.h"
 
 class UInventoryComponent;
@@ -54,13 +55,22 @@ public:
 	void CloseInventory();
 
 	/**
-	 * Handle item drop between slots (for drag and drop system).
+	 * Handle item drop between slots using drag operation (for drag and drop system with split support).
+	 * @param DragOperation The drag operation containing source slot, item, and quantity info
+	 * @param TargetSlotIndex The slot where the item is being dropped
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+	void HandleItemDrop(UItemDragDropOperation* DragOperation, int32 TargetSlotIndex);
+
+	/**
+	 * Handle item drop between slots (legacy version for backward compatibility).
+	 * Creates a temporary drag operation and calls the main HandleItemDrop method.
 	 * @param SourceSlotIndex The slot where the item is being dragged from
 	 * @param TargetSlotIndex The slot where the item is being dropped
 	 * @param Quantity The quantity being moved (-1 for entire stack)
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
-	void HandleItemDrop(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = -1);
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI", meta = (DeprecatedFunction, DeprecationMessage = "Use HandleItemDrop with ItemDragDropOperation instead"))
+	void HandleItemDropLegacy(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 Quantity = -1);
 
 	// Widget References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
