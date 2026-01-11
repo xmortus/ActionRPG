@@ -6,6 +6,7 @@
 #include "Components/Button.h"
 #include "UI/Inventory/InventorySlotWidget.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
+#include "UI/Inventory/InventoryContextMenuWidget.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
@@ -14,6 +15,7 @@
 #include "Engine/Engine.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Blueprint/UserWidget.h"
 
 void UInventoryWidget::NativeConstruct()
 {
@@ -168,7 +170,7 @@ void UInventoryWidget::OnInventorySlotClicked(int32 SlotIndex)
 
 void UInventoryWidget::OnInventorySlotRightClicked(int32 SlotIndex)
 {
-	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Slot %d right-clicked (use item)"), SlotIndex);
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Slot %d right-clicked (show context menu)"), SlotIndex);
 	
 	if (!InventoryComponent)
 	{
@@ -176,17 +178,246 @@ void UInventoryWidget::OnInventorySlotRightClicked(int32 SlotIndex)
 		return;
 	}
 
-	// Use item at slot
-	bool bUsed = InventoryComponent->UseItem(SlotIndex);
+	// Get item information from the slot
+	const TArray<FInventorySlot>& InventorySlots = InventoryComponent->GetInventorySlots();
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::OnInventorySlotRightClicked - Invalid slot index: %d"), SlotIndex);
+		return;
+	}
+
+	const FInventorySlot& InventorySlot = InventorySlots[SlotIndex];
+	if (InventorySlot.bIsEmpty || !InventorySlot.Item)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Slot %d is empty, not showing context menu"), SlotIndex);
+		return;
+	}
+
+	// Get mouse position
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::OnInventorySlotRightClicked - PlayerController is null"));
+		return;
+	}
+
+	FVector2D MousePosition;
+	PC->GetMousePosition(MousePosition.X, MousePosition.Y);
+
+	// Close existing context menu if one is already open
+	if (ContextMenuWidget && ContextMenuWidget->IsInViewport() && ContextMenuWidget->GetVisibility() == ESlateVisibility::Visible)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Closing existing context menu before opening new one"));
+		ContextMenuWidget->HideMenu();
+		ContextMenuWidget = nullptr; // Reset so we create a new one
+	}
+
+	// Create context menu widget
+	if (!ContextMenuWidget)
+	{
+		if (!ContextMenuWidgetClass)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryWidget::OnInventorySlotRightClicked - ContextMenuWidgetClass is not set in Blueprint!"));
+			return;
+		}
+
+		ContextMenuWidget = CreateWidget<UInventoryContextMenuWidget>(PC, ContextMenuWidgetClass);
+		if (!ContextMenuWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryWidget::OnInventorySlotRightClicked - Failed to create context menu widget"));
+			return;
+		}
+	}
+
+	// Initialize and show the context menu
+	ContextMenuWidget->InitializeMenu(SlotIndex, InventorySlot.Item, InventorySlot.Quantity, this);
+	ContextMenuWidget->ShowMenuAtPosition(MousePosition);
+}
+
+void UInventoryWidget::UseItemFromContextMenu(int32 SlotIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::UseItemFromContextMenu - Using item from slot %d"), SlotIndex);
 	
+	if (!InventoryComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::UseItemFromContextMenu - InventoryComponent is null"));
+		return;
+	}
+
+	bool bUsed = InventoryComponent->UseItem(SlotIndex);
 	if (bUsed)
 	{
-		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Item used successfully from slot %d"), SlotIndex);
-		// Slot will be updated via OnInventoryChanged event
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::UseItemFromContextMenu - Item used successfully from slot %d"), SlotIndex);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::OnInventorySlotRightClicked - Failed to use item from slot %d"), SlotIndex);
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::UseItemFromContextMenu - Failed to use item from slot %d"), SlotIndex);
+	}
+}
+
+void UInventoryWidget::DropItemFromContextMenu(int32 SlotIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::DropItemFromContextMenu - Dropping item from slot %d"), SlotIndex);
+	
+	if (!InventoryComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - InventoryComponent is null"));
+		return;
+	}
+
+	// Get player character for drop location
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - PlayerController is null"));
+		return;
+	}
+
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - Pawn is null"));
+		return;
+	}
+
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(Pawn);
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - Pawn is not AActionRPGPlayerCharacter"));
+		return;
+	}
+
+	// Get item quantity
+	const TArray<FInventorySlot>& InventorySlots = InventoryComponent->GetInventorySlots();
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - Invalid slot index: %d"), SlotIndex);
+		return;
+	}
+
+	const FInventorySlot& InventorySlot = InventorySlots[SlotIndex];
+	int32 Quantity = InventorySlot.Quantity;
+
+	// Calculate drop location in front of the character (same as HandleDragToWorld)
+	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+	FVector ForwardVector = PlayerCharacter->GetActorForwardVector();
+	float DropDistance = 150.0f;
+	FVector DropLocation = PlayerLocation + (ForwardVector * DropDistance);
+	DropLocation.Z = PlayerLocation.Z; // Keep at player's height initially
+
+	// Trace down to find ground level (same as HandleDragToWorld)
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		FVector TraceStart = DropLocation;
+		TraceStart.Z += 500.0f; // Start trace 500 units above
+		FVector TraceEnd = DropLocation;
+		TraceEnd.Z -= 1000.0f; // Trace down 1000 units
+
+		FHitResult HitResult;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(PlayerCharacter);
+		QueryParams.bTraceComplex = false;
+
+		// First try WorldStatic collision channel
+		if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
+		{
+			DropLocation = HitResult.ImpactPoint;
+			DropLocation.Z += 5.0f; // Add small offset above ground
+		}
+		// If no static collision, try WorldDynamic
+		else if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldDynamic, QueryParams))
+		{
+			DropLocation = HitResult.ImpactPoint;
+			DropLocation.Z += 5.0f; // Add small offset above ground
+		}
+		// If no collision found, keep at player's height
+	}
+
+	// Drop item
+	bool bDropped = InventoryComponent->DropItemToWorld(SlotIndex, Quantity, DropLocation);
+	if (bDropped)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::DropItemFromContextMenu - Item dropped successfully from slot %d"), SlotIndex);
+		UpdateInventoryDisplay();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::DropItemFromContextMenu - Failed to drop item from slot %d"), SlotIndex);
+	}
+}
+
+void UInventoryWidget::SplitItemFromContextMenu(int32 SlotIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::SplitItemFromContextMenu - Splitting item from slot %d"), SlotIndex);
+	
+	if (!InventoryComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::SplitItemFromContextMenu - InventoryComponent is null"));
+		return;
+	}
+
+	// Get item quantity
+	const TArray<FInventorySlot>& InventorySlots = InventoryComponent->GetInventorySlots();
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::SplitItemFromContextMenu - Invalid slot index: %d"), SlotIndex);
+		return;
+	}
+
+	const FInventorySlot& InventorySlot = InventorySlots[SlotIndex];
+	if (InventorySlot.bIsEmpty || !InventorySlot.Item || InventorySlot.Quantity <= 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::SplitItemFromContextMenu - Cannot split slot %d (quantity: %d)"), SlotIndex, InventorySlot.Quantity);
+		return;
+	}
+
+	// Find an empty slot by iterating through inventory slots
+	int32 EmptySlotIndex = -1;
+	const TArray<FInventorySlot>& AllSlots = InventoryComponent->GetInventorySlots();
+	for (int32 i = 0; i < AllSlots.Num(); i++)
+	{
+		if (AllSlots[i].bIsEmpty)
+		{
+			EmptySlotIndex = i;
+			break;
+		}
+	}
+
+	if (EmptySlotIndex == -1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::SplitItemFromContextMenu - No empty slots available for split"));
+		return;
+	}
+
+	// Split half the quantity
+	int32 SplitQuantity = InventorySlot.Quantity / 2;
+	bool bSplit = InventoryComponent->SplitStackToSlot(SlotIndex, EmptySlotIndex, SplitQuantity);
+	if (bSplit)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::SplitItemFromContextMenu - Item split successfully from slot %d to slot %d (quantity: %d)"), 
+			SlotIndex, EmptySlotIndex, SplitQuantity);
+		UpdateInventoryDisplay();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::SplitItemFromContextMenu - Failed to split item from slot %d"), SlotIndex);
+	}
+}
+
+void UInventoryWidget::EquipItemFromContextMenu(int32 SlotIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::EquipItemFromContextMenu - Equipping item from slot %d (placeholder for future implementation)"), SlotIndex);
+	
+	// TODO: Implement equipment system in future phase
+	// For now, just log that equip was requested
+}
+
+void UInventoryWidget::HideContextMenu()
+{
+	if (ContextMenuWidget)
+	{
+		ContextMenuWidget->HideMenu();
 	}
 }
 
@@ -677,6 +908,27 @@ FReply UInventoryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, co
 		{
 			bClickOnSlot = true;
 			UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click on CloseButton"));
+		}
+	}
+	
+	// Check if context menu is open - if so, close it on any click outside the menu
+	if (ContextMenuWidget && ContextMenuWidget->IsInViewport() && ContextMenuWidget->GetVisibility() == ESlateVisibility::Visible)
+	{
+		// Get context menu geometry
+		FGeometry ContextMenuGeometry = ContextMenuWidget->GetCachedGeometry();
+		FVector2D ContextMenuScreenPos = ContextMenuGeometry.LocalToAbsolute(FVector2D::ZeroVector);
+		FVector2D ContextMenuSize = ContextMenuGeometry.GetLocalSize();
+		
+		// Check if click is outside context menu bounds
+		FVector2D ScreenPos = InMouseEvent.GetScreenSpacePosition();
+		bool bClickOutsideMenu = (ScreenPos.X < ContextMenuScreenPos.X || ScreenPos.X > ContextMenuScreenPos.X + ContextMenuSize.X ||
+		                          ScreenPos.Y < ContextMenuScreenPos.Y || ScreenPos.Y > ContextMenuScreenPos.Y + ContextMenuSize.Y);
+		
+		if (bClickOutsideMenu)
+		{
+			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click outside context menu, closing menu"));
+			ContextMenuWidget->HideMenu();
+			return FReply::Handled();
 		}
 	}
 	

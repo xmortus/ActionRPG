@@ -42,11 +42,32 @@ public:
 	void OnInventorySlotClicked(int32 SlotIndex);
 
 	/**
-	 * Handle slot right-clicked event (right click - use item).
+	 * Handle slot right-clicked event (right click - show context menu).
 	 * @param SlotIndex The index of the right-clicked slot
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void OnInventorySlotRightClicked(int32 SlotIndex);
+
+	/**
+	 * Context menu actions (called from context menu widget).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Context Menu")
+	void UseItemFromContextMenu(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Context Menu")
+	void DropItemFromContextMenu(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Context Menu")
+	void SplitItemFromContextMenu(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Context Menu")
+	void EquipItemFromContextMenu(int32 SlotIndex);
+
+	/**
+	 * Hide the context menu if it's currently shown.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Context Menu")
+	void HideContextMenu();
 
 	/**
 	 * Close the inventory widget.
@@ -114,6 +135,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory UI")
 	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
 
+	// Context Menu Widget Class (set in Blueprint)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory UI")
+	TSubclassOf<class UInventoryContextMenuWidget> ContextMenuWidgetClass;
+
 	// Event handlers for InventoryComponent events
 	UFUNCTION()
 	void OnInventoryChanged(int32 SlotIndex, UItemBase* Item);
@@ -152,6 +177,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComponent;
+
+	// Context menu widget (created dynamically)
+	UPROPERTY()
+	TObjectPtr<class UInventoryContextMenuWidget> ContextMenuWidget;
 
 	/**
 	 * Initialize all slot widgets in the grid.
