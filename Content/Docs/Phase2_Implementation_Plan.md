@@ -753,44 +753,236 @@ bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocati
 
 ### Day 28: Final Integration & Testing
 
+#### Overview
+Final day of Phase 2 focused on comprehensive testing, bug fixing, performance optimization, code cleanup, and documentation. This includes both automated testing and manual verification steps in the UE 5.7 Editor.
+
 #### Tasks
-1. **Complete Integration Testing**
-   - Test all inventory features together
-   - Test pickup → inventory → use flow
-   - Test drag and drop in all scenarios
-   - Test quick-use slots
-   - Test UI polish features
 
-2. **Performance Testing**
-   - Verify no frame drops with full inventory
-   - Test widget creation/destruction performance
-   - Optimize slot widget updates
-   - Cache references where possible
+**Part 1: Complete Integration Testing**
 
-3. **Bug Fixes**
-   - Fix any remaining bugs
-   - Fix edge cases
-   - Fix UI glitches
-   - Fix drag and drop issues
+1. **Test Complete Inventory Flow**
+   - Test full cycle: Pickup → Inventory → Use → Drop → Pickup Again
+   - Verify items persist correctly through all operations
+   - Test with multiple item types (Consumable, Equipment, SkillItem)
+   - Test with different quantities (single items, stacks)
+   - Verify all events fire correctly (OnInventoryChanged, OnItemAdded, OnItemRemoved, OnItemUsed)
 
-4. **Code Cleanup**
-   - Add code comments
-   - Remove debug logs
-   - Format code according to UE 5.7 standards
-   - Verify naming conventions
+2. **Test Drag and Drop Scenarios**
+   - Move item to empty slot
+   - Swap two different items
+   - Stack same items together
+   - Split stack (Ctrl+drag) to empty slot
+   - Split stack (Ctrl+drag) onto existing stack of same item
+   - Drag from inventory to quick-use slot (9-10)
+   - Drag from quick-use slot back to inventory
+   - Drag from inventory slot to same slot (should do nothing)
+   - Test drag cancellation (release outside valid drop zone)
 
-5. **Documentation**
-   - Document any deviations from plan
-   - Create manual setup guide for Phase 2
-   - Create progress report
-   - Update architecture document if needed
+3. **Test Quick-Use Bar**
+   - Assign items to slots 9-10 via drag and drop
+   - Use items via hotkeys (9 and 0 keys)
+   - Verify items are consumed correctly
+   - Verify quick-use slot clears when item quantity reaches 0
+   - Verify quick-use slot clears when item removed from inventory
+   - Test with multiple consumable types
+   - Test rapid hotkey presses (should handle correctly)
+
+4. **Test Context Menu System**
+   - Right-click on inventory slot with item
+   - Test all context menu buttons (Use, Drop, Split, Equip)
+   - Verify button visibility rules:
+     - Equip button hidden for Consumable, SkillItem, SkillStone
+     - Split button hidden when quantity <= 1
+   - Test context menu closes when clicking outside
+   - Test context menu closes and recreates when right-clicking another slot
+   - Test drop button spawns items in front of character
+   - Test split button splits stack correctly
+
+5. **Test Stack Splitting**
+   - Split stack via Ctrl+drag
+   - Split stack via context menu Split button
+   - Verify split quantity is correct (half stack for Phase 2)
+   - Verify split stack appears in target slot (not next available)
+   - Verify split stack can stack with existing stacks
+   - Test splitting stack of quantity 1 (should be prevented)
+   - Test splitting max stack size items
+
+6. **Test World Item Dropping**
+   - Drop item from inventory to world (via context menu or drag outside UI)
+   - Verify ItemPickupActor spawns correctly
+   - Verify item appears at correct location (in front of character)
+   - Verify dropped item can be picked up again
+   - Test dropping entire stack
+   - Test dropping split quantity
+   - Test picking up dropped item when inventory is full (should fail gracefully)
+
+7. **Test Edge Cases**
+   - Full inventory (50 slots) - verify no crashes
+   - Max weight reached - verify pickup prevention
+   - Empty inventory operations - verify graceful failures
+   - Invalid slot indices - verify null checks
+   - Item usage at max health/mana - verify prevention
+   - Rapid item operations - verify no race conditions
+   - Multiple simultaneous pickups - verify correct handling
+   - Inventory widget open/close during operations - verify stability
+
+**Part 2: Performance Testing**
+
+8. **Widget Performance**
+   - Test inventory widget creation time (should be < 100ms)
+   - Test inventory widget visibility toggle (should be instant)
+   - Test with full inventory (50 slots) - verify no frame drops
+   - Test rapid slot updates - verify smooth performance
+   - Test drag and drop with many items - verify no lag
+   - Monitor memory usage during extended play
+   - Check for memory leaks (use Unreal Insights or memory profiler)
+
+9. **Inventory Operations Performance**
+   - Test rapid item additions (10+ items per second)
+   - Test rapid item removals
+   - Test rapid drag and drop operations
+   - Test with maximum stack sizes
+   - Verify no frame drops during inventory operations
+   - Check CPU usage during inventory operations
+
+10. **UI Responsiveness**
+    - Verify all UI interactions are responsive (< 16ms for 60fps)
+    - Test quick-use bar hotkey response time
+    - Test context menu appearance time
+    - Test tooltip display time
+    - Verify no input lag during inventory operations
+
+**Part 3: Manual Testing in UE 5.7 Editor**
+
+11. **Manual Editor Verification Steps**
+    
+    **Note:** Detailed manual steps for UE 5.7 Editor verification are documented in a separate file:
+    - **File:** `Content/Docs/Phase2_Manual_Steps_day28.md`
+    - **Purpose:** Step-by-step instructions for verifying all Blueprint classes, Widget Blueprints, Input Actions, and in-game testing
+    
+    **Quick Reference - Manual Steps Include:**
+    - Step 1: Verify All Blueprint Classes (PlayerCharacter, InventoryComponent)
+    - Step 2: Verify Widget Blueprints (InventoryWidget, InventorySlotWidget, QuickUseBarWidget, ContextMenuWidget)
+    - Step 3: Verify PlayerController Setup (Widget classes, Input bindings)
+    - Step 4: Verify HUD Setup (Quick-use bar configuration)
+    - Step 5: Verify Input Actions (Input Mapping Context)
+    - Step 6: Verify Item Pickup Setup (BP_ItemPickup configuration)
+    - Step 7: Verify Test Level Setup (Player Start, GameMode, Item Pickups)
+    - Step 8: In-Game Manual Testing (comprehensive gameplay testing)
+    - Step 9: Final Verification (Output Log review, system verification)
+    
+    **Before Starting Manual Steps:**
+    - Ensure all C++ code is compiled
+    - Ensure all Blueprint classes are created
+    - Ensure all Widget Blueprints are created
+    - Have the manual steps document open for reference
+    
+    **See:** `Phase2_Manual_Steps_day28.md` for complete detailed instructions
+
+**Part 4: Bug Fixes and Edge Case Handling**
+
+12. **Fix Identified Bugs**
+    - Review all test results and identify bugs
+    - Prioritize bugs (critical, high, medium, low)
+    - Fix critical bugs first (crashes, data loss, major functionality)
+    - Fix high-priority bugs (UI issues, incorrect behavior)
+    - Document all bug fixes in code comments
+    - Re-test after each bug fix
+
+13. **Handle Edge Cases**
+    - Add null checks where needed
+    - Add validation for all user inputs
+    - Handle error cases gracefully (show user feedback)
+    - Prevent invalid operations (e.g., splitting stack of 1)
+    - Add bounds checking for all array accesses
+    - Handle widget lifecycle edge cases
+
+14. **UI Polish and Fixes**
+    - Fix any visual glitches
+    - Fix tooltip positioning issues
+    - Fix context menu positioning
+    - Fix drag preview appearance
+    - Fix slot highlight states
+    - Ensure consistent styling across all widgets
+
+**Part 5: Code Cleanup**
+
+15. **Code Quality Improvements**
+    - Add comprehensive code comments to all public methods
+    - Add inline comments for complex logic
+    - Remove excessive debug logs (keep important ones)
+    - Remove commented-out code
+    - Format code according to UE 5.7 coding standards
+    - Verify all naming conventions are followed:
+      - Classes: PascalCase (e.g., `UInventoryComponent`)
+      - Functions: PascalCase (e.g., `AddItem`)
+      - Variables: PascalCase for UPROPERTY, camelCase for locals
+      - Enums: `E` prefix (e.g., `EItemType`)
+      - Structs: `F` prefix (e.g., `FInventorySlot`)
+
+16. **Code Organization**
+    - Verify all includes are necessary and organized
+    - Remove unused includes
+    - Group related methods together
+    - Organize UPROPERTY declarations logically
+    - Verify forward declarations are used where appropriate
+
+17. **Performance Optimizations**
+    - Cache frequently accessed references
+    - Avoid unnecessary array copies
+    - Use const references where possible
+    - Optimize widget update logic
+    - Verify no unnecessary recalculations
+
+**Part 6: Documentation**
+
+18. **Update Documentation**
+    - Document any deviations from original plan
+    - Document all manual setup steps (create/update manual steps document)
+    - Document known issues and workarounds
+    - Document any design decisions made during implementation
+    - Update code comments for complex systems
+    - Create Phase 2 completion summary
+
+19. **Create Manual Steps Document**
+    - Document all Blueprint setup steps
+    - Document widget setup steps
+    - Document Input Action setup
+    - Document test level setup
+    - Include screenshots if helpful
+    - Create troubleshooting section
+
+20. **Final Verification Checklist**
+    - All code compiles without errors
+    - All Blueprints compile without errors
+    - All widgets compile without errors
+    - No errors in Output Log during gameplay
+    - All features tested and working
+    - Performance is acceptable
+    - Code is clean and documented
+    - Documentation is complete
+
+#### Manual Steps Reference
+
+**Note:** All detailed manual steps for Day 28 are documented in a separate file:
+- **File:** `Content/Docs/Phase2_Manual_Steps_day28.md`
+- **Contains:** Complete step-by-step instructions for all manual verification tasks
+
+**For detailed manual steps, see:** `Phase2_Manual_Steps_day28.md`
 
 #### Deliverables
-- All systems integrated and working
-- Performance optimized
-- Bugs fixed
-- Code cleaned and documented
-- Phase 2 complete and verified
+- ✅ All systems integrated and working correctly
+- ✅ Complete integration testing performed
+- ✅ Performance testing completed (no significant issues)
+- ✅ All identified bugs fixed
+- ✅ All edge cases handled
+- ✅ Code cleaned and documented
+- ✅ All Blueprints verified and compiled
+- ✅ All widgets verified and compiled
+- ✅ Manual testing completed in Editor
+- ✅ Phase 2 completion summary created
+- ✅ Manual setup guide created/updated
+- ✅ Ready for Phase 3 (Skill System)
 
 ---
 
