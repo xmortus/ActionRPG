@@ -21,7 +21,7 @@ class ACTIONRPG_API USkillDatabase : public UObject
 
 public:
 	// Singleton accessor
-	UFUNCTION(BlueprintCallable, Category = "Skill Database")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Database")
 	static USkillDatabase* Get();
 
 	// Initialize database - loads all skill data assets

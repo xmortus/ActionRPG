@@ -85,8 +85,10 @@ void USkillDatabase::Initialize()
 				if (SkillData->SkillID != NAME_None)
 				{
 					SkillRegistry.Add(SkillData->SkillID, SkillData);
-					UE_LOG(LogTemp, Log, TEXT("SkillDatabase: Registered skill - ID: %s, Name: %s"), 
+					UE_LOG(LogTemp, Log, TEXT("SkillDatabase: Registered SkillDataAsset (template) - ID: %s, Name: %s"), 
 						*SkillData->SkillID.ToString(), *SkillData->SkillName.ToString());
+					UE_LOG(LogTemp, Verbose, TEXT("  Note: SkillDatabase stores SkillDataAssets (templates), not actual skill instances."));
+					UE_LOG(LogTemp, Verbose, TEXT("  Actual skill instances are stored in each player's SkillComponent."));
 				}
 				else
 				{
@@ -106,7 +108,9 @@ void USkillDatabase::Initialize()
 			}
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("SkillDatabase: Initialization complete. Registered %d skills."), SkillRegistry.Num());
+		UE_LOG(LogTemp, Log, TEXT("SkillDatabase: Initialization complete. Registered %d SkillDataAssets (templates)."), SkillRegistry.Num());
+		UE_LOG(LogTemp, Log, TEXT("  SkillDatabase is a SINGLETON - stores SkillDataAssets (templates) shared by all players."));
+		UE_LOG(LogTemp, Log, TEXT("  Actual skill instances are stored in each player's SkillComponent (unique per player)."));
 	}
 	else
 	{
@@ -184,8 +188,10 @@ TArray<FName> USkillDatabase::GetAllSkillIDs() const
 
 void USkillDatabase::PrintAllSkills() const
 {
-	UE_LOG(LogTemp, Log, TEXT("=== SkillDatabase: All Registered Skills ==="));
-	UE_LOG(LogTemp, Log, TEXT("Total Skills: %d"), SkillRegistry.Num());
+	UE_LOG(LogTemp, Log, TEXT("=== SkillDatabase: All Registered SkillDataAssets (Templates) ==="));
+	UE_LOG(LogTemp, Log, TEXT("Note: SkillDatabase stores SkillDataAssets (templates), NOT actual skill instances."));
+	UE_LOG(LogTemp, Log, TEXT("Actual skill instances are stored in each player's SkillComponent."));
+	UE_LOG(LogTemp, Log, TEXT("Total SkillDataAssets: %d"), SkillRegistry.Num());
 	
 	if (SkillRegistry.Num() == 0)
 	{
@@ -213,15 +219,31 @@ void USkillDatabase::PrintAllSkills() const
 
 USkillBase* USkillDatabase::CreateSkill(const FName& SkillID) const
 {
+	UE_LOG(LogTemp, Verbose, TEXT("SkillDatabase::CreateSkill - Creating skill instance (NOT storing in database): %s"), 
+		*SkillID.ToString());
+
 	USkillDataAsset* SkillData = GetSkillDataAsset(SkillID);
 	if (!SkillData)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("SkillDatabase::CreateSkill - SkillDataAsset not found: %s"), *SkillID.ToString());
 		return nullptr;
 	}
 
-	USkillBase* NewSkill = NewObject<USkillBase>();
-	NewSkill->SkillData = SkillData;
-	NewSkill->CooldownRemaining = 0.0f;
+	// Create a new skill instance - this is NOT stored in the database
+	// The database only stores SkillDataAssets (templates), not actual skill instances
+	// Actual skill instances are stored in the player's SkillComponent
+	// Use GetTransientPackage() as outer for temporary skills that will be moved to SkillComponent
+	USkillBase* NewSkill = NewObject<USkillBase>(GetTransientPackage(), USkillBase::StaticClass());
+	if (NewSkill)
+	{
+		NewSkill->SkillData = SkillData;
+		NewSkill->CooldownRemaining = 0.0f;
+		NewSkill->SkillLevel = 1;
+		NewSkill->Experience = 0.0f;
+
+		UE_LOG(LogTemp, Verbose, TEXT("SkillDatabase::CreateSkill - Skill instance created (will be stored in SkillComponent): %s"),
+			*SkillData->SkillName.ToString());
+	}
 
 	return NewSkill;
 }
