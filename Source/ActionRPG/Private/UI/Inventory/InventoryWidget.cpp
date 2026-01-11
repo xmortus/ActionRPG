@@ -568,26 +568,88 @@ bool UInventoryWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDrop
 		return false;
 	}
 
+	// Check if drag was already handled by a child widget (like a slot widget or quick-use bar)
+	if (ItemDragOp->bWasHandled)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnDrop - Drag operation already handled by child widget"));
+		ActiveDragOperation = nullptr;
+		return true;
+	}
+
 	// Clear active drag operation since drop was handled
 	ActiveDragOperation = nullptr;
 
-	// Get the local position of the drop
-	FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
+	// Get the screen position of the drop
+	FVector2D ScreenPosition = InDragDropEvent.GetScreenSpacePosition();
 	
-	// Find which slot (if any) the drop is over
-	int32 TargetSlotIndex = FindSlotAtScreenPosition(LocalPosition);
+	// Convert screen position to local position relative to this widget
+	FVector2D LocalPosition = InGeometry.AbsoluteToLocal(ScreenPosition);
+	
+	// Get this widget's size
+	FVector2D WidgetSize = InGeometry.GetLocalSize();
+	
+	// Check if drop is outside the inventory widget bounds entirely
+	// If so, treat it as a world drop immediately (prevents quick drags from hitting slots)
+	if (LocalPosition.X < 0.0f || LocalPosition.X > WidgetSize.X ||
+		LocalPosition.Y < 0.0f || LocalPosition.Y > WidgetSize.Y)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop outside widget bounds (local pos: %.1f, %.1f, widget size: %.1f x %.1f), handling as world drop"), 
+			LocalPosition.X, LocalPosition.Y, WidgetSize.X, WidgetSize.Y);
+		HandleDragToWorld(ItemDragOp, InDragDropEvent);
+		return true;
+	}
+	
+	// Drop is within widget bounds - check if it's actually over a slot widget
+	// This prevents quick drags from being incorrectly identified as slot drops
+	// by using actual slot widget geometry instead of approximate grid calculations
+	int32 TargetSlotIndex = -1;
+	
+	for (int32 i = 0; i < SlotWidgets.Num(); i++)
+	{
+		if (!SlotWidgets[i] || !SlotWidgets[i]->IsValidLowLevel())
+		{
+			continue;
+		}
+
+		// Get the slot widget's actual geometry
+		FGeometry SlotGeometry = SlotWidgets[i]->GetCachedGeometry();
+		FVector2D SlotScreenSize = SlotGeometry.GetLocalSize() * SlotGeometry.Scale;
+		
+		// Skip if slot hasn't been laid out yet (size is zero or invalid)
+		if (SlotScreenSize.X <= 0.0f || SlotScreenSize.Y <= 0.0f)
+		{
+			continue;
+		}
+
+		// Get the slot widget's screen space bounds
+		FVector2D SlotScreenPos = SlotGeometry.LocalToAbsolute(FVector2D::ZeroVector);
+		
+		// Check if the drop position is within this slot's bounds
+		if (ScreenPosition.X >= SlotScreenPos.X && ScreenPosition.X <= SlotScreenPos.X + SlotScreenSize.X &&
+			ScreenPosition.Y >= SlotScreenPos.Y && ScreenPosition.Y <= SlotScreenPos.Y + SlotScreenSize.Y)
+		{
+			TargetSlotIndex = i;
+			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop detected over slot %d (screen pos: %.1f, %.1f, slot bounds: [%.1f-%.1f, %.1f-%.1f])"), 
+				i, ScreenPosition.X, ScreenPosition.Y, SlotScreenPos.X, SlotScreenPos.X + SlotScreenSize.X, SlotScreenPos.Y, SlotScreenPos.Y + SlotScreenSize.Y);
+			break;
+		}
+	}
 
 	if (TargetSlotIndex >= 0 && TargetSlotIndex < SlotWidgets.Num())
 	{
-		// Drop is on a valid slot - handle normally
+		// Drop is actually on a valid slot - handle normally
 		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop on slot %d, routing to HandleItemDrop"), TargetSlotIndex);
 		HandleItemDrop(ItemDragOp, TargetSlotIndex);
 		return true;
 	}
 	else
 	{
-		// Drop is outside any slot - handle as world drop
-		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop outside slots (target slot: %d), handling as world drop"), TargetSlotIndex);
+		// Drop is not over any slot widget - handle as world drop
+		// This happens when:
+		// 1. Drop is outside the inventory widget bounds
+		// 2. Drop is within inventory widget bounds but not over any slot (e.g., in empty space between slots)
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDrop - Drop not over any slot (screen pos: %.1f, %.1f), handling as world drop"), 
+			ScreenPosition.X, ScreenPosition.Y);
 		HandleDragToWorld(ItemDragOp, InDragDropEvent);
 		return true;
 	}
@@ -637,8 +699,10 @@ FReply UInventoryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, co
 
 int32 UInventoryWidget::FindSlotAtScreenPosition(const FVector2D& LocalPosition) const
 {
-	// Calculate which slot based on grid layout (10 columns)
-	// This is approximate - for exact slot detection, we'd need to check each slot's actual geometry
+	// This method is deprecated in favor of checking actual slot widget geometry in NativeOnDrop
+	// However, we'll keep it for backward compatibility but use approximate calculation
+	// The actual slot detection in NativeOnDrop now uses precise geometry checks
+	
 	if (!InventoryGrid || SlotWidgets.Num() == 0)
 	{
 		return -1;
