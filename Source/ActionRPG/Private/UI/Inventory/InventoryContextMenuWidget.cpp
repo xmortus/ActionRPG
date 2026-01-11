@@ -7,11 +7,6 @@
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
-#include "Blueprint/WidgetLayoutLibrary.h"
-#include "Components/CanvasPanelSlot.h"
-#include "Blueprint/UserWidget.h"
-#include "Components/CanvasPanel.h"
-#include "Components/Image.h"
 
 void UInventoryContextMenuWidget::NativeConstruct()
 {
@@ -47,22 +42,22 @@ void UInventoryContextMenuWidget::NativeDestruct()
 	// Unbind button click handlers
 	if (UseButton)
 	{
-		UseButton->OnClicked.RemoveAll(this);
+		UseButton->OnClicked.RemoveDynamic(this, &UInventoryContextMenuWidget::OnUseButtonClicked);
 	}
 
 	if (DropButton)
 	{
-		DropButton->OnClicked.RemoveAll(this);
+		DropButton->OnClicked.RemoveDynamic(this, &UInventoryContextMenuWidget::OnDropButtonClicked);
 	}
 
 	if (SplitButton)
 	{
-		SplitButton->OnClicked.RemoveAll(this);
+		SplitButton->OnClicked.RemoveDynamic(this, &UInventoryContextMenuWidget::OnSplitButtonClicked);
 	}
 
 	if (EquipButton)
 	{
-		EquipButton->OnClicked.RemoveAll(this);
+		EquipButton->OnClicked.RemoveDynamic(this, &UInventoryContextMenuWidget::OnEquipButtonClicked);
 	}
 
 	Super::NativeDestruct();
@@ -86,29 +81,46 @@ void UInventoryContextMenuWidget::ShowMenuAtPosition(FVector2D ScreenPosition)
 		AddToViewport(100); // High Z-order to appear above inventory
 	}
 
-	// Store the target position (Blueprint can access this via GetTargetScreenPosition if needed)
+	// Store the target position (Blueprint can access this via GetTargetScreenPosition)
 	TargetScreenPosition = ScreenPosition;
 	
 	SetVisibility(ESlateVisibility::Visible);
 	
-	UE_LOG(LogTemp, Log, TEXT("InventoryContextMenuWidget::ShowMenuAtPosition - Menu shown at screen position (%.1f, %.1f)"), ScreenPosition.X, ScreenPosition.Y);
-	UE_LOG(LogTemp, Warning, TEXT("NOTE: Positioning must be handled in Blueprint. In your context menu widget Blueprint:"));
-	UE_LOG(LogTemp, Warning, TEXT("1. Use Canvas Panel as root widget"));
-	UE_LOG(LogTemp, Warning, TEXT("2. Set Anchor to Top-Left (0,0)"));
-	UE_LOG(LogTemp, Warning, TEXT("3. Bind Position Offset to GetMousePositionOnViewport (or use Render Transform)"));
-	UE_LOG(LogTemp, Warning, TEXT("Alternatively, handle positioning in Blueprint Event Graph using widget layout."));
+	// Call Blueprint event to update position (Blueprint must implement OnPositionUpdated to position the widget)
+	OnPositionUpdated();
+	
+	UE_LOG(LogTemp, Verbose, TEXT("InventoryContextMenuWidget::ShowMenuAtPosition - Menu shown at screen position (%.1f, %.1f)"), ScreenPosition.X, ScreenPosition.Y);
 }
 
 void UInventoryContextMenuWidget::HideMenu()
 {
 	SetVisibility(ESlateVisibility::Collapsed);
-	RemoveFromParent();
+	// Note: Widgets added via AddToViewport() should use visibility toggling instead of RemoveFromParent()
+	// This avoids "no UMG parent" warnings in UE 5.7. The widget stays in viewport and is reused.
 	
 	UE_LOG(LogTemp, Verbose, TEXT("InventoryContextMenuWidget::HideMenu - Hiding context menu"));
 }
 
-// Note: NativeOnMouseButtonDown won't detect clicks outside the widget
-// Click-outside detection is handled in InventoryWidget::NativeOnMouseButtonDown
+FReply UInventoryContextMenuWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	// Convert screen position to local widget space
+	FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+	FVector2D WidgetSize = InGeometry.GetLocalSize();
+	
+	// Check if click is outside the widget bounds
+	bool bClickOutside = (LocalPosition.X < 0.0f || LocalPosition.X > WidgetSize.X ||
+	                      LocalPosition.Y < 0.0f || LocalPosition.Y > WidgetSize.Y);
+	
+	if (bClickOutside)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryContextMenuWidget::NativeOnMouseButtonDown - Click outside menu bounds, closing menu"));
+		HideMenu();
+		return FReply::Handled();
+	}
+	
+	// Click is inside the widget - let child widgets handle it
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
 
 void UInventoryContextMenuWidget::OnUseButtonClicked()
 {

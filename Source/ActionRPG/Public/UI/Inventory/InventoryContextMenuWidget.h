@@ -54,6 +54,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Context Menu")
 	FVector2D GetTargetScreenPosition() const { return TargetScreenPosition; }
 
+	/**
+	 * Blueprint event called when the menu position should be updated.
+	 * Implement this in Blueprint to position the widget using GetTargetScreenPosition().
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Context Menu")
+	void OnPositionUpdated();
+
 	// Button References (must match names in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> UseButton;
@@ -115,4 +122,10 @@ private:
 	 * Equip button is hidden for Consumables, SkillItems, and SkillStones.
 	 */
 	void UpdateButtonVisibility();
+
+	/**
+	 * Handle mouse button down events to detect clicks outside the menu.
+	 * Override to close menu when clicking outside its bounds.
+	 */
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 };

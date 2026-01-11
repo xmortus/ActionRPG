@@ -136,6 +136,12 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
 	{
 		if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 		{
+			// Close context menu if open (clicking on any slot should close the context menu)
+			if (ParentInventoryWidget)
+			{
+				ParentInventoryWidget->HideContextMenu();
+			}
+			
 			// Left click - start drag detection for drag and drop
 			// Only allow drag if slot has an item
 			if (CurrentItem && CurrentQuantity > 0)

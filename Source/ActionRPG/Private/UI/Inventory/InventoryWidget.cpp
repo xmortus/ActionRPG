@@ -58,9 +58,13 @@ void UInventoryWidget::NativeConstruct()
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - InventoryComponent found"));
 
-	// Bind to InventoryComponent events
+	// Bind to InventoryComponent events (unbind first to prevent duplicate bindings when widget is reused)
 	if (InventoryComponent)
 	{
+		InventoryComponent->OnInventoryChanged.RemoveDynamic(this, &UInventoryWidget::OnInventoryChanged);
+		InventoryComponent->OnItemAdded.RemoveDynamic(this, &UInventoryWidget::OnItemAdded);
+		InventoryComponent->OnItemRemoved.RemoveDynamic(this, &UInventoryWidget::OnItemRemoved);
+		
 		InventoryComponent->OnInventoryChanged.AddDynamic(this, &UInventoryWidget::OnInventoryChanged);
 		InventoryComponent->OnItemAdded.AddDynamic(this, &UInventoryWidget::OnItemAdded);
 		InventoryComponent->OnItemRemoved.AddDynamic(this, &UInventoryWidget::OnItemRemoved);
@@ -68,9 +72,10 @@ void UInventoryWidget::NativeConstruct()
 		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Bound to InventoryComponent events"));
 	}
 
-	// Bind close button
+	// Bind close button (unbind first to prevent duplicate bindings when widget is reused)
 	if (CloseButton)
 	{
+		CloseButton->OnClicked.RemoveDynamic(this, &UInventoryWidget::OnCloseButtonClicked);
 		CloseButton->OnClicked.AddDynamic(this, &UInventoryWidget::OnCloseButtonClicked);
 		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Bound close button"));
 	}
@@ -164,6 +169,13 @@ void UInventoryWidget::OnInventorySlotClicked(int32 SlotIndex)
 {
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotClicked - Slot %d clicked"), SlotIndex);
 	
+	// Close context menu if open (clicking on any slot should close the context menu)
+	if (ContextMenuWidget && ContextMenuWidget->IsInViewport() && ContextMenuWidget->GetVisibility() == ESlateVisibility::Visible)
+	{
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotClicked - Closing context menu (slot %d clicked)"), SlotIndex);
+		ContextMenuWidget->HideMenu();
+	}
+	
 	// Left click handling - will be used for drag and drop in Day 24
 	// For now, just log the click
 }
@@ -204,15 +216,14 @@ void UInventoryWidget::OnInventorySlotRightClicked(int32 SlotIndex)
 	FVector2D MousePosition;
 	PC->GetMousePosition(MousePosition.X, MousePosition.Y);
 
-	// Close existing context menu if one is already open
+	// Close existing context menu if one is already open (reuse widget)
 	if (ContextMenuWidget && ContextMenuWidget->IsInViewport() && ContextMenuWidget->GetVisibility() == ESlateVisibility::Visible)
 	{
-		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::OnInventorySlotRightClicked - Closing existing context menu before opening new one"));
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::OnInventorySlotRightClicked - Closing existing context menu before opening new one"));
 		ContextMenuWidget->HideMenu();
-		ContextMenuWidget = nullptr; // Reset so we create a new one
 	}
 
-	// Create context menu widget
+	// Create context menu widget if needed (reuse existing widget)
 	if (!ContextMenuWidget)
 	{
 		if (!ContextMenuWidgetClass)
@@ -911,24 +922,32 @@ FReply UInventoryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, co
 		}
 	}
 	
-	// Check if context menu is open - if so, close it on any click outside the menu
+	// Check if context menu is open - close it on any click (outside menu, on slot, or on close button)
 	if (ContextMenuWidget && ContextMenuWidget->IsInViewport() && ContextMenuWidget->GetVisibility() == ESlateVisibility::Visible)
 	{
-		// Get context menu geometry
+		// Get context menu geometry (accounting for scale)
 		FGeometry ContextMenuGeometry = ContextMenuWidget->GetCachedGeometry();
 		FVector2D ContextMenuScreenPos = ContextMenuGeometry.LocalToAbsolute(FVector2D::ZeroVector);
-		FVector2D ContextMenuSize = ContextMenuGeometry.GetLocalSize();
+		FVector2D ContextMenuSize = ContextMenuGeometry.GetLocalSize() * ContextMenuGeometry.Scale;
 		
 		// Check if click is outside context menu bounds
 		FVector2D ScreenPos = InMouseEvent.GetScreenSpacePosition();
 		bool bClickOutsideMenu = (ScreenPos.X < ContextMenuScreenPos.X || ScreenPos.X > ContextMenuScreenPos.X + ContextMenuSize.X ||
 		                          ScreenPos.Y < ContextMenuScreenPos.Y || ScreenPos.Y > ContextMenuScreenPos.Y + ContextMenuSize.Y);
 		
-		if (bClickOutsideMenu)
+		// Close menu if click is outside menu bounds OR on a slot (clicking on any slot should close the menu)
+		if (bClickOutsideMenu || bClickOnSlot)
 		{
-			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click outside context menu, closing menu"));
+			UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnMouseButtonDown - Closing context menu (click %s)"), 
+				bClickOnSlot ? TEXT("on slot") : TEXT("outside menu"));
 			ContextMenuWidget->HideMenu();
-			return FReply::Handled();
+			
+			// If click was outside menu bounds (not on slot), handle the click here
+			if (bClickOutsideMenu && !bClickOnSlot)
+			{
+				return FReply::Handled();
+			}
+			// If click was on slot, continue to let child widget handle it (but menu is already closed)
 		}
 	}
 	
@@ -936,6 +955,7 @@ FReply UInventoryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, co
 	{
 		// Click is on an inventory slot or close button - let the child widget handle it
 		// Return Unhandled so the child widget can receive the event (child widgets are in front and will receive it first)
+		// Note: Context menu has already been closed above if it was open
 		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnMouseButtonDown - Click on inventory slot/button %d, allowing child widget to handle"), ClickedSlotIndex);
 		return FReply::Unhandled();
 	}
