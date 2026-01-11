@@ -159,47 +159,168 @@
 ### Day 31-32: SkillComponent Implementation
 
 #### Tasks
-1. **Create SkillComponent Header**
+
+1. **Create Folder Structure**
+   - Verify `Source/ActionRPG/Public/Components/Skills/` exists (or create if needed)
+   - Verify `Source/ActionRPG/Private/Components/Skills/` exists (or create if needed)
+   - Create `Content/Blueprints/Components/Skills/` folder in Content Browser
+
+2. **Create SkillComponent Header**
+   - Location: `Source/ActionRPG/Public/Components/Skills/SkillComponent.h`
    - Inherit from `UActorComponent`
-   - Add FSkillInstance structure (Skill, CooldownRemaining, Level, Experience, bIsUnlocked)
-   - Add TArray<FSkillInstance> ActiveSkills
-   - Add events/delegates for skill activation and cooldown changes
+   - Add FSkillInstance structure:
+     - `TObjectPtr<USkillBase> Skill` - Skill instance reference
+     - `float CooldownRemaining` - Current cooldown time
+     - `int32 Level` - Skill level
+     - `float Experience` - Current experience points
+     - `bool bIsUnlocked` - Unlock status
+   - Add `TArray<FSkillInstance> ActiveSkills` - Array of skill instances
+   - Add events/delegates:
+     - `FOnSkillActivated` - Two params: USkillBase*, AActor* (Target)
+     - `FOnSkillCooldownChanged` - One param: USkillBase*
+     - `FOnSkillLevelUp` - Two params: USkillBase*, int32 (NewLevel)
+     - `FOnSkillExperienceGained` - Three params: USkillBase*, float (Amount), int32 (NewLevel)
 
-2. **Implement SkillComponent Core Methods**
-   - `ActivateSkill(USkillBase* Skill, AActor* Target)` - Execute skill
-   - `CanActivateSkill(USkillBase* Skill)` - Check cooldown/requirements
-   - `GrantSkill(USkillBase* Skill)` - Add skill to character
-   - `RemoveSkill(USkillBase* Skill)` - Remove skill
-   - `UpdateCooldowns(float DeltaTime)` - Tick cooldown timers (in TickComponent)
-   - `GetSkillLevel(USkillBase* Skill)` - Get skill level
-   - `GetSkillExperience(USkillBase* Skill)` - Get skill experience
-   - `AddSkillExperience(USkillBase* Skill, float Amount)` - Add experience to skill
+3. **Implement SkillComponent Core Methods**
+   - `BeginPlay()` - Initialize component, validate owner
+   - `TickComponent()` - Update cooldowns each frame
+   - `ActivateSkill(USkillBase* Skill, AActor* Target)` - Execute skill:
+     - Check if skill can be activated
+     - Validate resource costs (mana/stamina)
+     - Call skill's Activate() method
+     - Start cooldown timer
+     - Deduct resource costs
+     - Grant experience (if applicable)
+     - Broadcast OnSkillActivated event
+   - `CanActivateSkill(USkillBase* Skill)` - Check activation requirements:
+     - Check if skill is unlocked
+     - Check cooldown remaining
+     - Check resource costs (mana/stamina)
+     - Call skill's CanActivate() for additional validation
+   - `GrantSkill(USkillBase* Skill)` - Add skill to character:
+     - Check if skill already exists
+     - Create new FSkillInstance entry
+     - Initialize skill level (default: 1)
+     - Initialize experience (default: 0.0f)
+     - Set bIsUnlocked to true
+   - `RemoveSkill(USkillBase* Skill)` - Remove skill from character
+   - `UpdateCooldowns(float DeltaTime)` - Update all skill cooldowns:
+     - Iterate through ActiveSkills
+     - Decrement CooldownRemaining by DeltaTime
+     - Broadcast OnCooldownComplete when cooldown reaches 0
+   - `GetSkillLevel(USkillBase* Skill)` - Get skill level (return 0 if not found)
+   - `GetSkillExperience(USkillBase* Skill)` - Get skill experience (return 0.0f if not found)
+   - `AddSkillExperience(USkillBase* Skill, float Amount)` - Add experience to skill:
+     - Find skill instance
+     - Calculate experience gain with modifiers (prepare for Phase 4 attribute integration)
+     - Add experience
+     - Check for level up
+     - Broadcast OnSkillExperienceGained event
    - `IsSkillUnlocked(USkillBase* Skill)` - Check if skill is unlocked
-   - `GetSkillInstance(USkillBase* Skill)` - Get skill instance data
+   - `GetSkillInstance(USkillBase* Skill)` - Get skill instance data (return nullptr if not found)
 
-3. **Add Skill Experience System**
+4. **Add Skill Experience System**
    - Calculate experience gain based on skill use
-   - Apply experience rate modifiers (attributes, class affinity, difficulty)
-   - Handle skill level ups
-   - Update skill effectiveness based on level
+   - Store base experience amount per skill use (can be defined in SkillDataAsset)
+   - Apply experience rate modifiers (prepare for Phase 4):
+     - Attribute modifiers (INT for magic, DEX for precision, etc.)
+     - Class affinity bonuses (to be added in Phase 4)
+     - Skill difficulty multiplier (to be defined in SkillDataAsset or later)
+   - Handle skill level ups:
+     - Calculate XP required for next level (simple formula: Level * 100, or custom)
+     - When level up occurs:
+       - Increment skill level
+       - Reset experience to 0 (or carry over excess)
+       - Broadcast OnSkillLevelUp event
+       - Update skill effectiveness (if needed)
+   - Update skill effectiveness based on level (prepare for Phase 4 integration)
 
-4. **Add Resource Cost Validation**
-   - Check mana/stamina availability before activation
-   - Deduct resources on successful activation
-   - Handle insufficient resources gracefully
+5. **Add Resource Cost Validation**
+   - Check mana/stamina availability before activation:
+     - Query owner's resource component (to be created in Phase 4)
+     - For now, log warning if resource system not available
+     - Prepare interface for future resource system integration
+   - Deduct resources on successful activation:
+     - Call resource component's deduction methods (when available)
+     - Log resource deduction for debugging
+   - Handle insufficient resources gracefully:
+     - Return false from CanActivateSkill
+     - Log warning message
+     - Optionally broadcast resource insufficient event
 
-5. **Attach to Player Character**
-   - Add component in PlayerCharacter constructor or Blueprint
-   - Test component attachment
-   - Verify TickComponent is enabled for cooldown updates
+6. **Add Component Configuration**
+   - Add properties in header:
+     - `bool bShouldTickForCooldowns` - Toggle cooldown updates (default: true)
+     - `float ExperienceMultiplier` - Global experience multiplier (default: 1.0f)
+   - Configure TickComponent:
+     - Set `PrimaryComponentTick.bCanEverTick = true`
+     - Set `PrimaryComponentTick.bTickEvenWhenPaused = false`
+     - Set `PrimaryComponentTick.TickGroup = TG_PrePhysics` (or appropriate group)
+
+7. **Attach to Player Character**
+   - Option 1: Add in C++ constructor:
+     - Open `ActionRPGPlayerCharacter.h`
+     - Add `UPROPERTY()` SkillComponent reference
+     - Create component in constructor
+   - Option 2: Add in Blueprint (recommended for flexibility):
+     - Create Blueprint class from C++ class
+     - Add SkillComponent in Components panel
+     - Configure default properties
+   - Test component attachment:
+     - Verify component appears in Components list
+     - Check BeginPlay is called
+     - Verify TickComponent is enabled
 
 #### Deliverables
-- SkillComponent class created
-- Core methods implemented
-- Skill experience system functional
-- Resource cost validation working
+- SkillComponent class created (C++ header and implementation)
+- Core methods implemented and tested
+- Skill experience system functional (basic implementation, ready for Phase 4 enhancement)
+- Resource cost validation framework in place (ready for Phase 4 resource system)
 - Component attached to PlayerCharacter
-- Blueprint class created
+- Blueprint class created (`BP_SkillComponent`)
+- Basic skill management working (grant, remove, activate, cooldowns)
+
+#### Implementation Details
+
+**FSkillInstance Structure:**
+```cpp
+USTRUCT(BlueprintType)
+struct FSkillInstance
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    TObjectPtr<USkillBase> Skill;
+
+    UPROPERTY(BlueprintReadOnly)
+    float CooldownRemaining;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 Level;
+
+    UPROPERTY(BlueprintReadOnly)
+    float Experience;
+
+    UPROPERTY(BlueprintReadOnly)
+    bool bIsUnlocked;
+
+    FSkillInstance()
+        : Skill(nullptr)
+        , CooldownRemaining(0.0f)
+        , Level(1)
+        , Experience(0.0f)
+        , bIsUnlocked(false)
+    {}
+};
+```
+
+**Key Implementation Notes:**
+- Use `TArray<FSkillInstance>` for skill storage (similar to InventoryComponent's slot array)
+- Store skill instances per character (each player has their own SkillComponent)
+- Cooldowns update in TickComponent (enabled by default)
+- Experience system is basic now, will be enhanced in Phase 4 with attribute modifiers
+- Resource cost validation prepares for Phase 4 resource system integration
+- Events use dynamic multicast delegates for Blueprint integration
 
 ---
 
