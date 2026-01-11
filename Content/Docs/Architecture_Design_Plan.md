@@ -1,7 +1,7 @@
 # Top-Down Action RPG - Architecture & Design Plan
 **Engine Version:** Unreal Engine 5.7  
 **Project:** ActionRPG  
-**Document Version:** 1.1  
+**Document Version:** 1.3  
 **Last Updated:** 2025-01-07
 
 ---
@@ -11,15 +11,16 @@
 2. [Folder Structure](#folder-structure)
 3. [Core Systems Architecture](#core-systems-architecture)
 4. [Inventory System Design](#inventory-system-design)
-5. [Skill System Design](#skill-system-design)
-6. [Leveling & Progression System](#leveling--progression-system)
-7. [Input System Integration](#input-system-integration)
-8. [Data Assets & Configuration](#data-assets--configuration)
-9. [Component Architecture](#component-architecture)
-10. [Gameplay Framework Integration](#gameplay-framework-integration)
-11. [Asset Organization](#asset-organization)
-12. [Naming Conventions](#naming-conventions)
-13. [Implementation Phases](#implementation-phases)
+5. [Equipment System Design](#equipment-system-design)
+6. [Skill System Design](#skill-system-design)
+7. [Leveling & Progression System](#leveling--progression-system)
+8. [Input System Integration](#input-system-integration)
+9. [Data Assets & Configuration](#data-assets--configuration)
+10. [Component Architecture](#component-architecture)
+11. [Gameplay Framework Integration](#gameplay-framework-integration)
+12. [Asset Organization](#asset-organization)
+13. [Naming Conventions](#naming-conventions)
+14. [Implementation Phases](#implementation-phases)
 
 ---
 
@@ -114,6 +115,9 @@ Source/ActionRPG/
 │   │   │   ├── InventoryWidget.h
 │   │   │   ├── InventorySlotWidget.h
 │   │   │   └── ItemDragDropOperation.h
+│   │   ├── Equipment/
+│   │   │   ├── EquipmentWidget.h
+│   │   │   └── EquipmentSlotWidget.h
 │   │   ├── Skills/
 │   │   │   ├── SkillBarWidget.h
 │   │   │   └── SkillSlotWidget.h
@@ -156,6 +160,9 @@ Content/
 │       │   ├── WBP_Inventory
 │       │   ├── WBP_InventorySlot
 │       │   └── WBP_ItemTooltip
+│       ├── Equipment/
+│       │   ├── WBP_Equipment
+│       │   └── WBP_EquipmentSlot
 │       └── Skills/
 │           ├── WBP_SkillBar
 │           └── WBP_SkillSlot
@@ -399,6 +406,302 @@ class UInventoryComponent : public UActorComponent
 4. **Consumption:** Remove item from inventory if consumable
 5. **Effect:** Apply item effect (healing, skill grant, etc.)
 6. **UI Update:** Refresh inventory display
+
+---
+
+## Equipment System Design
+
+### Core Components
+
+#### EquipmentComponent
+**Purpose:** Manages equipped items and their bonuses to character attributes
+
+**Key Features:**
+- Equipment slot management (Head, Chest, Legs, Weapon, Accessory, etc.)
+- Equipment bonuses to primary and secondary attributes
+- Equipment requirement validation (attribute/level requirements)
+- Visual representation (mesh attachment for equipped items)
+- Equipment durability system (optional)
+
+**Data Structure:**
+```cpp
+// Pseudo-structure
+enum class EEquipmentType : uint8
+{
+    None,
+    Armor,
+    Weapon,
+    Accessory,
+    Shield
+};
+
+enum class EEquipmentSlot : uint8
+{
+    None,
+    Head,
+    Chest,
+    Legs,
+    Feet,
+    Weapon,
+    Shield,
+    Accessory1,
+    Accessory2,
+    Ring1,
+    Ring2
+};
+
+struct FEquipmentSlot
+{
+    TObjectPtr<UEquipmentItem> EquippedItem;
+    EEquipmentSlot SlotType;
+    bool bIsEmpty;
+};
+
+class UEquipmentComponent : public UActorComponent
+{
+    UPROPERTY()
+    TMap<EEquipmentSlot, FEquipmentSlot> EquipmentSlots;
+    
+    // Events
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChanged, EEquipmentSlot, Slot, UEquipmentItem*, NewItem);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipmentBonusChanged, FEquipmentBonuses, Bonuses);
+};
+```
+
+**Core Methods:**
+- `EquipItem(UEquipmentItem* Item, EEquipmentSlot Slot)` - Equip item to slot
+- `UnequipItem(EEquipmentSlot Slot)` - Remove item from slot
+- `GetEquippedItem(EEquipmentSlot Slot)` - Get item in slot
+- `CanEquipItem(UEquipmentItem* Item, EEquipmentSlot Slot)` - Check if item can be equipped
+- `GetEquipmentBonuses()` - Get all active equipment bonuses
+- `GetTotalEquipmentBonus(EPrimaryAttribute Attribute)` - Get bonus to specific attribute
+- `GetTotalEquipmentBonus(ESecondaryAttribute Attribute)` - Get bonus to specific secondary attribute
+- `SwapEquipment(EEquipmentSlot SlotA, EEquipmentSlot SlotB)` - Swap two equipped items
+
+**Equipment Bonuses Structure:**
+```cpp
+struct FEquipmentBonuses
+{
+    // Primary Attribute Bonuses
+    FPrimaryAttributes PrimaryAttributeBonuses;
+    
+    // Secondary Attribute Bonuses
+    float HealthBonus;
+    float StaminaBonus;
+    float ManaBonus;
+    float AttackPowerBonus;
+    float DefenseBonus;
+    float AttackSpeedBonus;
+    float AccuracyBonus;
+    float EvasionBonus;
+    float ManaRegenBonus;
+    float HealthRegenBonus;
+    float StaminaRegenBonus;
+    float SkillEfficiencyBonus;
+    
+    // Skill Bonuses
+    TMap<USkillDataAsset*, float> SkillLevelBonuses; // Bonus skill levels
+    TMap<USkillDataAsset*, float> SkillExperienceBonuses; // Bonus skill XP gain
+};
+```
+
+### Equipment Item System
+
+#### EquipmentItem (Base Class)
+**Purpose:** Base class for all equippable items
+
+**Inheritance:** Inherits from ItemBase
+
+**Key Properties:**
+- EquipmentType (Armor, Weapon, Accessory, Shield - for categorization)
+- EquipmentSlotType (which slot this item can be equipped to)
+- EquipmentBonuses (attribute and skill bonuses)
+- EquipmentRequirements (attribute/level requirements to equip)
+- Durability (current/max durability, optional)
+- VisualMesh (mesh to attach when equipped)
+- SocketName (bone/socket name for attachment)
+
+**Core Methods:**
+- `OnEquipped(AActor* Owner)` - Called when item is equipped
+- `OnUnequipped(AActor* Owner)` - Called when item is unequipped
+- `CanEquip(AActor* Owner)` - Check if owner meets requirements
+- `GetEquipmentBonuses()` - Get bonuses this item provides
+- `GetRequirements()` - Get attribute/level requirements
+
+#### WeaponItem
+**Purpose:** Specialized equipment item for weapons
+
+**Inheritance:** Inherits from EquipmentItem
+
+**Key Properties:**
+- WeaponType (Melee, Ranged, Magic, etc.)
+- BaseDamage (base damage value)
+- DamageType (Physical, Magic, Fire, etc.)
+- AttackSpeedModifier (modifier to attack speed)
+- Range (for ranged weapons)
+- TwoHanded (whether weapon requires both hands)
+
+**Core Methods:**
+- `GetWeaponDamage()` - Calculate total weapon damage
+- `GetEffectiveRange()` - Get effective range for ranged weapons
+- `CanDualWield()` - Check if weapon can be dual-wielded
+
+#### EquipmentDataAsset
+**Purpose:** Data asset containing all equipment properties
+
+**Key Properties:**
+- EquipmentType (Armor, Weapon, Accessory, Shield - for categorization and filtering)
+- EquipmentSlotType (which slot this equipment fits)
+- EquipmentBonuses (all bonuses provided)
+- EquipmentRequirements (attribute/level requirements)
+- VisualMesh (mesh reference for equipped appearance)
+- SocketName (attachment point on character)
+- DurabilityMax (maximum durability, if durability system used)
+- WeaponType (for weapons only - Melee, Ranged, Magic)
+- BaseDamage (for weapons only - base damage value)
+- DamageType (for weapons only - Physical, Magic, Fire, etc.)
+- TwoHanded (for weapons only - whether weapon requires both hands)
+
+### Equipment Type System
+
+#### EquipmentType Enum
+Equipment is categorized by type for organization, filtering, and gameplay rules:
+
+- **Armor:** Protective equipment (Head, Chest, Legs, Feet slots)
+  - Light Armor, Heavy Armor, Cloth Armor (sub-types)
+- **Weapon:** Offensive equipment (Weapon slot)
+  - Melee, Ranged, Magic (sub-types via WeaponType)
+- **Accessory:** Utility equipment (Accessory1/2, Ring1/2 slots)
+  - Amulets, Rings, Charms
+- **Shield:** Defensive equipment (Shield slot)
+  - Shields, Off-hand items
+
+**Purpose:**
+- UI filtering and organization (show all armor, all weapons, etc.)
+- Validation rules (e.g., Armor items shouldn't have BaseDamage)
+- Gameplay mechanics (different repair systems, different bonuses)
+- Data organization and categorization
+
+### Equipment Slot Types
+
+#### Standard Equipment Slots
+- **Head:** Helmets, hats, crowns (Armor type)
+- **Chest:** Armor, robes, shirts (Armor type)
+- **Legs:** Pants, leggings, skirts (Armor type)
+- **Feet:** Boots, shoes, sandals (Armor type)
+- **Weapon:** Swords, staffs, bows, etc. (Weapon type)
+- **Shield:** Shields, off-hand items (Shield type)
+- **Accessory1/2:** Amulets, necklaces (Accessory type)
+- **Ring1/2:** Rings (Accessory type)
+
+#### Slot Restrictions
+- Some items may occupy multiple slots (e.g., full-body armor)
+- Two-handed weapons may prevent shield/off-hand usage
+- Some slots may have size/weight restrictions
+- EquipmentType must match slot type (e.g., Armor type for Head/Chest/Legs/Feet slots)
+
+### Equipment Integration with Attributes
+
+#### Primary Attribute Bonuses
+Equipment can provide flat bonuses or multipliers to primary attributes:
+- Example: "+5 Strength" or "+10% Intelligence"
+- Applied before secondary attribute calculations
+
+#### Secondary Attribute Bonuses
+Equipment directly modifies secondary attributes:
+- **Health/Stamina/Mana:** Flat bonuses or percentage increases
+- **Attack Power:** Direct damage bonuses
+- **Defense:** Damage reduction bonuses
+- **Attack Speed:** Percentage modifiers
+- **Accuracy/Evasion:** Flat or percentage bonuses
+- **Regeneration Rates:** Flat or percentage bonuses
+
+#### Skill Bonuses
+Equipment can provide:
+- **Skill Level Bonuses:** Temporary skill level increases
+- **Skill Experience Bonuses:** Increased XP gain for specific skills
+- **Skill Efficiency Bonuses:** Reduced mana/stamina costs
+
+### Equipment UI System
+
+#### EquipmentWidget
+**Purpose:** Main equipment UI widget (character paper doll or slot grid)
+
+**Key Features:**
+- Visual representation of equipment slots
+- Drag and drop from inventory
+- Equipment slot highlighting
+- Equipment tooltips showing bonuses
+- Requirement validation feedback
+
+**Components:**
+- `UPanelWidget* EquipmentGrid` - Container for equipment slots
+- `TMap<EEquipmentSlot, UEquipmentSlotWidget*> EquipmentSlotWidgets` - Individual slot widgets
+
+#### EquipmentSlotWidget
+**Purpose:** Individual equipment slot UI element
+
+**Key Features:**
+- Equipment icon display
+- Slot type indicator
+- Drag and drop source/destination
+- Click to unequip
+- Right-click context menu (unequip, compare)
+- Visual feedback for valid/invalid drops
+- Requirement validation display
+
+**Events:**
+- `OnSlotClicked` - Unequip item
+- `OnSlotRightClicked` - Context menu
+- `OnDragDetected` - Start drag operation
+- `OnDrop` - Handle drop operation
+
+### Equipment Flow
+
+#### Equip Flow
+1. **Trigger:** Player drags item from inventory to equipment slot OR right-clicks item and selects "Equip"
+2. **Validation:** Check if item can be equipped (slot type match, requirements met)
+3. **Unequip Existing:** If slot is occupied, unequip existing item (return to inventory or swap)
+4. **Equip Item:** Add item to equipment slot
+5. **Apply Bonuses:** EquipmentComponent calculates and applies bonuses
+6. **Update Attributes:** SecondaryAttributeComponent recalculates with new equipment bonuses
+7. **Visual Update:** Attach equipment mesh to character
+8. **UI Update:** Refresh equipment and attribute displays
+
+#### Unequip Flow
+1. **Trigger:** Player clicks equipment slot OR drags item from equipment slot to inventory
+2. **Validation:** Check if item can be unequipped (optional restrictions)
+3. **Remove Bonuses:** EquipmentComponent removes equipment bonuses
+4. **Update Attributes:** SecondaryAttributeComponent recalculates without equipment bonuses
+5. **Visual Update:** Detach equipment mesh from character
+6. **Return to Inventory:** Add item back to inventory (if space available)
+7. **UI Update:** Refresh equipment and attribute displays
+
+### Equipment Requirements
+
+#### Attribute Requirements
+Equipment may require minimum attribute values:
+- Example: "Requires STR 30, CON 25"
+- Prevents equipping if requirements not met
+- Displayed in tooltip and UI
+
+#### Level Requirements
+Equipment may require minimum class/character level:
+- Example: "Requires Level 15"
+- Prevents equipping if level too low
+
+#### Class/Profession Requirements
+Some equipment may be restricted to specific classes:
+- Example: "Warrior Only" or "Mage Only"
+- Provides class-specific bonuses
+
+### Equipment Durability (Optional)
+
+#### Durability System
+- Equipment may have durability that decreases with use
+- Broken equipment provides reduced or no bonuses
+- Repair system allows restoring durability
+- Durability affects equipment value and effectiveness
 
 ---
 
@@ -1020,9 +1323,15 @@ class USecondaryAttributeComponent : public UActorComponent
 1. **Primary Attributes** → Base values
 2. **Skill Levels** → Add skill-based bonuses
 3. **Class Bonuses** → Add class-specific modifiers
-4. **Equipment Bonuses** → Add equipment modifiers
+4. **Equipment Bonuses** → Add equipment modifiers (from EquipmentComponent)
 5. **Temporary Effects** → Apply temporary modifiers
 6. **Final Values** → Cached and broadcast to systems
+
+**Equipment Integration:**
+- EquipmentComponent provides `GetEquipmentBonuses()` method
+- SecondaryAttributeComponent queries EquipmentComponent during recalculation
+- Equipment changes trigger SecondaryAttributeComponent recalculation
+- Equipment bonuses are additive with other modifiers
 
 ---
 
@@ -1258,12 +1567,18 @@ This creates **nonlinear growth**, avoiding raw level inflation.
    - Magic skills increase mana efficiency (INT + WIS + skill level)
    - Movement skills increase evasion (AGI + skill level)
 
-3. **Secondary Attributes** are the real-time result:
-   - Calculated from primary attributes + skills + class bonuses
+3. **Equipment** modifies attributes and performance:
+   - Provides bonuses to primary and secondary attributes
+   - Directly affects combat effectiveness (damage, defense, speed)
+   - May have requirements (attributes, levels, classes)
+   - Visual representation on character
+
+4. **Secondary Attributes** are the real-time result:
+   - Calculated from primary attributes + skills + class bonuses + equipment bonuses
    - Directly affect gameplay performance
    - Update dynamically as components change
 
-4. **Classes** provide structured bonuses:
+5. **Classes** provide structured bonuses:
    - Passive attribute bonuses
    - Skill unlocks at specific levels
    - Affinity multipliers for skill learning
@@ -1453,6 +1768,8 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 
 #### Item Data Assets
 - `ItemDataAsset` - Base item properties
+- `EquipmentDataAsset` - Equipment item properties (armor, weapons)
+- `WeaponDataAsset` - Weapon-specific properties
 - `SkillItemDataAsset` - Skill-granting consumables
 - `SkillStoneDataAsset` - Stored skill knowledge items
 - `BeastCoreDataAsset` - Conditional skill-granting items
@@ -1630,8 +1947,8 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 - **Validation:** `Can[Action]` - e.g., `CanUseItem()`, `CanActivateSkill()`
 
 ### Enums
-- **Enum Names:** `E[System][Type]` - e.g., `EItemType`, `ESkillType`
-- **Enum Values:** `[Type]_[Value]` - e.g., `ItemType_Consumable`, `SkillType_Combat`
+- **Enum Names:** `E[System][Type]` - e.g., `EItemType`, `ESkillType`, `EEquipmentType`
+- **Enum Values:** `[Type]_[Value]` - e.g., `ItemType_Consumable`, `SkillType_Combat`, `EquipmentType_Armor`
 
 ### Structs
 - **Struct Names:** `F[System][Type]` - e.g., `FInventorySlot`, `FSkillInstance`
@@ -1688,15 +2005,23 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 **Goals:**
 - Implement AttributeComponent (Primary Attributes)
 - Implement SecondaryAttributeComponent with calculation formulas
+- Implement EquipmentComponent (Equipment system)
 - Create attribute Data Assets
+- Create equipment Data Assets (EquipmentItem, WeaponItem)
 - Implement ExperienceComponent (XP system)
 - Implement ClassComponent (Class/Profession system)
 - Create class and profession Data Assets
 - Build attribute and class UI widgets
+- Build equipment UI (EquipmentWidget, EquipmentSlotWidget)
+- Integrate equipment bonuses into SecondaryAttributeComponent
 
 **Deliverables:**
 - Primary attribute system (STR, AGI, CON, DEX, INT, WIS)
-- Secondary attribute calculation system
+- Secondary attribute calculation system with equipment integration
+- Equipment system with slot management
+- Equipment item classes (EquipmentItem, WeaponItem)
+- Equipment bonuses system
+- Equipment UI with drag and drop
 - XP management and allocation system
 - Class/Profession leveling system
 - Class specialization system
@@ -1770,32 +2095,43 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 
 ### Unit Testing
 - Test inventory operations (add, remove, move, swap)
+- Test equipment equipping and unequipping
+- Test equipment bonus calculations
+- Test equipment requirements validation
+- Test equipment type validation (Armor, Weapon, Accessory, Shield)
+- Test equipment type and slot type matching
 - Test skill activation and cooldowns
 - Test item usage and consumption
 - Test SkillItem, SkillStone, and BeastCore skill granting
 - Test primary attribute growth and modifications
-- Test secondary attribute calculations
+- Test secondary attribute calculations with equipment bonuses
 - Test XP allocation and class leveling
 - Test class prerequisites and unlocking
 - Test trial activation and completion
 
 ### Integration Testing
+- Test inventory + equipment system interaction
+- Test drag and drop from inventory to equipment slots
+- Test equipment bonuses affecting secondary attributes
 - Test inventory + skill system interaction
 - Test drag and drop across different scenarios
 - Test item pickup and inventory integration
 - Test skill activation from hotkeys
-- Test attribute → skill → secondary attribute flow
+- Test attribute → skill → equipment → secondary attribute flow
 - Test class bonuses affecting attributes and skills
+- Test equipment requirements with attribute system
 - Test XP allocation affecting class levels
 - Test trial rewards affecting progression
 - Test system reinforcement loops
 
 ### UI Testing
 - Test inventory UI responsiveness
-- Test drag and drop visual feedback
+- Test equipment UI responsiveness
+- Test drag and drop visual feedback (inventory and equipment)
+- Test equipment slot validation feedback
 - Test skill bar cooldown displays
-- Test tooltip displays
-- Test attribute widget updates
+- Test tooltip displays (items, equipment, skills)
+- Test attribute widget updates (with equipment bonuses)
 - Test class selection UI
 - Test XP allocation UI
 - Test trial progress UI
@@ -1846,6 +2182,8 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 |---------|------|--------|---------|
 | 1.0 | 2025-01-07 | Initial | Created initial architecture and design plan |
 | 1.1 | 2025-01-07 | Update | Added comprehensive Leveling & Progression System including Primary/Secondary Attributes, Class/Profession system, Trials, and enhanced Skill acquisition methods (SkillStone, BeastCore) |
+| 1.2 | 2025-01-07 | Update | Added Equipment System Design section with EquipmentComponent, EquipmentItem, WeaponItem, equipment slots, equipment UI, and integration with SecondaryAttributeComponent. Updated Phase 4 to include equipment implementation. |
+| 1.3 | 2025-01-07 | Update | Added EquipmentType enum (Armor, Weapon, Accessory, Shield) to EquipmentDataAsset and EquipmentItem for categorization, filtering, and validation. Clarified equipment type and slot type relationships. |
 
 ---
 
