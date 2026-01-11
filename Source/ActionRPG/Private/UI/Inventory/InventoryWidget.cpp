@@ -1021,9 +1021,24 @@ void UInventoryWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEve
 		return;
 	}
 
-	// Handle world drop - item was dropped outside the inventory widget
-	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Handling world drop (drag was not handled)"));
-	HandleDragToWorld(ItemDragOp, InDragDropEvent);
+	// Any drag cancellation should return the item to its original slot
+	// The item should still be in the source slot (we don't remove it until a successful drop)
+	// Just refresh the source slot to ensure it displays correctly
+	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Drag cancelled. Returning item to source slot %d"), 
+		ItemDragOp->SourceSlotIndex);
+	
+	// Refresh the source slot to ensure it displays correctly
+	if (ItemDragOp->SourceSlotIndex >= 0 && ItemDragOp->SourceSlotIndex < SlotWidgets.Num())
+	{
+		RefreshSlot(ItemDragOp->SourceSlotIndex);
+		UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeOnDragCancelled - Refreshed source slot %d"), ItemDragOp->SourceSlotIndex);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryWidget::NativeOnDragCancelled - Invalid source slot index %d, cannot refresh"), 
+			ItemDragOp->SourceSlotIndex);
+	}
+	
 	ActiveDragOperation = nullptr;
 }
 
