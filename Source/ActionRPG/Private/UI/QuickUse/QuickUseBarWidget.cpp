@@ -7,6 +7,9 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
+#include "Core/ActionRPGPlayerController.h"
+#include "InputMappingContext.h"
+#include "EnhancedInputSubsystems.h"
 
 void UQuickUseBarWidget::NativeConstruct()
 {
@@ -205,6 +208,98 @@ UInventoryComponent* UQuickUseBarWidget::GetInventoryComponent() const
 	}
 
 	return nullptr;
+}
+
+FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const
+{
+	// Validate slot index
+	if (SlotIndex < 0 || SlotIndex > 9)
+	{
+		return FText::GetEmpty();
+	}
+
+	// Get the PlayerController
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		return FText::GetEmpty();
+	}
+
+	// Cast to our PlayerController to access InputActions
+	AActionRPGPlayerController* ActionRPGPC = Cast<AActionRPGPlayerController>(PC);
+	if (!ActionRPGPC)
+	{
+		return FText::GetEmpty();
+	}
+
+	// Get the InputAction for this slot using the getter method
+	UInputAction* SlotAction = ActionRPGPC->GetInputActionForQuickUseSlot(SlotIndex);
+
+	if (!SlotAction)
+	{
+		// Fallback to slot number if InputAction not found
+		if (SlotIndex < 8)
+		{
+			return FText::AsNumber(SlotIndex + 1);
+		}
+		else if (SlotIndex == 8)
+		{
+			return FText::FromString(TEXT("9"));
+		}
+		else
+		{
+			return FText::FromString(TEXT("0"));
+		}
+	}
+
+	// Get the InputMappingContext from the PlayerController
+	UInputMappingContext* MappingContext = ActionRPGPC->GetDefaultMappingContext();
+	if (!MappingContext)
+	{
+		// Fallback to slot number if MappingContext not found
+		if (SlotIndex < 8)
+		{
+			return FText::AsNumber(SlotIndex + 1);
+		}
+		else if (SlotIndex == 8)
+		{
+			return FText::FromString(TEXT("9"));
+		}
+		else
+		{
+			return FText::FromString(TEXT("0"));
+		}
+	}
+
+	// Find the mapping for this InputAction
+	const TArray<FEnhancedActionKeyMapping>& Mappings = MappingContext->GetMappings();
+	for (const FEnhancedActionKeyMapping& Mapping : Mappings)
+	{
+		if (Mapping.Action == SlotAction)
+		{
+			// Found the mapping - get the first key's display name
+			FKey BoundKey = Mapping.Key;
+			if (BoundKey.IsValid())
+			{
+				return BoundKey.GetDisplayName();
+			}
+			break;
+		}
+	}
+
+	// Fallback: return slot number if mapping not found
+	if (SlotIndex < 8)
+	{
+		return FText::AsNumber(SlotIndex + 1);
+	}
+	else if (SlotIndex == 8)
+	{
+		return FText::FromString(TEXT("9"));
+	}
+	else
+	{
+		return FText::FromString(TEXT("0"));
+	}
 }
 
 bool UQuickUseBarWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)

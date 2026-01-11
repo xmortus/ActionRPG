@@ -80,28 +80,39 @@ void UQuickUseSlotWidget::SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 
 		CurrentQuantity = 0;
 	}
 
-	// Update hotkey text (1-8 for skills, 9-0 for consumables)
+	// Update hotkey text - get the bound key from the Input Mapping Context
 	if (HotkeyText)
 	{
-		FString HotkeyLabel;
-		if (SlotIndex < 8)
+		FText HotkeyLabel;
+		if (ParentQuickUseBar)
 		{
-			// Slots 1-8: show 1-8 (for skills - Phase 3)
-			HotkeyLabel = FString::Printf(TEXT("%d"), SlotIndex + 1);
+			// Get the actual bound key text from the Input Mapping Context
+			HotkeyLabel = ParentQuickUseBar->GetHotkeyTextForSlot(SlotIndex);
 		}
-		else
+		
+		// Fallback to slot number if parent widget not available or method failed
+		if (HotkeyLabel.IsEmpty())
 		{
-			// Slots 9-10: show 9-0 (for consumables - Phase 2)
-			if (SlotIndex == 8)
+			if (SlotIndex < 8)
 			{
-				HotkeyLabel = TEXT("9");
+				// Slots 1-8: show 1-8 (for skills - Phase 3)
+				HotkeyLabel = FText::AsNumber(SlotIndex + 1);
 			}
-			else if (SlotIndex == 9)
+			else
 			{
-				HotkeyLabel = TEXT("0");
+				// Slots 9-10: show 9-0 (for consumables - Phase 2)
+				if (SlotIndex == 8)
+				{
+					HotkeyLabel = FText::FromString(TEXT("9"));
+				}
+				else if (SlotIndex == 9)
+				{
+					HotkeyLabel = FText::FromString(TEXT("0"));
+				}
 			}
 		}
-		HotkeyText->SetText(FText::FromString(HotkeyLabel));
+		
+		HotkeyText->SetText(HotkeyLabel);
 	}
 
 	UpdateSlotVisuals();

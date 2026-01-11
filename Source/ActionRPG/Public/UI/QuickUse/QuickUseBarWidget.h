@@ -37,6 +37,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
 	UInventoryComponent* GetInventoryComponent() const;
 
+	/**
+	 * Get the bound key text for a quick-use slot from the Input Mapping Context.
+	 * @param SlotIndex The slot index (0-9)
+	 * @return The key text (e.g., "1", "2", "9", "0") or empty text if not found
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
+	FText GetHotkeyTextForSlot(int32 SlotIndex) const;
+
 	// Widget References (bind in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UUniformGridPanel> QuickUseGrid;

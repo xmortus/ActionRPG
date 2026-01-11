@@ -568,3 +568,43 @@ void AActionRPGPlayerController::OnQuickUseSlot10(const FInputActionValue& Value
 		}
 	}
 }
+
+UInputAction* AActionRPGPlayerController::GetInputActionForQuickUseSlot(int32 SlotIndex) const
+{
+	// Validate slot index
+	if (SlotIndex < 0 || SlotIndex > 9)
+	{
+		return nullptr;
+	}
+
+	// Return the InputAction for this slot
+	if (SlotIndex < 8)
+	{
+		// Slots 0-7 (displayed as 1-8) - Skill slots
+		switch (SlotIndex)
+		{
+		case 0: return SkillSlot1Action;
+		case 1: return SkillSlot2Action;
+		case 2: return SkillSlot3Action;
+		case 3: return SkillSlot4Action;
+		case 4: return SkillSlot5Action;
+		case 5: return SkillSlot6Action;
+		case 6: return SkillSlot7Action;
+		case 7: return SkillSlot8Action;
+		}
+	}
+	else
+	{
+		// Slots 8-9 (displayed as 9-0) - Quick-use slots
+		if (SlotIndex == 8)
+		{
+			return QuickUseSlot9Action;
+		}
+		else if (SlotIndex == 9)
+		{
+			return QuickUseSlot10Action;
+		}
+	}
+
+	return nullptr;
+}

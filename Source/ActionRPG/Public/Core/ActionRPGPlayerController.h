@@ -25,6 +25,21 @@ class ACTIONRPG_API AActionRPGPlayerController : public APlayerController
 public:
 	AActionRPGPlayerController();
 
+	/**
+	 * Get the InputAction for a quick-use slot index.
+	 * @param SlotIndex The slot index (0-9)
+	 * @return The InputAction for this slot, or nullptr if invalid
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
+	UInputAction* GetInputActionForQuickUseSlot(int32 SlotIndex) const;
+
+	/**
+	 * Get the default Input Mapping Context.
+	 * @return The DefaultMappingContext, or nullptr if not set
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
+	UInputMappingContext* GetDefaultMappingContext() const { return DefaultMappingContext; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
