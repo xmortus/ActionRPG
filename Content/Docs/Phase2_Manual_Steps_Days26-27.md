@@ -1051,6 +1051,194 @@ Since the C++ implementation for stack splitting and world item dropping is alre
    - If implemented, test hover over inventory slots
    - Verify tooltip appears and displays correct item information
 
+#### 7.4 Create Context Menu Widget (New Feature)
+
+1. **Navigate to Content Browser**
+   - Go to `Content/UI/Inventory/` folder (or where your inventory widgets are)
+   - If folder doesn't exist, create it
+
+2. **Create Context Menu Widget Blueprint**
+   - Right-click in Content Browser
+   - Select `User Interface` → `Widget Blueprint`
+   - In "Pick Parent Class" dialog:
+     - Search for: `InventoryContextMenuWidget`
+     - Select `Inventory Context Menu Widget` (your C++ class)
+     - Click `Select`
+
+3. **Name the Blueprint**
+   - Name: `WBP_InventoryContextMenuWidget`
+   - Save in `Content/UI/Inventory/`
+
+4. **Design Context Menu Layout**
+   - Double-click `WBP_InventoryContextMenuWidget` to open Widget Designer
+   - Root widget should be a `Canvas Panel` (required for positioning)
+
+5. **Add Menu Container**
+   - Add a `Vertical Box` widget inside the Canvas Panel
+   - This will hold all the menu buttons
+   - Position it within the Canvas Panel (anchor/offset will be set dynamically in C++)
+
+6. **Add Menu Buttons**
+   - Add four `Button` widgets to the Vertical Box:
+     - Name: `UseButton` (must match exactly)
+     - Name: `DropButton` (must match exactly)
+     - Name: `SplitButton` (must match exactly)
+     - Name: `EquipButton` (must match exactly)
+   - **Important:** Button names must match C++ property names exactly for binding to work
+
+7. **Add Button Text** (Optional)
+   - Inside each button, add a `Text Block` widget
+   - Set text labels: "Use", "Drop", "Split", "Equip"
+   - Or use button's built-in text label if available
+   - Optional: Add `TextBlock` widgets with names:
+     - `UseButtonText` (optional)
+     - `DropButtonText` (optional)
+     - `SplitButtonText` (optional)
+     - `EquipButtonText` (optional)
+
+8. **Style the Menu**
+   - Add background panel behind the Vertical Box
+   - Set background color (semi-transparent or solid)
+   - Add border around the menu
+   - Style buttons to match your game's UI theme
+   - Ensure menu is readable and visually distinct
+
+9. **Configure Canvas Panel (Important for Positioning)**
+   - Select the Canvas Panel root widget
+   - Set `Anchors` to `Top-Left` (0.0, 0.0)
+   - Position offset will be set dynamically by C++ code
+   - Note: Widget positioning is handled in Blueprint - see positioning notes below
+
+10. **Positioning Note**
+    - The C++ code stores the target screen position but positioning must be handled in Blueprint
+    - **Option 1 (Recommended):** Use Canvas Panel anchor/offset
+      - Set Canvas Panel anchor to Top-Left
+      - In Blueprint Event Graph, bind Position Offset to `GetMousePositionOnViewport`
+      - Or handle positioning via widget layout/anchor settings
+    - **Option 2:** Use Render Transform in Blueprint
+      - Apply Render Transform to position menu at cursor location
+    - The `GetTargetScreenPosition()` function is available in Blueprint if you need the stored position
+
+11. **Bind Widget References**
+    - Verify all button names match C++ property names exactly:
+      - `UseButton`
+      - `DropButton`
+      - `SplitButton`
+      - `EquipButton`
+    - Optional text blocks: `UseButtonText`, `DropButtonText`, `SplitButtonText`, `EquipButtonText`
+
+12. **Compile and Save**
+    - Click `Compile` button
+    - Should compile without errors
+    - Click `Save` button
+    - Close Widget Designer
+
+#### 7.5 Assign Context Menu Widget Class to Inventory Widget
+
+1. **Open Inventory Widget Blueprint**
+   - Navigate to `Content/UI/Inventory/` folder
+   - Open `WBP_InventoryWidget` (or your inventory widget Blueprint)
+
+2. **Open Class Defaults**
+   - Click `Class Defaults` button (top toolbar)
+   - Or select `Class Defaults` in the viewport dropdown
+
+3. **Find Context Menu Widget Class Property**
+   - In `Details` panel, scroll to find `Inventory UI` category
+   - Look for `Context Menu Widget Class` property
+
+4. **Assign Context Menu Widget Class**
+   - Set `Context Menu Widget Class` to `WBP_InventoryContextMenuWidget`
+   - Drag from Content Browser or select from dropdown
+
+5. **Compile and Save**
+   - Click `Compile` button
+   - Should compile without errors
+   - Click `Save` button
+
+6. **Close Blueprint Editor** (optional)
+
+#### 7.6 Test Context Menu Functionality
+
+1. **Open Test Level**
+   - Open your test level
+   - Make sure player character has items in inventory
+
+2. **Test Right-Click Context Menu**
+   - Press `Play` button to start Play Mode
+   - Press inventory hotkey (typically `I` key) to open inventory
+   - Right-click on an inventory slot with an item
+   - Verify: Context menu appears (may need Blueprint positioning setup)
+   - Verify: Menu shows "Use", "Drop", "Split", and "Equip" buttons (if applicable)
+
+3. **Test Button Visibility Rules**
+   - Right-click on a **Consumable** item
+     - Verify: "Equip" button is **hidden**
+     - Verify: "Use", "Drop", and "Split" buttons are visible (if quantity > 1)
+   - Right-click on a **SkillItem** or **SkillStone**
+     - Verify: "Equip" button is **hidden**
+   - Right-click on an **Equipment** item
+     - Verify: "Equip" button is **visible**
+   - Right-click on an item with quantity = 1
+     - Verify: "Split" button is **hidden**
+   - Right-click on an item with quantity > 1
+     - Verify: "Split" button is **visible**
+
+4. **Test Use Button**
+   - Right-click on an item
+   - Click "Use" button
+   - Verify: Item is used from inventory
+   - Verify: Context menu closes
+   - Verify: Item quantity decreases (if consumable)
+
+5. **Test Drop Button**
+   - Right-click on an item
+   - Click "Drop" button
+   - Verify: Item is dropped to the world in front of the character
+   - Verify: Item appears at ground level in front of character
+   - Verify: Context menu closes
+   - Verify: Item is removed from inventory (or quantity reduced)
+
+6. **Test Split Button**
+   - Right-click on a stackable item (quantity > 1)
+   - Click "Split" button
+   - Verify: Stack is split in half
+   - Verify: Split stack appears in an empty slot
+   - Verify: Source slot quantity is reduced
+   - Verify: Context menu closes
+
+7. **Test Equip Button** (For Equipment Items)
+   - Right-click on an equipment item
+   - Click "Equip" button
+   - Verify: Equip action is triggered (placeholder for future implementation)
+   - Verify: Context menu closes
+
+8. **Test Click-Outside-to-Close**
+   - Right-click on an item to open context menu
+   - Click anywhere outside the context menu (within inventory widget area)
+   - Verify: Context menu closes
+   - Note: This works for clicks within the inventory widget area
+
+9. **Test Right-Click Another Slot**
+   - Right-click on an item in slot A to open context menu
+   - While menu is open, right-click on a different item in slot B
+   - Verify: First context menu closes
+   - Verify: New context menu opens for slot B
+   - Verify: New menu shows correct item information
+
+10. **Check Output Log**
+    - Open `Output Log` (Window → Developer Tools → Output Log)
+    - Right-click on items to trigger context menu
+    - Look for log messages:
+      - `InventoryWidget::OnInventorySlotRightClicked - Slot X right-clicked`
+      - `InventoryContextMenuWidget::InitializeMenu - ...`
+      - Verify no errors occur
+
+11. **Test Edge Cases**
+    - Right-click on empty slot: Verify menu doesn't appear
+    - Right-click multiple times quickly: Verify menu behaves correctly
+    - Test with different item types and quantities
+
 ---
 
 ## Troubleshooting
@@ -1211,6 +1399,14 @@ Before moving to Day 28 (Final Testing), verify:
 - [ ] Quick-use bar displays item icons and quantities correctly
 - [ ] UI visual polish applied (optional)
 - [ ] Item tooltip displays on hover (optional)
+- [ ] Context Menu Widget Blueprint created (`WBP_InventoryContextMenuWidget`)
+- [ ] Context Menu Widget Class assigned to Inventory Widget
+- [ ] Context menu appears on right-click
+- [ ] Context menu buttons work correctly (Use, Drop, Split, Equip)
+- [ ] Button visibility rules work (Equip hidden for consumables/skills, Split hidden for quantity <= 1)
+- [ ] Context menu closes when clicking outside
+- [ ] Context menu closes and recreates when right-clicking another slot
+- [ ] Drop button spawns items in front of character correctly
 - [ ] No errors in Output Log during testing
 - [ ] All edge cases handled correctly
 - [ ] Ready for final testing (Day 28)
@@ -1251,6 +1447,7 @@ Once Days 26-27 are complete:
 - **Quick-Use Bar:** C++ methods and hotkey support are complete. Full UI implementation is optional for Phase 2. Hotkeys work independently of UI.
 - **Quick-Use Slots 1-8:** These are prepared for Phase 3 (skills). They should be visible but disabled/non-functional in Phase 2.
 - **Item Tooltip:** Basic tooltip is optional for Phase 2. Can be fully implemented in Phase 3.
+- **Context Menu:** Right-click context menu is fully implemented with Use, Drop, Split, and Equip options. Button visibility is automatically handled based on item type and quantity. Menu closes when clicking outside or right-clicking another slot. Drop button spawns items in front of the character. Menu positioning requires Blueprint setup (Canvas Panel with anchor/offset or Render Transform).
 - **UI Polish:** Basic visual polish is sufficient for Phase 2. Advanced animations and effects can be added in Phase 3.
 
 ---
@@ -1264,6 +1461,7 @@ Once Days 26-27 are complete:
 ### Key Blueprint Widgets
 - `WBP_QuickUseBarWidget` - Main quick-use bar widget
 - `WBP_QuickUseSlotWidget` - Individual quick-use slot widget
+- `WBP_InventoryContextMenuWidget` - Right-click context menu for inventory slots
 
 ### Key Blueprint Files
 - `BP_ActionRPGPlayerController` - PlayerController with Input Action assignments

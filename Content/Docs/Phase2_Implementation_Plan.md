@@ -41,6 +41,7 @@
 - ✅ Hotkey support for consumable quick-use slots (9-0 keys)
 - ✅ Item usage integration with character
 - ✅ Complete inventory UI with visual feedback
+- ✅ Context menu system (right-click menu with Use, Drop, Split, Equip options)
 - ✅ Item tooltip system
 - ✅ Sample item pickups in test level
 
@@ -652,13 +653,13 @@ Enhance the inventory system with advanced features including item tooltips, qui
    - Use button in details panel
    - Assign to quick-use slot button (for consumables)
 
-9. **Add Filter/Sort Functionality** (Optional, can be deferred)
+10. **Add Filter/Sort Functionality** (Optional, can be deferred)
    - Filter by item type (All, Consumable, Equipment, etc.)
    - Filter by rarity
    - Sort by name, type, rarity, weight
    - Search bar for item names (optional)
 
-10. **Polish UI Visuals**
+11. **Polish UI Visuals**
     - Add inventory background image/color
     - Style slots with borders and backgrounds
     - Add hover effects for inventory slots
@@ -740,6 +741,9 @@ bool DropItemToWorld(int32 SlotIndex, int32 Quantity, const FVector& WorldLocati
 - ✅ Hotkeys 1-8 prepared for skills (Phase 3)
 - ✅ Quick-use bar always visible at bottom of screen
 - ✅ Drag and drop to/from quick-use slots working
+- ✅ Context menu system implemented (right-click menu with Use, Drop, Split, Equip)
+- ✅ Context menu button visibility rules working (Equip hidden for consumables/skills, Split hidden when quantity <= 1)
+- ✅ Context menu click-outside-to-close functionality
 - ✅ Item tooltip functional
 - ✅ Item details panel working (optional)
 - ✅ UI polished and visually appealing
@@ -1141,6 +1145,12 @@ public:
 - [ ] Quick-use slots update when items removed from inventory
 - [ ] Widget visibility toggling works correctly (no RemoveFromParent warnings)
 - [ ] Inventory widget lifecycle managed correctly (reused via visibility toggle)
+- [ ] Context menu appears on right-click
+- [ ] Context menu buttons work correctly (Use, Drop, Split, Equip)
+- [ ] Context menu button visibility rules work (Equip hidden for consumables/skills, Split hidden when quantity <= 1)
+- [ ] Context menu closes when clicking outside
+- [ ] Context menu closes and recreates when right-clicking another slot
+- [ ] Context menu drop button spawns items in front of character
 - [ ] Tooltip displays on hover (inventory and quick-use slots)
 - [ ] Item details panel works (optional)
 - [ ] Filter/sort features work (optional)
@@ -1171,6 +1181,8 @@ public:
 - ✅ Quick-use bar with slots 9-10 for consumables functional
 - ✅ Hotkeys 9-0 working for consumable quick-use slots
 - ✅ Drag and drop to/from quick-use slots working
+- ✅ Context menu system functional (right-click menu with Use, Drop, Split, Equip)
+- ✅ Context menu button visibility rules working correctly
 
 ### Nice to Have (Can Defer)
 - Item tooltip system (highly recommended but can be basic)
@@ -1294,8 +1306,24 @@ After Phase 2 completion, Phase 3 will focus on:
 - **Implementation:** `OnOpenInventory` in PlayerController checks `IsInViewport()` and toggles visibility accordingly. Widget stays in viewport but is hidden when inventory is closed.
 
 #### Drag and Drop Split Operations
-- **Split Detection:** Split mode is detected using `Ctrl+drag` only. Right-click is reserved for item usage.
+- **Split Detection:** Split mode is detected using `Ctrl+drag` only. Right-click opens context menu.
 - **Split Quantity:** For Phase 2, split quantity is automatically calculated as half the stack. Full quantity dialog can be added in Phase 3.
+
+#### Context Menu System (Day 27)
+- **Right-Click Context Menu:** Added a context menu system that appears when right-clicking inventory slots
+- **Menu Options:** Context menu provides four actions:
+  - **Use:** Uses the item from inventory
+  - **Drop:** Drops the item to world in front of the character
+  - **Split:** Splits the stack in half (uses existing split functionality)
+  - **Equip:** Placeholder for future equipment system
+- **Smart Button Visibility:**
+  - Equip button is hidden for Consumable, SkillItem, and SkillStone items
+  - Split button is hidden when item quantity <= 1
+- **Menu Behavior:**
+  - Menu closes when clicking outside of it (within inventory widget area)
+  - Menu closes and recreates when right-clicking another slot
+  - Drop button spawns items in front of the character (150 units forward, with ground trace)
+- **Implementation:** Context menu widget is created dynamically and reused. Positioning must be handled in Blueprint (Canvas Panel with anchor/offset or Render Transform).
 
 ### Document Any:
 - Changes from original plan: See above
@@ -1306,9 +1334,12 @@ After Phase 2 completion, Phase 3 will focus on:
   - Use `SetVisibility(ESlateVisibility::Collapsed)` for widgets added via `AddToViewport()`
   - Use `SplitStackToSlot` for drag operations to place split stack in target slot
 - Decisions made:
-  - Right-click reserved for item usage, not drag splitting
+  - Right-click opens context menu (provides multiple actions: Use, Drop, Split, Equip)
   - Widgets stay in viewport and toggle visibility instead of being removed
   - Split stacks go directly to target slot for better UX
+  - Context menu button visibility based on item type and quantity (smart UI)
+  - Context menu closes on outside click and when right-clicking another slot
+  - Drop action spawns items in front of character for consistency
 - Future considerations:
   - Add quantity dialog for stack splitting (Phase 3)
   - Add drag outside inventory bounds to drop to world (Phase 3)
