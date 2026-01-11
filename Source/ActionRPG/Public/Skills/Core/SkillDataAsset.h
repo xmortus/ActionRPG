@@ -59,4 +59,32 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill", meta = (ClampMin = "0.0"))
 	float Range;
+
+	// Requirements
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill", meta = (ClampMin = "1"))
+	int32 RequiredLevel;
+
+	// Damage/Effect Values (base values, can be modified by skill level)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Combat", meta = (ClampMin = "0.0"))
+	float BaseDamage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Combat")
+	EDamageType DamageType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Combat", meta = (ClampMin = "0.0"))
+	float AreaOfEffectRadius;
+
+	// Projectile Properties (for ranged/magic skills)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Projectile", meta = (ClampMin = "0.0"))
+	float ProjectileSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Projectile")
+	TSubclassOf<class AActor> ProjectileClass;
+
+	// Movement Properties (for movement/dash skills)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Movement", meta = (ClampMin = "0.0"))
+	float AbilityMoveSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Movement", meta = (ClampMin = "0.0"))
+	float InvincibilityFrames;
 };

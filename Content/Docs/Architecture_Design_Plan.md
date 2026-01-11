@@ -1,7 +1,7 @@
 # Top-Down Action RPG - Architecture & Design Plan
 **Engine Version:** Unreal Engine 5.7  
 **Project:** ActionRPG  
-**Document Version:** 1.3  
+**Document Version:** 1.4  
 **Last Updated:** 2025-01-07
 
 ---
@@ -791,13 +791,20 @@ class USkillComponent : public UActorComponent
 - SkillDescription
 - SkillIcon (texture reference)
 - SkillType (enum: Melee, Ranged, Magic, Utility, etc.)
+- SkillCategory (enum: Combat, Support, Movement, Passive)
 - CooldownDuration
 - ManaCost
+- StaminaCost
 - CastTime
 - Range
-- Damage/Effect values
 - RequiredLevel
-- Skill-specific properties
+- BaseDamage (base damage value, can be modified by skill level)
+- DamageType (enum: Physical, Fire, Cold, Lightning, Poison, Magic, Dark, Holy)
+- AreaOfEffectRadius (AoE radius for area damage skills)
+- ProjectileSpeed (for ranged/magic skills)
+- ProjectileClass (TSubclassOf<AActor> for projectile actor)
+- AbilityMoveSpeed (movement speed for movement/dash skills)
+- InvincibilityFrames (duration of invincibility frames in seconds)
 
 #### SkillItem (Consumable)
 **Purpose:** Special consumable item that grants skills
@@ -2184,6 +2191,7 @@ This creates **nonlinear growth**, avoiding raw level inflation.
 | 1.1 | 2025-01-07 | Update | Added comprehensive Leveling & Progression System including Primary/Secondary Attributes, Class/Profession system, Trials, and enhanced Skill acquisition methods (SkillStone, BeastCore) |
 | 1.2 | 2025-01-07 | Update | Added Equipment System Design section with EquipmentComponent, EquipmentItem, WeaponItem, equipment slots, equipment UI, and integration with SecondaryAttributeComponent. Updated Phase 4 to include equipment implementation. |
 | 1.3 | 2025-01-07 | Update | Added EquipmentType enum (Armor, Weapon, Accessory, Shield) to EquipmentDataAsset and EquipmentItem for categorization, filtering, and validation. Clarified equipment type and slot type relationships. |
+| 1.4 | 2025-01-07 | Update | Enhanced SkillDataAsset with DamageType enum (Physical, Fire, Cold, Lightning, Poison, Magic, Dark, Holy), Projectile properties (ProjectileSpeed, ProjectileClass), and Movement properties (AbilityMoveSpeed, InvincibilityFrames). Updated Skill System Design documentation. |
 
 ---
 

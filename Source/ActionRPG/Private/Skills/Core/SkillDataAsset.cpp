@@ -17,6 +17,14 @@ USkillDataAsset::USkillDataAsset()
 	StaminaCost = 0.0f;
 	CastTime = 0.0f;
 	Range = 0.0f;
+	RequiredLevel = 1;
+	BaseDamage = 0.0f;
+	DamageType = EDamageType::Physical;
+	AreaOfEffectRadius = 0.0f;
+	ProjectileSpeed = 0.0f;
+	ProjectileClass = nullptr;
+	AbilityMoveSpeed = 0.0f;
+	InvincibilityFrames = 0.0f;
 }
 
 FPrimaryAssetId USkillDataAsset::GetPrimaryAssetId() const

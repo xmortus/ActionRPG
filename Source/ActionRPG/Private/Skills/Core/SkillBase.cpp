@@ -6,6 +6,9 @@ USkillBase::USkillBase()
 {
 	SkillData = nullptr;
 	CooldownRemaining = 0.0f;
+	SkillLevel = 1;
+	Experience = 0.0f;
+	OwnerActor = nullptr;
 }
 
 USkillBase* USkillBase::Activate(AActor* Target)
@@ -81,4 +84,44 @@ ESkillCategory USkillBase::GetSkillCategory() const
 float USkillBase::GetCooldownRemaining() const
 {
 	return CooldownRemaining;
+}
+
+void USkillBase::UpdateCooldown(float DeltaTime)
+{
+	if (CooldownRemaining > 0.0f)
+	{
+		CooldownRemaining = FMath::Max(0.0f, CooldownRemaining - DeltaTime);
+		
+		// Fire event when cooldown completes
+		if (CooldownRemaining <= 0.0f)
+		{
+			OnCooldownComplete.Broadcast(this);
+			UE_LOG(LogTemp, Verbose, TEXT("SkillBase::UpdateCooldown - Cooldown complete for skill: %s"),
+				SkillData ? *SkillData->SkillName.ToString() : TEXT("NULL"));
+		}
+	}
+}
+
+float USkillBase::GetManaCost() const
+{
+	if (!SkillData)
+	{
+		return 0.0f;
+	}
+
+	// Base mana cost from SkillDataAsset
+	// Can be modified by skill level in derived classes
+	return SkillData->ManaCost;
+}
+
+float USkillBase::GetStaminaCost() const
+{
+	if (!SkillData)
+	{
+		return 0.0f;
+	}
+
+	// Base stamina cost from SkillDataAsset
+	// Can be modified by skill level in derived classes
+	return SkillData->StaminaCost;
 }

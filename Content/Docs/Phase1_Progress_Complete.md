@@ -420,7 +420,7 @@ Days 9-10 focus on Skill System Foundation. The C++ implementation is complete, 
 - **Location:** `Source/ActionRPG/Public/Skills/Core/SkillTypes.h`
 - **Status:** ✅ Created
 - **Features:**
-  - `ESkillType` enum (Melee, Ranged, Magic, Utility, Movement)
+  - `ESkillType` enum (Melee, Ranged, Magic, Utility)
   - `ESkillCategory` enum (Combat, Support, Movement, Passive)
   - Blueprint-exposed enums
 
