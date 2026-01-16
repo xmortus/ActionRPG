@@ -423,6 +423,22 @@ struct FSkillInstance
 - Sample skill Data Assets created
 - Skills tested and functional
 
+#### Day 35 Execution Plan (Implemented)
+1. **Implement melee skill logic**
+   - File: `Source/ActionRPG/Public/Skills/Implementations/SkillMeleeAttack.h`
+   - File: `Source/ActionRPG/Private/Skills/Implementations/SkillMeleeAttack.cpp`
+2. **Implement ranged skill logic**
+   - File: `Source/ActionRPG/Public/Skills/Implementations/SkillRangedAttack.h`
+   - File: `Source/ActionRPG/Private/Skills/Implementations/SkillRangedAttack.cpp`
+3. **Implement projectile actor**
+   - File: `Source/ActionRPG/Public/Actors/SkillProjectile.h`
+   - File: `Source/ActionRPG/Private/Actors/SkillProjectile.cpp`
+4. **Configure data assets in editor**
+   - Manual steps: `Content/Docs/Phase3_Manual_Steps_Day35.md`
+5. **Test in editor**
+   - Verify melee hit detection, damage, and experience
+   - Verify ranged projectile spawn, damage, and experience
+
 ---
 
 ## Week 2 Breakdown
