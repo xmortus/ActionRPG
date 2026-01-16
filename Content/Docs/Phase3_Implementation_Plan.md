@@ -489,6 +489,27 @@ struct FSkillInstance
 - Sample skill Data Assets created
 - Skills tested and functional
 
+#### Day 36-37 Execution Plan (Editor Only)
+1. **Create Data Assets**
+   - Create `DA_Skill_Dash` and `DA_Skill_Fireball` in `Content/Data/Skills/`
+   - Configure core fields (cooldown, costs, range, required level)
+   - Configure Dash movement fields (AbilityMoveSpeed, InvincibilityFrames)
+   - Configure Fireball projectile fields (ProjectileClass, ProjectileSpeed, BaseDamage, AreaOfEffectRadius)
+2. **Prepare Test Map**
+   - Place or reuse `BP_TestDummy` with collision enabled
+   - Ensure dummy has a health variable and responds to `TakeDamage()`
+3. **Assign Skills to Player**
+   - Grant skills via `SkillManagerComponent` or `SkillComponent` for testing
+   - Assign to hotkey slots (1-8)
+4. **Play-In-Editor Verification**
+   - Dash: confirm movement burst and invincibility timing (if used)
+   - Fireball: confirm projectile spawns, hits, and applies damage
+   - Check Output Log for activation and hit logs
+5. **Troubleshoot**
+   - Validate `ProjectileClass` set to `BP_SkillProjectile`
+   - Confirm `SkillComponent`/`SkillManagerComponent` attached to player
+   - Re-check input mappings for skill slots
+
 ---
 
 ### Day 38-39: Skill-Granting Items (SkillItem, SkillStone, BeastCore)

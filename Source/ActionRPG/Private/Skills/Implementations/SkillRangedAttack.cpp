@@ -120,6 +120,7 @@ AActor* USkillRangedAttack::SpawnProjectile(const FVector& SpawnLocation, const 
 		SkillProjectile->SetDamage(GetAttackDamage());
 		SkillProjectile->SetOwnerActor(OwnerActor);
 		SkillProjectile->SetSkillReference(this);
+		SkillProjectile->SetAreaOfEffectRadius(SkillData ? SkillData->AreaOfEffectRadius : 0.0f);
 	}
 
 	// Set projectile velocity if it has a ProjectileMovementComponent

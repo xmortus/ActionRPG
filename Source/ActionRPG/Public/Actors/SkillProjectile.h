@@ -41,6 +41,9 @@ protected:
 	float Damage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile", meta = (ClampMin = "0.0"))
+	float AreaOfEffectRadius;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile", meta = (ClampMin = "0.0"))
 	float Lifetime;
 
 	// References
@@ -71,4 +74,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void SetSkillReference(USkillBase* Skill) { SkillReference = Skill; }
+
+	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	void SetAreaOfEffectRadius(float NewRadius) { AreaOfEffectRadius = NewRadius; }
 };

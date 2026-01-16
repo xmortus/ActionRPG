@@ -7,6 +7,7 @@
 #include "GameFramework/DamageType.h"
 #include "Engine/DamageEvents.h"
 #include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "Components/Skills/SkillComponent.h"
 #include "Skills/Core/SkillBase.h"
@@ -42,6 +43,7 @@ ASkillProjectile::ASkillProjectile()
 
 	// Default values
 	Damage = 20.0f;
+	AreaOfEffectRadius = 0.0f;
 	Lifetime = 5.0f;
 	OwnerActor = nullptr;
 	SkillReference = nullptr;
@@ -101,6 +103,31 @@ void ASkillProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, U
 				ActualDamage, *OtherActor->GetName());
 		}
 
+		// Apply area damage to nearby actors if AoE is enabled
+		if (AreaOfEffectRadius > 0.0f)
+		{
+			TArray<AActor*> IgnoreActors;
+			if (OwnerActor)
+			{
+				IgnoreActors.Add(OwnerActor);
+			}
+			IgnoreActors.Add(OtherActor);
+
+			UGameplayStatics::ApplyRadialDamage(
+				this,
+				Damage,
+				Hit.ImpactPoint,
+				AreaOfEffectRadius,
+				UDamageType::StaticClass(),
+				IgnoreActors,
+				this,
+				OwnerActor ? OwnerActor->GetInstigatorController() : nullptr,
+				true
+			);
+
+			UE_LOG(LogTemp, Log, TEXT("SkillProjectile::OnHit - Applied radial damage (Radius: %.2f)"), AreaOfEffectRadius);
+		}
+
 		// Grant experience if damage was applied and skill reference exists
 		if (ActualDamage > 0.0f && SkillReference && OwnerActor)
 		{
@@ -142,6 +169,29 @@ void ASkillProjectile::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActo
 				TargetCharacter->CurrentHealth = NewHealth;
 				ActualDamage = Damage;
 			}
+		}
+
+		// Apply area damage to nearby actors if AoE is enabled
+		if (AreaOfEffectRadius > 0.0f)
+		{
+			TArray<AActor*> IgnoreActors;
+			if (OwnerActor)
+			{
+				IgnoreActors.Add(OwnerActor);
+			}
+			IgnoreActors.Add(OtherActor);
+
+			UGameplayStatics::ApplyRadialDamage(
+				this,
+				Damage,
+				SweepResult.ImpactPoint,
+				AreaOfEffectRadius,
+				UDamageType::StaticClass(),
+				IgnoreActors,
+				this,
+				OwnerActor ? OwnerActor->GetInstigatorController() : nullptr,
+				true
+			);
 		}
 
 		// Grant experience
