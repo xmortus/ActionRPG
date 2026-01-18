@@ -11,11 +11,14 @@ UItemDataAsset::UItemDataAsset()
 	ItemDescription = FText::GetEmpty();
 	ItemIcon = nullptr;
 	ItemPickupActorClass = nullptr;
+	ItemClass = nullptr;
 	Type = EItemType::Misc;
 	Rarity = EItemRarity::Common;
 	MaxStackSize = 1;
 	Weight = 0.0f;
 	Value = 0;
+	SkillData = nullptr;
+	SkillClass = nullptr;
 }
 
 FPrimaryAssetId UItemDataAsset::GetPrimaryAssetId() const

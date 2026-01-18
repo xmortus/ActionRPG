@@ -9,6 +9,9 @@
 
 // Forward declaration
 class AItemPickupActor;
+class UItemBase;
+class USkillBase;
+class USkillDataAsset;
 
 /**
  * Data Asset for defining item properties.
@@ -47,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|World")
 	TSubclassOf<class AItemPickupActor> ItemPickupActorClass;
 
+	// Item class to instantiate for inventory (optional, defaults to ItemBase)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Class")
+	TSubclassOf<UItemBase> ItemClass;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
 	EItemType Type;
 
@@ -61,5 +68,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
 	int32 Value;
+
+	// Skill Item Data (used by SkillItem / SkillStone / BeastCore)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")
+	TObjectPtr<USkillDataAsset> SkillData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")
+	TSubclassOf<USkillBase> SkillClass;
 };
 

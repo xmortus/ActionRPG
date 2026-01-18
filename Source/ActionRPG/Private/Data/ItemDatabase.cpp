@@ -231,7 +231,8 @@ UItemBase* UItemDatabase::CreateItem(const FName& ItemID, int32 Quantity) const
 	// The database only stores ItemDataAssets (templates), not actual inventory items
 	// Actual items are stored in the player's InventoryComponent
 	// Use GetTransientPackage() as outer for temporary items that will be moved to inventory
-	UItemBase* NewItem = NewObject<UItemBase>(GetTransientPackage(), UItemBase::StaticClass());
+	UClass* ItemClass = ItemData->ItemClass ? ItemData->ItemClass.Get() : UItemBase::StaticClass();
+	UItemBase* NewItem = NewObject<UItemBase>(GetTransientPackage(), ItemClass);
 	if (NewItem)
 	{
 		NewItem->ItemData = ItemData;

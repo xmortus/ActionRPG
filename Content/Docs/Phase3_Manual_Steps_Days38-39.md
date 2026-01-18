@@ -64,6 +64,7 @@ This guide documents the UE 5.7 editor steps to create Blueprint classes and Dat
      - `ItemIcon`: assign an icon (optional)
    - **Skill Item**
      - `SkillData`: `DA_Skill_Fireball`
+     - `SkillClass`: `BP_Skill_Fireball`
    - **Item Class**
      - `ItemClass`: `BP_SkillItem`
 3. Save the asset.
@@ -80,6 +81,7 @@ This guide documents the UE 5.7 editor steps to create Blueprint classes and Dat
      - `ItemIcon`: assign an icon (optional)
    - **Skill Stone Item**
      - `SkillData`: `DA_Skill_Fireball`
+     - `SkillClass`: `BP_Skill_Fireball`
    - **Item Class**
      - `ItemClass`: `BP_SkillStoneItem`
 3. Save the asset.
@@ -95,6 +97,7 @@ This guide documents the UE 5.7 editor steps to create Blueprint classes and Dat
      - `ItemType`: `Consumable`
    - **Beast Core Item**
      - `SkillData`: `DA_Skill_Fireball` (use any test skill)
+     - `SkillClass`: `BP_Skill_Fireball`
      - `RequiredLevel`: set a value (example `5`) if the field exists
      - `RequiredAttributes`: set any placeholder values (if fields exist)
    - **Item Class**

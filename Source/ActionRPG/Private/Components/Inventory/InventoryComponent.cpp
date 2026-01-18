@@ -126,7 +126,8 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 		// Create new item instance for this slot
 		// Use component as outer - component owns inventory items
 		// This ensures items are not garbage collected while component exists
-		UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
+		UClass* ItemClass = Item->GetClass();
+		UItemBase* NewItem = NewObject<UItemBase>(this, ItemClass);
 		if (!NewItem)
 		{
 			UE_LOG(LogTemp, Error, TEXT("InventoryComponent::AddItem - Failed to create new item instance"));
@@ -429,8 +430,9 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 	case EItemType::SkillItem:
 	case EItemType::SkillStone:
 	case EItemType::BeastCore:
-		// Skill-related items are not consumed, they grant skills (Phase 3)
-		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Skill item, not consumed (skill system in Phase 3)"));
+		// Skill-related items are used and consumed on successful use
+		bShouldConsume = true;
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Skill item, will consume 1 quantity on use"));
 		break;
 
 	case EItemType::Misc:
@@ -805,7 +807,8 @@ bool UInventoryComponent::SplitStack(int32 SlotIndex, int32 SplitQuantity)
 	}
 
 	// Create new item instance with split quantity
-	UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
+	UClass* ItemClass = Slot.Item->GetClass();
+	UItemBase* NewItem = NewObject<UItemBase>(this, ItemClass);
 	if (!NewItem)
 	{
 		UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::SplitStack - Failed to create new item instance"));
@@ -901,7 +904,8 @@ bool UInventoryComponent::SplitStackToSlot(int32 SourceSlotIndex, int32 TargetSl
 	{
 		// Target slot is empty - create split stack directly in target slot
 		// Create new item instance with split quantity
-		UItemBase* NewItem = NewObject<UItemBase>(this, UItemBase::StaticClass());
+		UClass* ItemClass = SourceSlot.Item->GetClass();
+		UItemBase* NewItem = NewObject<UItemBase>(this, ItemClass);
 		if (!NewItem)
 		{
 			UE_LOG(LogTemp, Error, TEXT("UInventoryComponent::SplitStackToSlot - Failed to create new item instance"));
