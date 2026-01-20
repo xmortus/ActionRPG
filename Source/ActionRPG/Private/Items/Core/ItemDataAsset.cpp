@@ -19,6 +19,8 @@ UItemDataAsset::UItemDataAsset()
 	Value = 0;
 	SkillData = nullptr;
 	SkillClass = nullptr;
+	RequiredLevel = 1;
+	RequiredAttributes = {};
 }
 
 FPrimaryAssetId UItemDataAsset::GetPrimaryAssetId() const

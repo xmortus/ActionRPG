@@ -75,5 +75,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")
 	TSubclassOf<USkillBase> SkillClass;
+
+	// Beast Core Requirements (optional, Phase 4 validation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill|Requirements", meta = (ClampMin = "1"))
+	int32 RequiredLevel;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill|Requirements")
+	TMap<FName, float> RequiredAttributes;
 };
 
