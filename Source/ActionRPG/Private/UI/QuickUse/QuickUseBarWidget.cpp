@@ -5,6 +5,9 @@
 #include "UI/QuickUse/QuickUseSlotWidget.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
 #include "Components/Inventory/InventoryComponent.h"
+#include "Components/Skills/SkillComponent.h"
+#include "Components/Skills/SkillManagerComponent.h"
+#include "Skills/Core/SkillBase.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/ActionRPGPlayerController.h"
@@ -22,14 +25,37 @@ void UQuickUseBarWidget::NativeConstruct()
 	if (!InventoryComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("QuickUseBarWidget::NativeConstruct - InventoryComponent not found"));
-		return;
 	}
 
 	// Bind to quick-use slot changed event
-	InventoryComponent->OnQuickUseSlotChanged.AddDynamic(this, &UQuickUseBarWidget::OnQuickUseSlotChangedInternal);
-	
-	// Bind to inventory changed event to update quick-use slots when item quantities change
-	InventoryComponent->OnInventoryChanged.AddDynamic(this, &UQuickUseBarWidget::OnInventoryChangedInternal);
+	if (InventoryComponent)
+	{
+		InventoryComponent->OnQuickUseSlotChanged.AddDynamic(this, &UQuickUseBarWidget::OnQuickUseSlotChangedInternal);
+		
+		// Bind to inventory changed event to update quick-use slots when item quantities change
+		InventoryComponent->OnInventoryChanged.AddDynamic(this, &UQuickUseBarWidget::OnInventoryChangedInternal);
+	}
+
+	// Get skill components from player character
+	SkillManagerComponent = GetSkillManagerComponent();
+	SkillComponent = GetSkillComponent();
+
+	if (!SkillManagerComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("QuickUseBarWidget::NativeConstruct - SkillManagerComponent not found"));
+	}
+
+	if (!SkillComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("QuickUseBarWidget::NativeConstruct - SkillComponent not found"));
+	}
+
+	if (SkillManagerComponent)
+	{
+		SkillManagerComponent->OnSkillSlotChanged.AddDynamic(this, &UQuickUseBarWidget::OnSkillSlotChangedInternal);
+		SkillManagerComponent->OnSkillSlotCleared.AddDynamic(this, &UQuickUseBarWidget::OnSkillSlotClearedInternal);
+		SkillManagerComponent->OnSkillUnlocked.AddDynamic(this, &UQuickUseBarWidget::OnSkillUnlockedInternal);
+	}
 
 	// Initialize slot widgets
 	InitializeSlots();
@@ -49,16 +75,25 @@ void UQuickUseBarWidget::NativeDestruct()
 		InventoryComponent->OnInventoryChanged.RemoveAll(this);
 	}
 
+	if (SkillManagerComponent)
+	{
+		SkillManagerComponent->OnSkillSlotChanged.RemoveAll(this);
+		SkillManagerComponent->OnSkillSlotCleared.RemoveAll(this);
+		SkillManagerComponent->OnSkillUnlocked.RemoveAll(this);
+	}
+
 	Super::NativeDestruct();
+}
+
+void UQuickUseBarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	UpdateSkillCooldowns(InDeltaTime);
 }
 
 void UQuickUseBarWidget::UpdateQuickUseBar()
 {
-	if (!InventoryComponent)
-	{
-		return;
-	}
-
 	// Refresh all slots
 	for (int32 i = 0; i < SlotWidgets.Num(); i++)
 	{
@@ -95,6 +130,25 @@ void UQuickUseBarWidget::OnInventoryChangedInternal(int32 SlotIndex, UItemBase* 
 			// This quick-use slot references the changed inventory slot, refresh it
 			RefreshSlot(i);
 		}
+	}
+}
+
+void UQuickUseBarWidget::OnSkillSlotChangedInternal(int32 SlotIndex, USkillBase* Skill)
+{
+	RefreshSlot(SlotIndex);
+}
+
+void UQuickUseBarWidget::OnSkillSlotClearedInternal(int32 SlotIndex)
+{
+	RefreshSlot(SlotIndex);
+}
+
+void UQuickUseBarWidget::OnSkillUnlockedInternal(USkillBase* Skill)
+{
+	// Optional: refresh all skill slots on unlock
+	for (int32 SlotIndex = 0; SlotIndex < 8; SlotIndex++)
+	{
+		RefreshSlot(SlotIndex);
 	}
 }
 
@@ -157,12 +211,19 @@ void UQuickUseBarWidget::InitializeSlots()
 
 void UQuickUseBarWidget::RefreshSlot(int32 SlotIndex)
 {
-	if (!InventoryComponent)
+	if (!SlotWidgets.IsValidIndex(SlotIndex))
 	{
 		return;
 	}
 
-	if (!SlotWidgets.IsValidIndex(SlotIndex))
+	// Skill slots (0-7) are driven by SkillManagerComponent
+	if (SlotIndex >= 0 && SlotIndex < 8)
+	{
+		RefreshSkillSlot(SlotIndex);
+		return;
+	}
+
+	if (!InventoryComponent)
 	{
 		return;
 	}
@@ -197,6 +258,75 @@ void UQuickUseBarWidget::RefreshSlot(int32 SlotIndex)
 	}
 }
 
+void UQuickUseBarWidget::RefreshSkillSlot(int32 SlotIndex)
+{
+	if (!SlotWidgets.IsValidIndex(SlotIndex))
+	{
+		return;
+	}
+
+	UQuickUseSlotWidget* SlotWidget = SlotWidgets[SlotIndex];
+	if (!SlotWidget)
+	{
+		return;
+	}
+
+	if (!SkillManagerComponent)
+	{
+		SlotWidget->ClearSlot();
+		return;
+	}
+
+	USkillBase* Skill = SkillManagerComponent->GetSkillAtSlot(SlotIndex);
+	if (Skill)
+	{
+		float CooldownRemaining = 0.0f;
+		float CooldownDuration = Skill->SkillData ? Skill->SkillData->CooldownDuration : 0.0f;
+		if (SkillComponent)
+		{
+			CooldownRemaining = SkillComponent->GetSkillCooldownRemaining(Skill);
+		}
+		SlotWidget->SetSkillData(SlotIndex, Skill, CooldownRemaining, CooldownDuration);
+	}
+	else
+	{
+		SlotWidget->ClearSlot();
+	}
+}
+
+void UQuickUseBarWidget::UpdateSkillCooldowns(float DeltaTime)
+{
+	if (!SkillManagerComponent || !SkillComponent)
+	{
+		return;
+	}
+
+	for (int32 SlotIndex = 0; SlotIndex < 8; SlotIndex++)
+	{
+		if (!SlotWidgets.IsValidIndex(SlotIndex))
+		{
+			continue;
+		}
+
+		UQuickUseSlotWidget* SlotWidget = SlotWidgets[SlotIndex];
+		if (!SlotWidget)
+		{
+			continue;
+		}
+
+		USkillBase* Skill = SkillManagerComponent->GetSkillAtSlot(SlotIndex);
+		if (!Skill)
+		{
+			SlotWidget->UpdateSkillCooldown(0.0f, 0.0f);
+			continue;
+		}
+
+		float CooldownRemaining = SkillComponent->GetSkillCooldownRemaining(Skill);
+		float CooldownDuration = Skill->SkillData ? Skill->SkillData->CooldownDuration : 0.0f;
+		SlotWidget->UpdateSkillCooldown(CooldownRemaining, CooldownDuration);
+	}
+}
+
 UInventoryComponent* UQuickUseBarWidget::GetInventoryComponent() const
 {
 	if (APlayerController* PC = GetOwningPlayer())
@@ -208,6 +338,62 @@ UInventoryComponent* UQuickUseBarWidget::GetInventoryComponent() const
 	}
 
 	return nullptr;
+}
+
+USkillManagerComponent* UQuickUseBarWidget::GetSkillManagerComponent() const
+{
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(PC->GetPawn()))
+		{
+			return PlayerCharacter->FindComponentByClass<USkillManagerComponent>();
+		}
+	}
+
+	return nullptr;
+}
+
+USkillComponent* UQuickUseBarWidget::GetSkillComponent() const
+{
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(PC->GetPawn()))
+		{
+			return PlayerCharacter->FindComponentByClass<USkillComponent>();
+		}
+	}
+
+	return nullptr;
+}
+
+bool UQuickUseBarWidget::ActivateSkillSlot(int32 SlotIndex) const
+{
+	if (!SkillManagerComponent)
+	{
+		return false;
+	}
+
+	if (SlotIndex < 0 || SlotIndex > 7)
+	{
+		return false;
+	}
+
+	return SkillManagerComponent->ActivateSkillFromSlot(SlotIndex);
+}
+
+void UQuickUseBarWidget::ClearSkillSlot(int32 SlotIndex) const
+{
+	if (!SkillManagerComponent)
+	{
+		return;
+	}
+
+	if (SlotIndex < 0 || SlotIndex > 7)
+	{
+		return;
+	}
+
+	SkillManagerComponent->ClearSlot(SlotIndex);
 }
 
 FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const

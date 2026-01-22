@@ -7,11 +7,13 @@
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/Border.h"
+#include "Components/Widget.h"
 #include "Items/Core/ItemBase.h"
 #include "QuickUseSlotWidget.generated.h"
 
 // Forward declarations
 class UQuickUseBarWidget;
+class USkillBase;
 
 /**
  * Widget representing a single quick-use slot.
@@ -34,6 +36,18 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
 	void SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 InInventorySlotIndex, int32 Quantity = -1);
+
+	/**
+	 * Set the slot data with a skill (skill slots 1-8).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
+	void SetSkillData(int32 InSlotIndex, USkillBase* Skill, float CooldownRemaining, float CooldownDuration);
+
+	/**
+	 * Update the cooldown overlay for skill slots.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
+	void UpdateSkillCooldown(float CooldownRemaining, float CooldownDuration);
 
 	/**
 	 * Clear the slot (set to empty state).
@@ -60,6 +74,12 @@ public:
 	UItemBase* GetCurrentItem() const { return CurrentItem; }
 
 	/**
+	 * Get the current skill assigned to this slot (skill slots only).
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Slot")
+	USkillBase* GetCurrentSkill() const { return CurrentSkill; }
+
+	/**
 	 * Set the parent quick-use bar widget (for drag and drop operations).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
@@ -77,6 +97,9 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UBorder> SlotBorder;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UWidget> CooldownOverlay;
 
 protected:
 	// Mouse input
@@ -100,7 +123,16 @@ private:
 	TObjectPtr<UItemBase> CurrentItem;
 
 	UPROPERTY()
+	TObjectPtr<USkillBase> CurrentSkill;
+
+	UPROPERTY()
 	int32 CurrentQuantity;
+
+	UPROPERTY()
+	float CurrentCooldownRemaining;
+
+	UPROPERTY()
+	float CurrentCooldownDuration;
 
 	// Visual feedback colors
 	FLinearColor DefaultBorderColor;
@@ -119,6 +151,10 @@ private:
 	 * Update the visual appearance of the slot based on item data.
 	 */
 	void UpdateSlotVisuals();
+
+	void UpdateCooldownVisual();
+
+	bool IsSkillSlot() const;
 	
 	/**
 	 * Check if an item can be assigned to this quick-use slot.

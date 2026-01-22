@@ -10,6 +10,9 @@
 class UUniformGridPanel;
 class UQuickUseSlotWidget;
 class UInventoryComponent;
+class USkillManagerComponent;
+class USkillComponent;
+class USkillBase;
 
 /**
  * Quick-use bar widget displaying 10 slots (1-8 for skills, 9-10 for consumables).
@@ -23,12 +26,26 @@ class ACTIONRPG_API UQuickUseBarWidget : public UUserWidget
 public:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
 	void UpdateQuickUseBar();
 
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
 	void OnQuickUseSlotChanged(int32 QuickUseSlotIndex, UItemBase* Item);
+
+	// Skill slot helpers
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
+	USkillManagerComponent* GetSkillManagerComponent() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
+	USkillComponent* GetSkillComponent() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
+	bool ActivateSkillSlot(int32 SlotIndex) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
+	void ClearSkillSlot(int32 SlotIndex) const;
 
 	/**
 	 * Get the InventoryComponent from the player character.
@@ -64,6 +81,16 @@ protected:
 	UFUNCTION()
 	void OnInventoryChangedInternal(int32 SlotIndex, UItemBase* Item);
 
+	// Event handlers for SkillManagerComponent events
+	UFUNCTION()
+	void OnSkillSlotChangedInternal(int32 SlotIndex, USkillBase* Skill);
+
+	UFUNCTION()
+	void OnSkillSlotClearedInternal(int32 SlotIndex);
+
+	UFUNCTION()
+	void OnSkillUnlockedInternal(USkillBase* Skill);
+
 private:
 	UPROPERTY()
 	TArray<TObjectPtr<UQuickUseSlotWidget>> SlotWidgets;
@@ -71,6 +98,14 @@ private:
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComponent;
 
+	UPROPERTY()
+	TObjectPtr<USkillManagerComponent> SkillManagerComponent;
+
+	UPROPERTY()
+	TObjectPtr<USkillComponent> SkillComponent;
+
 	void InitializeSlots();
 	void RefreshSlot(int32 SlotIndex);
+	void RefreshSkillSlot(int32 SlotIndex);
+	void UpdateSkillCooldowns(float DeltaTime);
 };

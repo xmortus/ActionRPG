@@ -576,62 +576,52 @@ struct FSkillInstance
 
 ---
 
-### Day 40-41: Skill Bar UI (SkillBarWidget, SkillSlotWidget)
+### Day 40-41: Quick-Use Bar Skill UI Integration
 
 #### Tasks
-1. **Create SkillBarWidget Header**
-   - Inherit from `UUserWidget`
-   - Add 8 skill slot widgets (TArray<USkillSlotWidget*>)
-   - Add reference to SkillManagerComponent
-   - Add methods for updating skill slots
+1. **Extend QuickUseBarWidget (Skills in slots 1-8)**
+   - Reuse existing QuickUse bar widget and slots
+   - Add SkillManagerComponent reference
+   - Add skill slot refresh/update methods for indices 0-7
 
-2. **Implement SkillBarWidget**
-   - `NativeConstruct()` - Initialize widget and bind to SkillManagerComponent
-   - `UpdateSkillSlot(int32 SlotIndex, USkillBase* Skill)` - Update slot display
-   - `RefreshAllSlots()` - Refresh all skill slots
-   - `OnSkillUnlocked(USkillBase* Skill)` - Handle skill unlock event
-   - `OnSkillSlotChanged(int32 SlotIndex, USkillBase* Skill)` - Handle slot assignment
+2. **Implement Skill Slot Visuals in QuickUse Slots**
+   - Display skill icon for slots 1-8 (use SkillDataAsset icon)
+   - Add cooldown overlay per skill slot
+   - Show key binding text (1-8)
+   - Keep consumable visuals for slots 9-10
 
-3. **Create SkillSlotWidget Header**
-   - Inherit from `UUserWidget`
-   - Add skill icon (UImage)
-   - Add cooldown overlay (UProgressBar or UImage)
-   - Add key binding label (UTextBlock)
-   - Add click handler for activation
-   - Add reference to parent SkillBarWidget
+3. **Update QuickUseSlotWidget Behavior**
+   - If slot type is Skill: use skill icon/cooldown data
+   - If slot type is Consumable: keep existing item display logic
+   - Add click handler to activate skill for skill slots
+   - Update cooldown overlay each tick
 
-4. **Implement SkillSlotWidget**
-   - `SetSkillData(USkillBase* Skill, int32 SlotIndex)` - Set skill and slot data
-   - `UpdateCooldown(float CooldownRemaining, float CooldownDuration)` - Update cooldown display
-   - `UpdateKeyBinding(FText KeyText)` - Update key binding label
-   - `OnSlotClicked()` - Activate skill from slot
-   - `NativeTick()` - Update cooldown overlay each frame
+4. **Bind to SkillManagerComponent Events**
+   - Refresh slot visuals on skill unlock
+   - Refresh slot visuals on slot assignment/clear
+   - Pull cooldown values from SkillComponent for each skill slot
 
 5. **Add Visual Feedback**
-   - Cooldown progress bar overlay
-   - Skill icon display
-   - Key binding text (1-8)
-   - Empty slot indicator
-   - Skill ready indicator (when cooldown complete)
+   - Cooldown progress overlay (skill slots only)
+   - Empty skill slot indicator
+   - Skill ready indicator (optional)
 
-6. **Create Blueprint Widgets**
-   - Create `WBP_SkillBar` Blueprint
-   - Create `WBP_SkillSlot` Blueprint
-   - Set up widget layout (horizontal bar with 8 slots)
-   - Configure visual styling
+6. **Verify UI Placement**
+   - QuickUse bar remains the single hotkey bar
+   - Ensure skill slots display alongside consumable slots
+   - Test widget display in HUD
 
-7. **Integrate with PlayerController**
-   - Add SkillBarWidget to HUD
-   - Create widget in BeginPlay
-   - Add to viewport with appropriate Z-order
-   - Test widget display
+7. **Unlocked Skills Panel**
+   - Create a simple list/grid UI showing all unlocked skills
+   - Allow click/drag to assign a skill to a Quick-Use slot (1-8)
+   - This panel can live in the Inventory UI or as a separate widget
 
 #### Deliverables
-- SkillBarWidget class created
-- SkillSlotWidget class created
-- Blueprint widgets created and configured
-- Visual feedback implemented
-- Integration with HUD complete
+- QuickUse bar extended to support skill slot visuals (1-8)
+- Skill cooldown overlay and key labels working in QuickUse slots
+- Skill assignment/activation reflected in UI
+- HUD integration remains unchanged (single bar)
+- Unlocked skills panel for assigning skills to slots
 
 ---
 

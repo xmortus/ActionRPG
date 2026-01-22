@@ -6,12 +6,14 @@
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/Border.h"
+#include "Components/ProgressBar.h"
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Engine/Texture2D.h"
 #include "UObject/EnumProperty.h"
+#include "Skills/Core/SkillBase.h"
 
 void UQuickUseSlotWidget::NativeConstruct()
 {
@@ -26,6 +28,9 @@ void UQuickUseSlotWidget::NativeConstruct()
 	InventorySlotIndex = -1;
 	CurrentItem = nullptr;
 	CurrentQuantity = 0;
+	CurrentSkill = nullptr;
+	CurrentCooldownRemaining = 0.0f;
+	CurrentCooldownDuration = 0.0f;
 
 	// Initialize visual feedback colors
 	DefaultBorderColor = FLinearColor(0.4f, 0.4f, 0.45f, 1.0f);
@@ -64,7 +69,10 @@ void UQuickUseSlotWidget::SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 
 {
 	SlotIndex = InSlotIndex;
 	CurrentItem = Item;
+	CurrentSkill = nullptr;
 	InventorySlotIndex = InInventorySlotIndex;
+	CurrentCooldownRemaining = 0.0f;
+	CurrentCooldownDuration = 0.0f;
 
 	// Use provided quantity if valid, otherwise fall back to Item->Quantity
 	if (Quantity >= 0)
@@ -124,6 +132,49 @@ void UQuickUseSlotWidget::SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 
 		CurrentQuantity);
 }
 
+void UQuickUseSlotWidget::SetSkillData(int32 InSlotIndex, USkillBase* Skill, float CooldownRemaining, float CooldownDuration)
+{
+	SlotIndex = InSlotIndex;
+	CurrentSkill = Skill;
+	CurrentItem = nullptr;
+	InventorySlotIndex = -1;
+	CurrentQuantity = 0;
+	CurrentCooldownRemaining = CooldownRemaining;
+	CurrentCooldownDuration = CooldownDuration;
+
+	// Update hotkey text - get the bound key from the Input Mapping Context
+	if (HotkeyText)
+	{
+		FText HotkeyLabel;
+		if (ParentQuickUseBar)
+		{
+			HotkeyLabel = ParentQuickUseBar->GetHotkeyTextForSlot(SlotIndex);
+		}
+
+		if (HotkeyLabel.IsEmpty())
+		{
+			HotkeyLabel = FText::AsNumber(SlotIndex + 1);
+		}
+
+		HotkeyText->SetText(HotkeyLabel);
+	}
+
+	UpdateSlotVisuals();
+
+	UE_LOG(LogTemp, Verbose, TEXT("QuickUseSlotWidget::SetSkillData - Slot %d: Skill=%s, Cooldown=%.2f/%.2f"),
+		SlotIndex,
+		CurrentSkill && CurrentSkill->SkillData ? *CurrentSkill->SkillData->SkillName.ToString() : TEXT("Empty"),
+		CurrentCooldownRemaining,
+		CurrentCooldownDuration);
+}
+
+void UQuickUseSlotWidget::UpdateSkillCooldown(float CooldownRemaining, float CooldownDuration)
+{
+	CurrentCooldownRemaining = CooldownRemaining;
+	CurrentCooldownDuration = CooldownDuration;
+	UpdateCooldownVisual();
+}
+
 void UQuickUseSlotWidget::ClearSlot()
 {
 	// IMPORTANT: Do NOT set SlotIndex to -1 here!
@@ -135,6 +186,9 @@ void UQuickUseSlotWidget::ClearSlot()
 	InventorySlotIndex = -1;
 	CurrentItem = nullptr;
 	CurrentQuantity = 0;
+	CurrentSkill = nullptr;
+	CurrentCooldownRemaining = 0.0f;
+	CurrentCooldownDuration = 0.0f;
 
 	UpdateSlotVisuals();
 
@@ -143,10 +197,17 @@ void UQuickUseSlotWidget::ClearSlot()
 
 void UQuickUseSlotWidget::UpdateSlotVisuals()
 {
-	// Update Item Icon
+	const bool bSkillSlot = IsSkillSlot();
+
+	// Update Item/Skill Icon
 	if (ItemIcon)
 	{
-		if (CurrentItem && CurrentItem->ItemData && CurrentItem->ItemData->ItemIcon)
+		if (bSkillSlot && CurrentSkill && CurrentSkill->SkillData && CurrentSkill->SkillData->SkillIcon)
+		{
+			ItemIcon->SetBrushFromTexture(CurrentSkill->SkillData->SkillIcon);
+			ItemIcon->SetVisibility(ESlateVisibility::Visible);
+		}
+		else if (!bSkillSlot && CurrentItem && CurrentItem->ItemData && CurrentItem->ItemData->ItemIcon)
 		{
 			ItemIcon->SetBrushFromTexture(CurrentItem->ItemData->ItemIcon);
 			ItemIcon->SetVisibility(ESlateVisibility::Visible);
@@ -160,7 +221,11 @@ void UQuickUseSlotWidget::UpdateSlotVisuals()
 	// Update Quantity Text
 	if (QuantityText)
 	{
-		if (CurrentQuantity > 1 && CurrentItem && CurrentItem->ItemData)
+		if (bSkillSlot)
+		{
+			QuantityText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		else if (CurrentQuantity > 1 && CurrentItem && CurrentItem->ItemData)
 		{
 			QuantityText->SetText(FText::AsNumber(CurrentQuantity));
 			QuantityText->SetVisibility(ESlateVisibility::Visible);
@@ -175,6 +240,8 @@ void UQuickUseSlotWidget::UpdateSlotVisuals()
 		}
 	}
 
+	UpdateCooldownVisual();
+
 	// Update Border (only set default color if not in drag over state)
 	if (SlotBorder)
 	{
@@ -185,6 +252,37 @@ void UQuickUseSlotWidget::UpdateSlotVisuals()
 		}
 		// If bIsDragOver is true, the border color is set by NativeOnDragEnter/Leave
 	}
+}
+
+void UQuickUseSlotWidget::UpdateCooldownVisual()
+{
+	if (!CooldownOverlay)
+	{
+		return;
+	}
+
+	const bool bSkillSlot = IsSkillSlot();
+	const bool bShowCooldown = bSkillSlot && CurrentSkill && CurrentCooldownDuration > 0.0f && CurrentCooldownRemaining > KINDA_SMALL_NUMBER;
+
+	CooldownOverlay->SetVisibility(bShowCooldown ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+
+	if (bShowCooldown)
+	{
+		const float CooldownPercent = FMath::Clamp(CurrentCooldownRemaining / CurrentCooldownDuration, 0.0f, 1.0f);
+		if (UProgressBar* ProgressBar = Cast<UProgressBar>(CooldownOverlay))
+		{
+			ProgressBar->SetPercent(CooldownPercent);
+		}
+		else if (UImage* OverlayImage = Cast<UImage>(CooldownOverlay))
+		{
+			OverlayImage->SetOpacity(CooldownPercent);
+		}
+	}
+}
+
+bool UQuickUseSlotWidget::IsSkillSlot() const
+{
+	return SlotIndex >= 0 && SlotIndex <= 7;
 }
 
 void UQuickUseSlotWidget::SetParentQuickUseBar(UQuickUseBarWidget* InParentQuickUseBar)
@@ -234,8 +332,14 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		{
 			UE_LOG(LogTemp, Log, TEXT("  Action: Left Click (Use item if available)"));
 			
+			// Skill slots (1-8): activate skill from slot
+			if (IsSkillSlot() && ParentQuickUseBar)
+			{
+				const bool bActivated = ParentQuickUseBar->ActivateSkillSlot(SlotIndex);
+				UE_LOG(LogTemp, Log, TEXT("  ActivateSkillSlot result: %s"), bActivated ? TEXT("SUCCESS") : TEXT("FAILED"));
+			}
 			// Use the item if it's assigned
-			if (CurrentItem && CurrentQuantity > 0 && InventorySlotIndex >= 0 && ParentQuickUseBar)
+			else if (CurrentItem && CurrentQuantity > 0 && InventorySlotIndex >= 0 && ParentQuickUseBar)
 			{
 				UInventoryComponent* InventoryComponent = ParentQuickUseBar->GetInventoryComponent();
 				if (InventoryComponent)
@@ -258,8 +362,13 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		{
 			UE_LOG(LogTemp, Log, TEXT("  Action: Right Click (Clear slot if available)"));
 			
+			// Clear skill slot assignment
+			if (IsSkillSlot() && ParentQuickUseBar)
+			{
+				ParentQuickUseBar->ClearSkillSlot(SlotIndex);
+			}
 			// Clear the slot if right-clicked
-			if (CurrentItem && ParentQuickUseBar)
+			else if (CurrentItem && ParentQuickUseBar)
 			{
 				UInventoryComponent* InventoryComponent = ParentQuickUseBar->GetInventoryComponent();
 				if (InventoryComponent)
@@ -298,8 +407,7 @@ bool UQuickUseSlotWidget::CanAcceptItem(UItemBase* Item) const
 	}
 	else if (SlotIndex >= 0 && SlotIndex <= 7)
 	{
-		// Slots 1-8: only accept skills (Phase 3 - not implemented yet)
-		// For now, return false as skills are not available in Phase 2
+		// Slots 1-8: skills are assigned via SkillManagerComponent, not items
 		return false;
 	}
 
