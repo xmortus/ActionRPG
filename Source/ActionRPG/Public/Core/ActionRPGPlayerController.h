@@ -11,11 +11,12 @@ class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
 class UInventoryWidget;
+class UUnlockedSkillsPanelWidget;
 
 /**
  * PlayerController for ActionRPG.
  * Handles Enhanced Input System integration and routes input to the player character.
- * Supports movement, look, and action inputs (interact, attack, dodge, inventory, skill slots 1-8).
+ * Supports movement, look, and action inputs (interact, attack, dodge, inventory, skill panel, skill slots 1-8).
  */
 UCLASS()
 class ACTIONRPG_API AActionRPGPlayerController : public APlayerController
@@ -66,12 +67,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenInventoryAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenSkillPanelAction;
+
 	// UI Widgets
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
 
 	UPROPERTY()
 	TObjectPtr<UInventoryWidget> InventoryWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUnlockedSkillsPanelWidget> SkillPanelWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUnlockedSkillsPanelWidget> SkillPanelWidget;
 
 	// Skill Slot Input Actions
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
@@ -112,6 +122,7 @@ protected:
 	void OnAttack();
 	void OnDodge();
 	void OnOpenInventory();
+	void OnOpenSkillPanel();
 
 	// Skill Slot Handlers
 	void OnSkillSlot1();

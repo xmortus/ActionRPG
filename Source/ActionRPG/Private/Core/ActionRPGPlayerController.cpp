@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Inventory/InventoryWidget.h"
+#include "UI/Skills/UnlockedSkillsPanelWidget.h"
 #include "Camera/CameraComponent.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
@@ -99,6 +100,11 @@ void AActionRPGPlayerController::SetupInputComponent()
 		if (OpenInventoryAction)
 		{
 			EnhancedInputComponent->BindAction(OpenInventoryAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenInventory);
+		}
+
+		if (OpenSkillPanelAction)
+		{
+			EnhancedInputComponent->BindAction(OpenSkillPanelAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenSkillPanel);
 		}
 
 		// Bind skill slot actions
@@ -429,8 +435,8 @@ void AActionRPGPlayerController::OnOpenInventory()
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport with Z-Order 50 (quick-use bar should be at 200+)"));
 			}
 			
-			// Ensure widget is visible
-			InventoryWidget->SetVisibility(ESlateVisibility::Visible);
+			// Ensure widget is visible but does not block clicks in empty areas
+			InventoryWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 			
 			// Log widget status for debugging
 			if (InventoryWidget)
@@ -455,6 +461,70 @@ void AActionRPGPlayerController::OnOpenInventory()
 			bShowMouseCursor = true;
 			// Optional: Pause game when inventory is open
 			// SetPause(true);
+		}
+	}
+}
+
+void AActionRPGPlayerController::OnOpenSkillPanel()
+{
+	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Skill panel key pressed"));
+
+	// Create widget if it doesn't exist
+	if (!SkillPanelWidget)
+	{
+		if (SkillPanelWidgetClass)
+		{
+			SkillPanelWidget = CreateWidget<UUnlockedSkillsPanelWidget>(this, SkillPanelWidgetClass);
+			if (SkillPanelWidget)
+			{
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Skill panel widget created"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Failed to create skill panel widget! Check SkillPanelWidgetClass is set in Blueprint"));
+				return;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - SkillPanelWidgetClass is not set! Set it in Blueprint"));
+			return;
+		}
+	}
+
+	// Toggle widget visibility
+	if (SkillPanelWidget)
+	{
+		bool bIsInViewport = SkillPanelWidget->IsInViewport();
+		ESlateVisibility CurrentVisibility = SkillPanelWidget->GetVisibility();
+		bool bIsVisible = bIsInViewport && (CurrentVisibility == ESlateVisibility::Visible || CurrentVisibility == ESlateVisibility::SelfHitTestInvisible || CurrentVisibility == ESlateVisibility::HitTestInvisible);
+
+		if (bIsVisible)
+		{
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Hiding skill panel (current visibility: %d, in viewport: %s)"),
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
+
+			SkillPanelWidget->SetVisibility(ESlateVisibility::Collapsed);
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+			bShowMouseCursor = true;
+			SetPause(false);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Showing skill panel (current visibility: %d, in viewport: %s)"),
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
+
+			if (!bIsInViewport)
+			{
+				// Add to viewport with Z-Order 100 (above inventory, below quick-use bar)
+				SkillPanelWidget->AddToViewport(100);
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Widget added to viewport with Z-Order 100 (quick-use bar should be at 200+)"));
+			}
+
+			// Ensure widget is visible but does not block clicks in empty areas
+			SkillPanelWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+			bShowMouseCursor = true;
 		}
 	}
 }

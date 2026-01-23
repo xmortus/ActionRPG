@@ -105,10 +105,29 @@ This guide updates the existing Quick-Use bar UI to display skills in slots 1-8 
 
 ---
 
-## Step 9: Verify Assignment Flow
+## Step 9: Add Input for Skill Panel Toggle
+1. Create `IA_OpenSkillPanel` (Input Action).
+2. Add it to your default Input Mapping Context (pick a key, e.g., `K`).
+3. Open `BP_ActionRPGPlayerController`.
+4. Assign:
+   - `OpenSkillPanelAction` = `IA_OpenSkillPanel`
+   - `SkillPanelWidgetClass` = `WBP_UnlockedSkillsPanel`
+5. Save.
+
+---
+
+## Step 10: Verify Assignment Flow
 1. PIE.
 2. Unlock a skill (use SkillItem).
 3. Confirm it appears in the Unlocked Skills panel.
 4. Click Assign and confirm:
    - Skill is assigned to a Quick-Use slot (first empty slot)
    - Quick-Use bar updates with icon and cooldown overlay
+
+---
+
+## Step 11: Verify Interaction With Both Panels Open
+1. Open Inventory and Skill Panel together.
+2. Click inventory slots and context menu actions.
+3. Click Assign on Unlocked Skills entries.
+4. Confirm both panels accept clicks when open at the same time.
