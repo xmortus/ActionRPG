@@ -39,6 +39,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Unlocked Skills")
 	bool AssignSkillToPendingSlot(USkillBase* Skill);
 
+	UFUNCTION(BlueprintCallable, Category = "Unlocked Skills")
+	bool AssignSkillToMainHand(USkillBase* Skill);
+
+	UFUNCTION(BlueprintCallable, Category = "Unlocked Skills")
+	bool AssignSkillToOffhand(USkillBase* Skill);
+
 protected:
 	// Widget references (bind in Blueprint)
 	UPROPERTY(meta = (BindWidget))

@@ -37,8 +37,20 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> AssignButton;
 
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> AssignMainHandButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> AssignOffhandButton;
+
 	UFUNCTION()
 	void OnAssignClicked();
+
+	UFUNCTION()
+	void OnAssignMainHandClicked();
+
+	UFUNCTION()
+	void OnAssignOffhandClicked();
 
 private:
 	UPROPERTY()

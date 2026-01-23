@@ -31,6 +31,7 @@ void UQuickUseSlotWidget::NativeConstruct()
 	CurrentSkill = nullptr;
 	CurrentCooldownRemaining = 0.0f;
 	CurrentCooldownDuration = 0.0f;
+	SlotType = EQuickUseBarSlotType::Consumable;
 
 	// Initialize visual feedback colors
 	DefaultBorderColor = FLinearColor(0.4f, 0.4f, 0.45f, 1.0f);
@@ -73,6 +74,7 @@ void UQuickUseSlotWidget::SetSlotData(int32 InSlotIndex, UItemBase* Item, int32 
 	InventorySlotIndex = InInventorySlotIndex;
 	CurrentCooldownRemaining = 0.0f;
 	CurrentCooldownDuration = 0.0f;
+	SlotType = EQuickUseBarSlotType::Consumable;
 
 	// Use provided quantity if valid, otherwise fall back to Item->Quantity
 	if (Quantity >= 0)
@@ -141,6 +143,7 @@ void UQuickUseSlotWidget::SetSkillData(int32 InSlotIndex, USkillBase* Skill, flo
 	CurrentQuantity = 0;
 	CurrentCooldownRemaining = CooldownRemaining;
 	CurrentCooldownDuration = CooldownDuration;
+	SlotType = EQuickUseBarSlotType::Skill;
 
 	// Update hotkey text - get the bound key from the Input Mapping Context
 	if (HotkeyText)
@@ -166,6 +169,25 @@ void UQuickUseSlotWidget::SetSkillData(int32 InSlotIndex, USkillBase* Skill, flo
 		CurrentSkill && CurrentSkill->SkillData ? *CurrentSkill->SkillData->SkillName.ToString() : TEXT("Empty"),
 		CurrentCooldownRemaining,
 		CurrentCooldownDuration);
+}
+
+void UQuickUseSlotWidget::SetActionSkillData(EQuickUseBarSlotType InSlotType, USkillBase* Skill, const FText& InHotkeyText, float CooldownRemaining, float CooldownDuration)
+{
+	SlotIndex = (InSlotType == EQuickUseBarSlotType::MainHand) ? 10 : 11;
+	CurrentSkill = Skill;
+	CurrentItem = nullptr;
+	InventorySlotIndex = -1;
+	CurrentQuantity = 0;
+	CurrentCooldownRemaining = CooldownRemaining;
+	CurrentCooldownDuration = CooldownDuration;
+	SlotType = InSlotType;
+
+	if (HotkeyText)
+	{
+		HotkeyText->SetText(InHotkeyText);
+	}
+
+	UpdateSlotVisuals();
 }
 
 void UQuickUseSlotWidget::UpdateSkillCooldown(float CooldownRemaining, float CooldownDuration)
@@ -282,7 +304,9 @@ void UQuickUseSlotWidget::UpdateCooldownVisual()
 
 bool UQuickUseSlotWidget::IsSkillSlot() const
 {
-	return SlotIndex >= 0 && SlotIndex <= 7;
+	return SlotType == EQuickUseBarSlotType::Skill
+		|| SlotType == EQuickUseBarSlotType::MainHand
+		|| SlotType == EQuickUseBarSlotType::Offhand;
 }
 
 void UQuickUseSlotWidget::SetParentQuickUseBar(UQuickUseBarWidget* InParentQuickUseBar)
@@ -304,7 +328,7 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		SlotIndex, *InMouseEvent.GetEffectingButton().ToString());
 	
 	// Log click for debugging
-	if (SlotIndex >= 0)
+	if (SlotIndex >= 0 || SlotType == EQuickUseBarSlotType::MainHand || SlotType == EQuickUseBarSlotType::Offhand)
 	{
 		FString ButtonName = InMouseEvent.GetEffectingButton().ToString();
 		FString ItemName = CurrentItem && CurrentItem->ItemData ? CurrentItem->ItemData->ItemName.ToString() : TEXT("Empty");
@@ -333,13 +357,18 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 			UE_LOG(LogTemp, Log, TEXT("  Action: Left Click (Use item if available)"));
 			
 			// Skill slots (1-8): activate skill from slot
-			if (IsSkillSlot() && ParentQuickUseBar)
+			if (SlotType == EQuickUseBarSlotType::Skill && ParentQuickUseBar)
 			{
 				const bool bActivated = ParentQuickUseBar->ActivateSkillSlot(SlotIndex);
 				UE_LOG(LogTemp, Log, TEXT("  ActivateSkillSlot result: %s"), bActivated ? TEXT("SUCCESS") : TEXT("FAILED"));
 			}
+			else if ((SlotType == EQuickUseBarSlotType::MainHand || SlotType == EQuickUseBarSlotType::Offhand) && ParentQuickUseBar)
+			{
+				const bool bActivated = ParentQuickUseBar->ActivateActionSlot(SlotType);
+				UE_LOG(LogTemp, Log, TEXT("  ActivateActionSlot result: %s"), bActivated ? TEXT("SUCCESS") : TEXT("FAILED"));
+			}
 			// Use the item if it's assigned
-			else if (CurrentItem && CurrentQuantity > 0 && InventorySlotIndex >= 0 && ParentQuickUseBar)
+			else if (SlotType == EQuickUseBarSlotType::Consumable && CurrentItem && CurrentQuantity > 0 && InventorySlotIndex >= 0 && ParentQuickUseBar)
 			{
 				UInventoryComponent* InventoryComponent = ParentQuickUseBar->GetInventoryComponent();
 				if (InventoryComponent)
@@ -363,12 +392,16 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 			UE_LOG(LogTemp, Log, TEXT("  Action: Right Click (Clear slot if available)"));
 			
 			// Clear skill slot assignment
-			if (IsSkillSlot() && ParentQuickUseBar)
+			if (SlotType == EQuickUseBarSlotType::Skill && ParentQuickUseBar)
 			{
 				ParentQuickUseBar->ClearSkillSlot(SlotIndex);
 			}
+			else if ((SlotType == EQuickUseBarSlotType::MainHand || SlotType == EQuickUseBarSlotType::Offhand) && ParentQuickUseBar)
+			{
+				ParentQuickUseBar->ClearActionSlot(SlotType);
+			}
 			// Clear the slot if right-clicked
-			else if (CurrentItem && ParentQuickUseBar)
+			else if (SlotType == EQuickUseBarSlotType::Consumable && CurrentItem && ParentQuickUseBar)
 			{
 				UInventoryComponent* InventoryComponent = ParentQuickUseBar->GetInventoryComponent();
 				if (InventoryComponent)
@@ -381,10 +414,6 @@ FReply UQuickUseSlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		}
 		
 		UE_LOG(LogTemp, Log, TEXT("========================================"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("QuickUseSlotWidget::NativeOnMouseButtonDown - SlotIndex is invalid (%d)"), SlotIndex);
 	}
 	
 	// Always handle the click (even if slot is invalid) to prevent event propagation
@@ -400,14 +429,18 @@ bool UQuickUseSlotWidget::CanAcceptItem(UItemBase* Item) const
 
 	// For Phase 2, slots 9-10 (indices 8-9) only accept consumables
 	// Slots 1-8 (indices 0-7) are for skills (Phase 3, currently not available)
-	if (SlotIndex >= 8 && SlotIndex <= 9)
+	if (SlotType == EQuickUseBarSlotType::Consumable && SlotIndex >= 8 && SlotIndex <= 9)
 	{
 		// Slots 9-10: only accept consumables
 		return Item->ItemData->Type == EItemType::Consumable;
 	}
-	else if (SlotIndex >= 0 && SlotIndex <= 7)
+	else if (SlotType == EQuickUseBarSlotType::Skill)
 	{
 		// Slots 1-8: skills are assigned via SkillManagerComponent, not items
+		return false;
+	}
+	else if (SlotType == EQuickUseBarSlotType::MainHand || SlotType == EQuickUseBarSlotType::Offhand)
+	{
 		return false;
 	}
 

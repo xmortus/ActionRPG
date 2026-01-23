@@ -39,6 +39,10 @@ void USkillManagerComponent::BeginPlay()
 		SkillBarSlots.Add(i, nullptr);
 	}
 
+	// Initialize main/offhand slots
+	MainHandSkill = nullptr;
+	OffhandSkill = nullptr;
+
 	UE_LOG(LogTemp, Log, TEXT("SkillManagerComponent: Initialized with %d unlocked skills, %d skill bar slots"),
 		UnlockedSkills.Num(), SkillBarSlots.Num());
 }
@@ -425,4 +429,102 @@ TMap<int32, USkillBase*> USkillManagerComponent::GetAllSlotAssignments() const
 	}
 
 	return Result;
+}
+
+bool USkillManagerComponent::AssignMainHandSkill(USkillBase* Skill)
+{
+	if (!Skill)
+	{
+		ClearMainHandSkill();
+		return true;
+	}
+
+	if (!IsSkillUnlocked(Skill))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkillManagerComponent::AssignMainHandSkill - Skill is not unlocked: %s"),
+			Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"));
+		return false;
+	}
+
+	if (MainHandSkill == Skill)
+	{
+		return true;
+	}
+
+	MainHandSkill = Skill;
+	OnMainHandSkillChanged.Broadcast(MainHandSkill);
+	return true;
+}
+
+bool USkillManagerComponent::AssignOffhandSkill(USkillBase* Skill)
+{
+	if (!Skill)
+	{
+		ClearOffhandSkill();
+		return true;
+	}
+
+	if (!IsSkillUnlocked(Skill))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkillManagerComponent::AssignOffhandSkill - Skill is not unlocked: %s"),
+			Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"));
+		return false;
+	}
+
+	if (OffhandSkill == Skill)
+	{
+		return true;
+	}
+
+	OffhandSkill = Skill;
+	OnOffhandSkillChanged.Broadcast(OffhandSkill);
+	return true;
+}
+
+void USkillManagerComponent::ClearMainHandSkill()
+{
+	if (MainHandSkill)
+	{
+		MainHandSkill = nullptr;
+		OnMainHandSkillChanged.Broadcast(nullptr);
+	}
+}
+
+void USkillManagerComponent::ClearOffhandSkill()
+{
+	if (OffhandSkill)
+	{
+		OffhandSkill = nullptr;
+		OnOffhandSkillChanged.Broadcast(nullptr);
+	}
+}
+
+bool USkillManagerComponent::ActivateMainHandSkill(AActor* Target)
+{
+	if (!SkillComponent || !MainHandSkill)
+	{
+		return false;
+	}
+
+	if (!SkillComponent->CanActivateSkill(MainHandSkill))
+	{
+		return false;
+	}
+
+	return SkillComponent->ActivateSkill(MainHandSkill, Target);
+}
+
+bool USkillManagerComponent::ActivateOffhandSkill(AActor* Target)
+{
+	if (!SkillComponent || !OffhandSkill)
+	{
+		return false;
+	}
+
+	if (!SkillComponent->CanActivateSkill(OffhandSkill))
+	{
+		return false;
+	}
+
+	return SkillComponent->ActivateSkill(OffhandSkill, Target);
 }

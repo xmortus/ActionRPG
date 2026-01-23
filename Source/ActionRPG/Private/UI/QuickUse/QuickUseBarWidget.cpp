@@ -55,10 +55,13 @@ void UQuickUseBarWidget::NativeConstruct()
 		SkillManagerComponent->OnSkillSlotChanged.AddDynamic(this, &UQuickUseBarWidget::OnSkillSlotChangedInternal);
 		SkillManagerComponent->OnSkillSlotCleared.AddDynamic(this, &UQuickUseBarWidget::OnSkillSlotClearedInternal);
 		SkillManagerComponent->OnSkillUnlocked.AddDynamic(this, &UQuickUseBarWidget::OnSkillUnlockedInternal);
+		SkillManagerComponent->OnMainHandSkillChanged.AddDynamic(this, &UQuickUseBarWidget::OnMainHandSkillChangedInternal);
+		SkillManagerComponent->OnOffhandSkillChanged.AddDynamic(this, &UQuickUseBarWidget::OnOffhandSkillChangedInternal);
 	}
 
 	// Initialize slot widgets
 	InitializeSlots();
+	InitializeActionSlots();
 
 	// Update display
 	UpdateQuickUseBar();
@@ -80,6 +83,8 @@ void UQuickUseBarWidget::NativeDestruct()
 		SkillManagerComponent->OnSkillSlotChanged.RemoveAll(this);
 		SkillManagerComponent->OnSkillSlotCleared.RemoveAll(this);
 		SkillManagerComponent->OnSkillUnlocked.RemoveAll(this);
+		SkillManagerComponent->OnMainHandSkillChanged.RemoveAll(this);
+		SkillManagerComponent->OnOffhandSkillChanged.RemoveAll(this);
 	}
 
 	Super::NativeDestruct();
@@ -90,6 +95,7 @@ void UQuickUseBarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTi
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
 	UpdateSkillCooldowns(InDeltaTime);
+	UpdateActionCooldowns();
 }
 
 void UQuickUseBarWidget::UpdateQuickUseBar()
@@ -99,6 +105,8 @@ void UQuickUseBarWidget::UpdateQuickUseBar()
 	{
 		RefreshSlot(i);
 	}
+
+	RefreshActionSlots();
 }
 
 void UQuickUseBarWidget::OnQuickUseSlotChanged(int32 QuickUseSlotIndex, UItemBase* Item)
@@ -150,6 +158,16 @@ void UQuickUseBarWidget::OnSkillUnlockedInternal(USkillBase* Skill)
 	{
 		RefreshSlot(SlotIndex);
 	}
+}
+
+void UQuickUseBarWidget::OnMainHandSkillChangedInternal(USkillBase* Skill)
+{
+	RefreshActionSlots();
+}
+
+void UQuickUseBarWidget::OnOffhandSkillChangedInternal(USkillBase* Skill)
+{
+	RefreshActionSlots();
 }
 
 void UQuickUseBarWidget::InitializeSlots()
@@ -207,6 +225,43 @@ void UQuickUseBarWidget::InitializeSlots()
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("QuickUseBarWidget::InitializeSlots - Created %d slot widgets in grid"), SlotWidgets.Num());
+}
+
+void UQuickUseBarWidget::InitializeActionSlots()
+{
+	if (!ActionUseGrid)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("QuickUseBarWidget::InitializeActionSlots - ActionUseGrid not found (optional)"));
+		return;
+	}
+
+	if (!SlotWidgetClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("QuickUseBarWidget::InitializeActionSlots - SlotWidgetClass not set! Set it in Blueprint"));
+		return;
+	}
+
+	ActionUseGrid->ClearChildren();
+	ActionSlotWidgets.Empty();
+	ActionSlotWidgets.Reserve(2);
+
+	const int32 Columns = 2;
+	for (int32 Col = 0; Col < Columns; Col++)
+	{
+		UUserWidget* UserWidget = CreateWidget<UUserWidget>(this, SlotWidgetClass);
+		UQuickUseSlotWidget* SlotWidget = Cast<UQuickUseSlotWidget>(UserWidget);
+		if (!SlotWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("QuickUseBarWidget::InitializeActionSlots - Failed to create action slot widget %d"), Col);
+			continue;
+		}
+
+		ActionUseGrid->AddChildToUniformGrid(SlotWidget, 0, Col);
+		ActionSlotWidgets.Add(SlotWidget);
+		SlotWidget->SetParentQuickUseBar(this);
+	}
+
+	RefreshActionSlots();
 }
 
 void UQuickUseBarWidget::RefreshSlot(int32 SlotIndex)
@@ -294,6 +349,31 @@ void UQuickUseBarWidget::RefreshSkillSlot(int32 SlotIndex)
 	}
 }
 
+void UQuickUseBarWidget::RefreshActionSlots()
+{
+	if (!SkillManagerComponent || ActionSlotWidgets.Num() < 2)
+	{
+		return;
+	}
+
+	USkillBase* MainHand = SkillManagerComponent->GetMainHandSkill();
+	USkillBase* Offhand = SkillManagerComponent->GetOffhandSkill();
+
+	if (ActionSlotWidgets.IsValidIndex(0))
+	{
+		const float CooldownRemaining = (SkillComponent && MainHand) ? SkillComponent->GetSkillCooldownRemaining(MainHand) : 0.0f;
+		const float CooldownDuration = MainHand && MainHand->SkillData ? MainHand->SkillData->CooldownDuration : 0.0f;
+		ActionSlotWidgets[0]->SetActionSkillData(EQuickUseBarSlotType::MainHand, MainHand, GetHotkeyTextForActionSlot(EQuickUseBarSlotType::MainHand), CooldownRemaining, CooldownDuration);
+	}
+
+	if (ActionSlotWidgets.IsValidIndex(1))
+	{
+		const float CooldownRemaining = (SkillComponent && Offhand) ? SkillComponent->GetSkillCooldownRemaining(Offhand) : 0.0f;
+		const float CooldownDuration = Offhand && Offhand->SkillData ? Offhand->SkillData->CooldownDuration : 0.0f;
+		ActionSlotWidgets[1]->SetActionSkillData(EQuickUseBarSlotType::Offhand, Offhand, GetHotkeyTextForActionSlot(EQuickUseBarSlotType::Offhand), CooldownRemaining, CooldownDuration);
+	}
+}
+
 void UQuickUseBarWidget::UpdateSkillCooldowns(float DeltaTime)
 {
 	if (!SkillManagerComponent || !SkillComponent)
@@ -324,6 +404,30 @@ void UQuickUseBarWidget::UpdateSkillCooldowns(float DeltaTime)
 		float CooldownRemaining = SkillComponent->GetSkillCooldownRemaining(Skill);
 		float CooldownDuration = Skill->SkillData ? Skill->SkillData->CooldownDuration : 0.0f;
 		SlotWidget->UpdateSkillCooldown(CooldownRemaining, CooldownDuration);
+	}
+}
+
+void UQuickUseBarWidget::UpdateActionCooldowns()
+{
+	if (!SkillManagerComponent || !SkillComponent || ActionSlotWidgets.Num() < 2)
+	{
+		return;
+	}
+
+	USkillBase* MainHand = SkillManagerComponent->GetMainHandSkill();
+	if (ActionSlotWidgets.IsValidIndex(0))
+	{
+		const float CooldownRemaining = MainHand ? SkillComponent->GetSkillCooldownRemaining(MainHand) : 0.0f;
+		const float CooldownDuration = MainHand && MainHand->SkillData ? MainHand->SkillData->CooldownDuration : 0.0f;
+		ActionSlotWidgets[0]->UpdateSkillCooldown(CooldownRemaining, CooldownDuration);
+	}
+
+	USkillBase* Offhand = SkillManagerComponent->GetOffhandSkill();
+	if (ActionSlotWidgets.IsValidIndex(1))
+	{
+		const float CooldownRemaining = Offhand ? SkillComponent->GetSkillCooldownRemaining(Offhand) : 0.0f;
+		const float CooldownDuration = Offhand && Offhand->SkillData ? Offhand->SkillData->CooldownDuration : 0.0f;
+		ActionSlotWidgets[1]->UpdateSkillCooldown(CooldownRemaining, CooldownDuration);
 	}
 }
 
@@ -394,6 +498,43 @@ void UQuickUseBarWidget::ClearSkillSlot(int32 SlotIndex) const
 	}
 
 	SkillManagerComponent->ClearSlot(SlotIndex);
+}
+
+bool UQuickUseBarWidget::ActivateActionSlot(EQuickUseBarSlotType SlotType) const
+{
+	if (!SkillManagerComponent)
+	{
+		return false;
+	}
+
+	if (SlotType == EQuickUseBarSlotType::MainHand)
+	{
+		return SkillManagerComponent->ActivateMainHandSkill();
+	}
+
+	if (SlotType == EQuickUseBarSlotType::Offhand)
+	{
+		return SkillManagerComponent->ActivateOffhandSkill();
+	}
+
+	return false;
+}
+
+void UQuickUseBarWidget::ClearActionSlot(EQuickUseBarSlotType SlotType) const
+{
+	if (!SkillManagerComponent)
+	{
+		return;
+	}
+
+	if (SlotType == EQuickUseBarSlotType::MainHand)
+	{
+		SkillManagerComponent->ClearMainHandSkill();
+	}
+	else if (SlotType == EQuickUseBarSlotType::Offhand)
+	{
+		SkillManagerComponent->ClearOffhandSkill();
+	}
 }
 
 FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const
@@ -467,6 +608,14 @@ FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const
 			FKey BoundKey = Mapping.Key;
 			if (BoundKey.IsValid())
 			{
+				if (BoundKey == EKeys::LeftMouseButton)
+				{
+					return FText::FromString(TEXT("LMB"));
+				}
+				if (BoundKey == EKeys::RightMouseButton)
+				{
+					return FText::FromString(TEXT("RMB"));
+				}
 				return BoundKey.GetDisplayName();
 			}
 			break;
@@ -486,6 +635,66 @@ FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const
 	{
 		return FText::FromString(TEXT("0"));
 	}
+}
+
+FText UQuickUseBarWidget::GetHotkeyTextForActionSlot(EQuickUseBarSlotType SlotType) const
+{
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		return FText::GetEmpty();
+	}
+
+	AActionRPGPlayerController* ActionRPGPC = Cast<AActionRPGPlayerController>(PC);
+	if (!ActionRPGPC)
+	{
+		return FText::GetEmpty();
+	}
+
+	UInputAction* Action = nullptr;
+	if (SlotType == EQuickUseBarSlotType::MainHand)
+	{
+		Action = ActionRPGPC->GetAttackInputAction();
+	}
+	else if (SlotType == EQuickUseBarSlotType::Offhand)
+	{
+		Action = ActionRPGPC->GetOffhandInputAction();
+	}
+
+	if (!Action)
+	{
+		return FText::GetEmpty();
+	}
+
+	UInputMappingContext* MappingContext = ActionRPGPC->GetDefaultMappingContext();
+	if (!MappingContext)
+	{
+		return FText::GetEmpty();
+	}
+
+	const TArray<FEnhancedActionKeyMapping>& Mappings = MappingContext->GetMappings();
+	for (const FEnhancedActionKeyMapping& Mapping : Mappings)
+	{
+		if (Mapping.Action == Action)
+		{
+			FKey BoundKey = Mapping.Key;
+			if (BoundKey.IsValid())
+			{
+				if (BoundKey == EKeys::LeftMouseButton)
+				{
+					return FText::FromString(TEXT("LMB"));
+				}
+				if (BoundKey == EKeys::RightMouseButton)
+				{
+					return FText::FromString(TEXT("RMB"));
+				}
+				return BoundKey.GetDisplayName();
+			}
+			break;
+		}
+	}
+
+	return FText::GetEmpty();
 }
 
 bool UQuickUseBarWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)

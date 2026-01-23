@@ -15,6 +15,15 @@
 class UQuickUseBarWidget;
 class USkillBase;
 
+UENUM(BlueprintType)
+enum class EQuickUseBarSlotType : uint8
+{
+	Skill		UMETA(DisplayName = "Skill"),
+	Consumable	UMETA(DisplayName = "Consumable"),
+	MainHand	UMETA(DisplayName = "Main Hand"),
+	Offhand		UMETA(DisplayName = "Offhand")
+};
+
 /**
  * Widget representing a single quick-use slot.
  * Displays item icon, quantity, and hotkey label.
@@ -42,6 +51,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
 	void SetSkillData(int32 InSlotIndex, USkillBase* Skill, float CooldownRemaining, float CooldownDuration);
+
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Slot")
+	void SetActionSkillData(EQuickUseBarSlotType InSlotType, USkillBase* Skill, const FText& InHotkeyText, float CooldownRemaining, float CooldownDuration);
 
 	/**
 	 * Update the cooldown overlay for skill slots.
@@ -78,6 +90,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Slot")
 	USkillBase* GetCurrentSkill() const { return CurrentSkill; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Slot")
+	EQuickUseBarSlotType GetSlotType() const { return SlotType; }
 
 	/**
 	 * Set the parent quick-use bar widget (for drag and drop operations).
@@ -133,6 +148,9 @@ private:
 
 	UPROPERTY()
 	float CurrentCooldownDuration;
+
+	UPROPERTY()
+	EQuickUseBarSlotType SlotType = EQuickUseBarSlotType::Consumable;
 
 	// Visual feedback colors
 	FLinearColor DefaultBorderColor;

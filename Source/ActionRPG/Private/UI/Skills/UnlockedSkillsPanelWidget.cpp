@@ -135,6 +135,26 @@ bool UUnlockedSkillsPanelWidget::AssignSkillToPendingSlot(USkillBase* Skill)
 	return AssignSkillToSlot(Skill, TargetSlot);
 }
 
+bool UUnlockedSkillsPanelWidget::AssignSkillToMainHand(USkillBase* Skill)
+{
+	if (!SkillManagerComponent || !Skill)
+	{
+		return false;
+	}
+
+	return SkillManagerComponent->AssignMainHandSkill(Skill);
+}
+
+bool UUnlockedSkillsPanelWidget::AssignSkillToOffhand(USkillBase* Skill)
+{
+	if (!SkillManagerComponent || !Skill)
+	{
+		return false;
+	}
+
+	return SkillManagerComponent->AssignOffhandSkill(Skill);
+}
+
 void UUnlockedSkillsPanelWidget::OnSkillUnlockedInternal(USkillBase* Skill)
 {
 	RefreshUnlockedSkills();

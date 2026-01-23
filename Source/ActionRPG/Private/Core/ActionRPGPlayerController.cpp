@@ -13,6 +13,7 @@
 #include "UI/Inventory/InventoryWidget.h"
 #include "UI/Skills/UnlockedSkillsPanelWidget.h"
 #include "Camera/CameraComponent.h"
+#include "Components/Skills/SkillManagerComponent.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -90,6 +91,11 @@ void AActionRPGPlayerController::SetupInputComponent()
 		if (AttackAction)
 		{
 			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnAttack);
+		}
+
+		if (OffhandAction)
+		{
+			EnhancedInputComponent->BindAction(OffhandAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOffhand);
 		}
 
 		if (DodgeAction)
@@ -357,14 +363,52 @@ void AActionRPGPlayerController::OnInteract()
 
 void AActionRPGPlayerController::OnAttack()
 {
-	// TODO: Implement attack in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Attack pressed"));
+	AActor* OwnerPawn = GetPawn();
+	if (!OwnerPawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnAttack - Pawn is null"));
+		return;
+	}
+
+	USkillManagerComponent* SkillManager = OwnerPawn->FindComponentByClass<USkillManagerComponent>();
+	if (!SkillManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnAttack - SkillManagerComponent not found"));
+		return;
+	}
+
+	if (!SkillManager->ActivateMainHandSkill())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnAttack - Failed to activate main hand skill"));
+	}
 }
 
 void AActionRPGPlayerController::OnDodge()
 {
 	// TODO: Implement dodge in Phase 2
 	UE_LOG(LogTemp, Warning, TEXT("Dodge pressed"));
+}
+
+void AActionRPGPlayerController::OnOffhand()
+{
+	AActor* OwnerPawn = GetPawn();
+	if (!OwnerPawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnOffhand - Pawn is null"));
+		return;
+	}
+
+	USkillManagerComponent* SkillManager = OwnerPawn->FindComponentByClass<USkillManagerComponent>();
+	if (!SkillManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnOffhand - SkillManagerComponent not found"));
+		return;
+	}
+
+	if (!SkillManager->ActivateOffhandSkill())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OnOffhand - Failed to activate offhand skill"));
+	}
 }
 
 void AActionRPGPlayerController::OnOpenInventory()
@@ -531,50 +575,71 @@ void AActionRPGPlayerController::OnOpenSkillPanel()
 
 void AActionRPGPlayerController::OnSkillSlot1()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 1 pressed"));
+	ActivateSkillSlot(0);
 }
 
 void AActionRPGPlayerController::OnSkillSlot2()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 2 pressed"));
+	ActivateSkillSlot(1);
 }
 
 void AActionRPGPlayerController::OnSkillSlot3()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 3 pressed"));
+	ActivateSkillSlot(2);
 }
 
 void AActionRPGPlayerController::OnSkillSlot4()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 4 pressed"));
+	ActivateSkillSlot(3);
 }
 
 void AActionRPGPlayerController::OnSkillSlot5()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 5 pressed"));
+	ActivateSkillSlot(4);
 }
 
 void AActionRPGPlayerController::OnSkillSlot6()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 6 pressed"));
+	ActivateSkillSlot(5);
 }
 
 void AActionRPGPlayerController::OnSkillSlot7()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 7 pressed"));
+	ActivateSkillSlot(6);
 }
 
 void AActionRPGPlayerController::OnSkillSlot8()
 {
-	// TODO: Implement skill activation in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Skill Slot 8 pressed"));
+	ActivateSkillSlot(7);
+}
+
+void AActionRPGPlayerController::ActivateSkillSlot(int32 SlotIndex)
+{
+	AActor* OwnerPawn = GetPawn();
+	if (!OwnerPawn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ActivateSkillSlot - Pawn is null (slot %d)"), SlotIndex);
+		return;
+	}
+
+	USkillManagerComponent* SkillManager = OwnerPawn->FindComponentByClass<USkillManagerComponent>();
+	if (!SkillManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ActivateSkillSlot - SkillManagerComponent not found (slot %d)"), SlotIndex);
+		return;
+	}
+
+	if (!SkillManager->CanActivateSkillFromSlot(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ActivateSkillSlot - Skill in slot %d cannot be activated"), SlotIndex);
+		return;
+	}
+
+	bool bActivated = SkillManager->ActivateSkillFromSlot(SlotIndex);
+	if (!bActivated)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ActivateSkillSlot - Failed to activate skill in slot %d"), SlotIndex);
+	}
 }
 
 void AActionRPGPlayerController::OnQuickUseSlot9(const FInputActionValue& Value)

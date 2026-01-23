@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Inventory/InventoryComponent.h"
+#include "UI/QuickUse/QuickUseSlotWidget.h"
 #include "QuickUseBarWidget.generated.h"
 
 class UUniformGridPanel;
@@ -47,6 +48,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
 	void ClearSkillSlot(int32 SlotIndex) const;
 
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
+	bool ActivateActionSlot(EQuickUseBarSlotType SlotType) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
+	void ClearActionSlot(EQuickUseBarSlotType SlotType) const;
+
 	/**
 	 * Get the InventoryComponent from the player character.
 	 * @return The InventoryComponent or nullptr if not found
@@ -62,9 +69,15 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
 	FText GetHotkeyTextForSlot(int32 SlotIndex) const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quick Use Bar")
+	FText GetHotkeyTextForActionSlot(EQuickUseBarSlotType SlotType) const;
+
 	// Widget References (bind in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UUniformGridPanel> QuickUseGrid;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UUniformGridPanel> ActionUseGrid;
 
 	// Slot Widget Class
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Quick Use Bar")
@@ -91,9 +104,18 @@ protected:
 	UFUNCTION()
 	void OnSkillUnlockedInternal(USkillBase* Skill);
 
+	UFUNCTION()
+	void OnMainHandSkillChangedInternal(USkillBase* Skill);
+
+	UFUNCTION()
+	void OnOffhandSkillChangedInternal(USkillBase* Skill);
+
 private:
 	UPROPERTY()
 	TArray<TObjectPtr<UQuickUseSlotWidget>> SlotWidgets;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UQuickUseSlotWidget>> ActionSlotWidgets;
 
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComponent;
@@ -105,7 +127,10 @@ private:
 	TObjectPtr<USkillComponent> SkillComponent;
 
 	void InitializeSlots();
+	void InitializeActionSlots();
 	void RefreshSlot(int32 SlotIndex);
 	void RefreshSkillSlot(int32 SlotIndex);
+	void RefreshActionSlots();
 	void UpdateSkillCooldowns(float DeltaTime);
+	void UpdateActionCooldowns();
 };

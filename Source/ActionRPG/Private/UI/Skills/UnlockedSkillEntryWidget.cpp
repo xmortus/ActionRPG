@@ -16,6 +16,18 @@ void UUnlockedSkillEntryWidget::NativeConstruct()
 		AssignButton->OnClicked.RemoveDynamic(this, &UUnlockedSkillEntryWidget::OnAssignClicked);
 		AssignButton->OnClicked.AddDynamic(this, &UUnlockedSkillEntryWidget::OnAssignClicked);
 	}
+
+	if (AssignMainHandButton)
+	{
+		AssignMainHandButton->OnClicked.RemoveDynamic(this, &UUnlockedSkillEntryWidget::OnAssignMainHandClicked);
+		AssignMainHandButton->OnClicked.AddDynamic(this, &UUnlockedSkillEntryWidget::OnAssignMainHandClicked);
+	}
+
+	if (AssignOffhandButton)
+	{
+		AssignOffhandButton->OnClicked.RemoveDynamic(this, &UUnlockedSkillEntryWidget::OnAssignOffhandClicked);
+		AssignOffhandButton->OnClicked.AddDynamic(this, &UUnlockedSkillEntryWidget::OnAssignOffhandClicked);
+	}
 }
 
 void UUnlockedSkillEntryWidget::SetSkillData(USkillBase* InSkill, UUnlockedSkillsPanelWidget* InParentPanel)
@@ -50,4 +62,24 @@ void UUnlockedSkillEntryWidget::OnAssignClicked()
 	}
 
 	ParentPanel->AssignSkillToPendingSlot(CurrentSkill);
+}
+
+void UUnlockedSkillEntryWidget::OnAssignMainHandClicked()
+{
+	if (!CurrentSkill || !ParentPanel)
+	{
+		return;
+	}
+
+	ParentPanel->AssignSkillToMainHand(CurrentSkill);
+}
+
+void UUnlockedSkillEntryWidget::OnAssignOffhandClicked()
+{
+	if (!CurrentSkill || !ParentPanel)
+	{
+		return;
+	}
+
+	ParentPanel->AssignSkillToOffhand(CurrentSkill);
 }

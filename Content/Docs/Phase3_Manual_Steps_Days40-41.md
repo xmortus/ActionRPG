@@ -34,7 +34,10 @@ This guide updates the existing Quick-Use bar UI to display skills in slots 1-8 
 ## Step 2: Update `WBP_QuickUseBarWidget` (If Needed)
 1. Open `Content/UI/QuickUse/WBP_QuickUseBarWidget`.
 2. Verify `Slot Widget Class` is set to `WBP_QuickUseSlotWidget`.
-3. Save.
+3. Add a second `UniformGridPanel` named `ActionUseGrid` for Main/Offhand actions.
+   - Set Columns = `2`, Rows = `1`
+   - Place it visually separated from the skill slots (left or right group)
+4. Save.
 
 ---
 
@@ -93,6 +96,8 @@ This guide updates the existing Quick-Use bar UI to display skills in slots 1-8 
    - `SkillIcon` (Image)
    - `SkillNameText` (Text)
    - `AssignButton` (Button)
+   - `AssignMainHandButton` (Button)
+   - `AssignOffhandButton` (Button)
 4. Save.
 
 ---
@@ -116,17 +121,30 @@ This guide updates the existing Quick-Use bar UI to display skills in slots 1-8 
 
 ---
 
-## Step 10: Verify Assignment Flow
+## Step 10: Add Input for Offhand Action
+1. Create `IA_Offhand` (Input Action).
+2. Add it to your default Input Mapping Context (pick a key, e.g., `E`).
+3. Open `BP_ActionRPGPlayerController`.
+4. Assign:
+   - `OffhandAction` = `IA_Offhand`
+5. Save.
+
+---
+
+## Step 11: Verify Assignment Flow
 1. PIE.
 2. Unlock a skill (use SkillItem).
 3. Confirm it appears in the Unlocked Skills panel.
 4. Click Assign and confirm:
    - Skill is assigned to a Quick-Use slot (first empty slot)
    - Quick-Use bar updates with icon and cooldown overlay
+5. Click Assign Main Hand / Assign Offhand and confirm:
+   - Action slots show the skill icon and cooldown overlay
+   - Press `IA_Attack` and `IA_Offhand` to activate those skills
 
 ---
 
-## Step 11: Verify Interaction With Both Panels Open
+## Step 12: Verify Interaction With Both Panels Open
 1. Open Inventory and Skill Panel together.
 2. Click inventory slots and context menu actions.
 3. Click Assign on Unlocked Skills entries.

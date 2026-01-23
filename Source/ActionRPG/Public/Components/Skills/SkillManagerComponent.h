@@ -54,6 +54,31 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager")
 	TMap<int32, USkillBase*> GetAllSlotAssignments() const;
 
+	// Main/Offhand Action Slots
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	bool AssignMainHandSkill(USkillBase* Skill);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	bool AssignOffhandSkill(USkillBase* Skill);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	void ClearMainHandSkill();
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	void ClearOffhandSkill();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Actions")
+	USkillBase* GetMainHandSkill() const { return MainHandSkill; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Actions")
+	USkillBase* GetOffhandSkill() const { return OffhandSkill; }
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	bool ActivateMainHandSkill(AActor* Target = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Actions")
+	bool ActivateOffhandSkill(AActor* Target = nullptr);
+
 	// Skill Activation from Slots
 	UFUNCTION(BlueprintCallable, Category = "Skill Manager")
 	bool ActivateSkillFromSlot(int32 SlotIndex, AActor* Target = nullptr);
@@ -73,6 +98,8 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillUnlocked, USkillBase*, Skill);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSkillSlotChanged, int32, SlotIndex, USkillBase*, Skill);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillSlotCleared, int32, SlotIndex);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMainHandSkillChanged, USkillBase*, Skill);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOffhandSkillChanged, USkillBase*, Skill);
 
 	UPROPERTY(BlueprintAssignable, Category = "Skill Manager")
 	FOnSkillUnlocked OnSkillUnlocked;
@@ -83,6 +110,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Skill Manager")
 	FOnSkillSlotCleared OnSkillSlotCleared;
 
+	UPROPERTY(BlueprintAssignable, Category = "Skill Manager|Actions")
+	FOnMainHandSkillChanged OnMainHandSkillChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Skill Manager|Actions")
+	FOnOffhandSkillChanged OnOffhandSkillChanged;
+
 protected:
 	// Unlocked Skills (skills the player has unlocked)
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Manager")
@@ -91,6 +124,13 @@ protected:
 	// Skill Bar Slots (0-7 map to hotkeys 1-8)
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Manager")
 	TMap<int32, TObjectPtr<USkillBase>> SkillBarSlots;
+
+	// Main/Offhand action slots (triggered by IA_Attack/IA_Offhand)
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Manager|Actions")
+	TObjectPtr<USkillBase> MainHandSkill;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Manager|Actions")
+	TObjectPtr<USkillBase> OffhandSkill;
 
 	// Find SkillComponent on owner
 	USkillComponent* FindSkillComponent() const;

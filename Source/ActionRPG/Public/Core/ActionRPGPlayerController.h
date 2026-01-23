@@ -12,6 +12,7 @@ class UInputAction;
 class UUserWidget;
 class UInventoryWidget;
 class UUnlockedSkillsPanelWidget;
+class USkillManagerComponent;
 
 /**
  * PlayerController for ActionRPG.
@@ -41,6 +42,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
 	UInputMappingContext* GetDefaultMappingContext() const { return DefaultMappingContext; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
+	UInputAction* GetAttackInputAction() const { return AttackAction; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
+	UInputAction* GetOffhandInputAction() const { return OffhandAction; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -63,6 +70,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> DodgeAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OffhandAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenInventoryAction;
@@ -121,6 +131,7 @@ protected:
 	void OnInteract();
 	void OnAttack();
 	void OnDodge();
+	void OnOffhand();
 	void OnOpenInventory();
 	void OnOpenSkillPanel();
 
@@ -133,6 +144,9 @@ protected:
 	void OnSkillSlot6();
 	void OnSkillSlot7();
 	void OnSkillSlot8();
+
+	// Helper to activate skill slot (0-7)
+	void ActivateSkillSlot(int32 SlotIndex);
 
 	// Quick-Use Bar Handlers (for consumables - Phase 2)
 	UFUNCTION()
