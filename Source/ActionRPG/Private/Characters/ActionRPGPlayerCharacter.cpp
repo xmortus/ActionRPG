@@ -6,6 +6,8 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/Inventory/InventoryComponent.h"
+#include "Components/Progression/AttributeComponent.h"
+#include "Components/Progression/SecondaryAttributeComponent.h"
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
@@ -56,6 +58,10 @@ AActionRPGPlayerCharacter::AActionRPGPlayerCharacter(const FObjectInitializer& O
 
 	// Create Inventory Component
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+
+	// Create Attribute Components
+	AttributeComponent = CreateDefaultSubobject<UAttributeComponent>(TEXT("AttributeComponent"));
+	SecondaryAttributeComponent = CreateDefaultSubobject<USecondaryAttributeComponent>(TEXT("SecondaryAttributeComponent"));
 }
 
 void AActionRPGPlayerCharacter::BeginPlay()

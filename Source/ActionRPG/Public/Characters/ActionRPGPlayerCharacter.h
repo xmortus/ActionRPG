@@ -8,6 +8,8 @@
 
 class USpringArmComponent;
 class UCameraComponent;
+class UAttributeComponent;
+class USecondaryAttributeComponent;
 
 /**
  * Player-specific Character class for ActionRPG.
@@ -36,6 +38,12 @@ public:
 	// Inventory
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
 	TObjectPtr<class UInventoryComponent> InventoryComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
+	TObjectPtr<UAttributeComponent> AttributeComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
+	TObjectPtr<USecondaryAttributeComponent> SecondaryAttributeComponent;
 
 	// Health Stats
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (ClampMin = "0.0", ClampMax = "1000.0"))
