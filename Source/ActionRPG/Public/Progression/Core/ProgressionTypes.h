@@ -21,6 +21,7 @@ enum class ESecondaryAttribute : uint8
 {
 	MaxHealth	UMETA(DisplayName = "Max Health"),
 	MaxMana		UMETA(DisplayName = "Max Mana"),
+	MaxStamina	UMETA(DisplayName = "Max Stamina"),
 	Armor		UMETA(DisplayName = "Armor"),
 	CritChance	UMETA(DisplayName = "Crit Chance"),
 	MoveSpeed	UMETA(DisplayName = "Move Speed")

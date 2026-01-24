@@ -8,7 +8,6 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/DamageType.h"
 #include "Engine/DamageEvents.h"
-#include "Characters/ActionRPGPlayerCharacter.h"
 #include "Components/Skills/SkillComponent.h"
 #include "DrawDebugHelpers.h"
 
@@ -167,26 +166,11 @@ bool USkillMeleeAttack::ApplyDamageToTarget(AActor* Target, float Damage) const
 	FPointDamageEvent DamageEvent(Damage, FHitResult(), OwnerActor ? OwnerActor->GetActorForwardVector() : FVector::ZeroVector, nullptr);
 	float ActualDamage = Target->TakeDamage(Damage, DamageEvent, OwnerActor ? OwnerActor->GetInstigatorController() : nullptr, OwnerActor);
 
-	// If TakeDamage returns 0, the actor might not implement damage handling
-	// Try direct health modification for ActionRPGPlayerCharacter
 	if (ActualDamage == 0.0f)
 	{
-		AActionRPGPlayerCharacter* TargetCharacter = Cast<AActionRPGPlayerCharacter>(Target);
-		if (TargetCharacter)
-		{
-			// Directly modify health (for now, until proper damage system is implemented)
-			float NewHealth = FMath::Max(0.0f, TargetCharacter->CurrentHealth - Damage);
-			TargetCharacter->CurrentHealth = NewHealth;
-			ActualDamage = Damage;
-			UE_LOG(LogTemp, Log, TEXT("SkillMeleeAttack::ApplyDamageToTarget - Applied %.2f damage directly to %s (Health: %.2f)"), 
-				Damage, *Target->GetName(), NewHealth);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("SkillMeleeAttack::ApplyDamageToTarget - Target %s does not implement damage handling"), 
-				*Target->GetName());
-			return false;
-		}
+		UE_LOG(LogTemp, Warning, TEXT("SkillMeleeAttack::ApplyDamageToTarget - Target %s did not process damage"), 
+			*Target->GetName());
+		return false;
 	}
 	else
 	{

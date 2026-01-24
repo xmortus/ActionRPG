@@ -17,6 +17,7 @@ UItemDataAsset::UItemDataAsset()
 	MaxStackSize = 1;
 	Weight = 0.0f;
 	Value = 0;
+	ConsumableRestoreAmount = 25.0f;
 	SkillData = nullptr;
 	SkillClass = nullptr;
 	RequiredLevel = 1;

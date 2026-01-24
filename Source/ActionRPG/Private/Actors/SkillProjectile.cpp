@@ -8,7 +8,6 @@
 #include "Engine/DamageEvents.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
-#include "Characters/ActionRPGPlayerCharacter.h"
 #include "Components/Skills/SkillComponent.h"
 #include "Skills/Core/SkillBase.h"
 
@@ -84,18 +83,10 @@ void ASkillProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, U
 		FPointDamageEvent DamageEvent(Damage, Hit, GetActorForwardVector(), nullptr);
 		float ActualDamage = OtherActor->TakeDamage(Damage, DamageEvent, OwnerActor ? OwnerActor->GetInstigatorController() : nullptr, OwnerActor);
 
-		// If TakeDamage returns 0, try direct health modification
 		if (ActualDamage == 0.0f)
 		{
-			AActionRPGPlayerCharacter* TargetCharacter = Cast<AActionRPGPlayerCharacter>(OtherActor);
-			if (TargetCharacter)
-			{
-				float NewHealth = FMath::Max(0.0f, TargetCharacter->CurrentHealth - Damage);
-				TargetCharacter->CurrentHealth = NewHealth;
-				ActualDamage = Damage;
-				UE_LOG(LogTemp, Log, TEXT("SkillProjectile::OnHit - Applied %.2f damage directly to %s (Health: %.2f)"), 
-					Damage, *OtherActor->GetName(), NewHealth);
-			}
+			UE_LOG(LogTemp, Warning, TEXT("SkillProjectile::OnHit - Target %s did not process damage"), 
+				*OtherActor->GetName());
 		}
 		else
 		{
@@ -162,13 +153,8 @@ void ASkillProjectile::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActo
 
 		if (ActualDamage == 0.0f)
 		{
-			AActionRPGPlayerCharacter* TargetCharacter = Cast<AActionRPGPlayerCharacter>(OtherActor);
-			if (TargetCharacter)
-			{
-				float NewHealth = FMath::Max(0.0f, TargetCharacter->CurrentHealth - Damage);
-				TargetCharacter->CurrentHealth = NewHealth;
-				ActualDamage = Damage;
-			}
+			UE_LOG(LogTemp, Warning, TEXT("SkillProjectile::OnBeginOverlap - Target %s did not process damage"), 
+				*OtherActor->GetName());
 		}
 
 		// Apply area damage to nearby actors if AoE is enabled

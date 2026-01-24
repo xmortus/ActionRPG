@@ -11,6 +11,7 @@ class USecondaryAttributeDataAsset;
 class UAttributeComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSecondaryAttributeChanged, ESecondaryAttribute, Attribute, float, NewValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCurrentSecondaryAttributeChanged, ESecondaryAttribute, Attribute, float, NewValue, float, OldValue);
 
 UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class ACTIONRPG_API USecondaryAttributeComponent : public UActorComponent
@@ -28,8 +29,20 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
 	float GetSecondaryAttribute(ESecondaryAttribute Attribute) const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
+	float GetCurrentSecondaryAttribute(ESecondaryAttribute Attribute) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	void SetCurrentSecondaryAttribute(ESecondaryAttribute Attribute, float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	void ModifyCurrentSecondaryAttribute(ESecondaryAttribute Attribute, float Delta);
+
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnSecondaryAttributeChanged OnSecondaryAttributeChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Attributes")
+	FOnCurrentSecondaryAttributeChanged OnCurrentSecondaryAttributeChanged;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes")
 	TObjectPtr<USecondaryAttributeDataAsset> SecondaryAttributeDataAsset;
@@ -38,10 +51,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes")
 	TMap<ESecondaryAttribute, float> SecondaryAttributes;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes")
+	TMap<ESecondaryAttribute, float> CurrentSecondaryAttributes;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UAttributeComponent> AttributeComponent;
 
 	UFUNCTION()
 	void OnPrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue);
+
+	void InitializeCurrentFromMax();
 };

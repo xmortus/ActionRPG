@@ -86,10 +86,6 @@ void AActionRPGPlayerCharacter::BeginPlay()
 		PC->SetViewTarget(this);
 	}
 
-	// Initialize health
-	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
-	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerCharacter: Health initialized - %.1f/%.1f"), CurrentHealth, MaxHealth);
-
 	// Bind to inventory item used event
 	if (InventoryComponent)
 	{
@@ -193,22 +189,6 @@ void AActionRPGPlayerCharacter::RotateToMouseCursor()
 	}
 }
 
-void AActionRPGPlayerCharacter::Heal(float HealAmount)
-{
-	if (HealAmount <= 0.0f)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::Heal - Invalid heal amount: %.2f"), HealAmount);
-		return;
-	}
-
-	float OldHealth = CurrentHealth;
-	CurrentHealth = FMath::Clamp(CurrentHealth + HealAmount, 0.0f, MaxHealth);
-	float ActualHeal = CurrentHealth - OldHealth;
-
-	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerCharacter::Heal - Healed %.1f health (%.1f -> %.1f/%.1f)"), 
-		ActualHeal, OldHealth, CurrentHealth, MaxHealth);
-}
-
 void AActionRPGPlayerCharacter::OnItemUsed(UItemBase* Item)
 {
 	UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - EVENT FIRED! Item: %s"), 
@@ -225,37 +205,6 @@ void AActionRPGPlayerCharacter::OnItemUsed(UItemBase* Item)
 	FString ItemIDString = ItemID.ToString();
 	FString ItemNameString = Item->ItemData->ItemName.ToString();
 
-	UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Item used: %s (ID: %s, Type: %d, Current Health: %.1f/%.1f)"), 
-		*ItemNameString, *ItemIDString, (int32)ItemType, CurrentHealth, MaxHealth);
-
-	// Handle health potion - check ItemID (case-insensitive comparison)
-	FString ItemIDLower = ItemIDString.ToLower();
-	if (ItemIDLower == TEXT("healthpotion"))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Health potion detected!"));
-		
-		// Default healing amount (can be customized per item later)
-		float HealAmount = 25.0f; // Heal 25 health per potion
-		
-		// Check if health is already at max
-		if (IsHealthAtMax())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Health already at max (%.1f/%.1f), cannot use health potion"), 
-				CurrentHealth, MaxHealth);
-			return;
-		}
-
-		UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Healing player for %.1f health (Current: %.1f/%.1f)"), 
-			HealAmount, CurrentHealth, MaxHealth);
-		
-		Heal(HealAmount);
-		
-		UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Health potion used successfully! New health: %.1f/%.1f"), 
-			CurrentHealth, MaxHealth);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Item is not a health potion (ID: %s)"), *ItemIDString);
-	}
-	// Add other consumable types here as needed
+	UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter::OnItemUsed - Item used: %s (ID: %s, Type: %d)"),
+		*ItemNameString, *ItemIDString, (int32)ItemType);
 }

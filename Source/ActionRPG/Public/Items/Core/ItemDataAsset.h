@@ -69,6 +69,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
 	int32 Value;
 
+	// Consumable Effects
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Consumable", meta = (ClampMin = "0.0"))
+	float ConsumableRestoreAmount;
+
 	// Skill Item Data (used by SkillItem / SkillStone / BeastCore)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")
 	TObjectPtr<USkillDataAsset> SkillData;

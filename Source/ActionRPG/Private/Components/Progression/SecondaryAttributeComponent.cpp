@@ -46,6 +46,8 @@ void USecondaryAttributeComponent::RecalculateSecondaryAttributes()
 		SecondaryAttributes.Add(Pair.Key, Value);
 		OnSecondaryAttributeChanged.Broadcast(Pair.Key, Value);
 	}
+
+	InitializeCurrentFromMax();
 }
 
 float USecondaryAttributeComponent::GetSecondaryAttribute(ESecondaryAttribute Attribute) const
@@ -58,7 +60,55 @@ float USecondaryAttributeComponent::GetSecondaryAttribute(ESecondaryAttribute At
 	return 0.0f;
 }
 
+float USecondaryAttributeComponent::GetCurrentSecondaryAttribute(ESecondaryAttribute Attribute) const
+{
+	if (const float* Value = CurrentSecondaryAttributes.Find(Attribute))
+	{
+		return *Value;
+	}
+
+	return 0.0f;
+}
+
+void USecondaryAttributeComponent::SetCurrentSecondaryAttribute(ESecondaryAttribute Attribute, float NewValue)
+{
+	const float MaxValue = GetSecondaryAttribute(Attribute);
+	const float ClampedValue = MaxValue > 0.0f ? FMath::Clamp(NewValue, 0.0f, MaxValue) : FMath::Max(0.0f, NewValue);
+	const float OldValue = GetCurrentSecondaryAttribute(Attribute);
+
+	if (!FMath::IsNearlyEqual(OldValue, ClampedValue))
+	{
+		CurrentSecondaryAttributes.Add(Attribute, ClampedValue);
+		OnCurrentSecondaryAttributeChanged.Broadcast(Attribute, ClampedValue, OldValue);
+	}
+}
+
+void USecondaryAttributeComponent::ModifyCurrentSecondaryAttribute(ESecondaryAttribute Attribute, float Delta)
+{
+	SetCurrentSecondaryAttribute(Attribute, GetCurrentSecondaryAttribute(Attribute) + Delta);
+}
+
 void USecondaryAttributeComponent::OnPrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue)
 {
 	RecalculateSecondaryAttributes();
+}
+
+void USecondaryAttributeComponent::InitializeCurrentFromMax()
+{
+	TMap<ESecondaryAttribute, float> PreviousValues = CurrentSecondaryAttributes;
+	CurrentSecondaryAttributes.Empty();
+
+	for (const TPair<ESecondaryAttribute, float>& Pair : SecondaryAttributes)
+	{
+		const float MaxValue = Pair.Value;
+		const float OldValue = PreviousValues.Contains(Pair.Key) ? PreviousValues[Pair.Key] : MaxValue;
+		const float ClampedValue = FMath::Clamp(OldValue, 0.0f, MaxValue);
+
+		CurrentSecondaryAttributes.Add(Pair.Key, ClampedValue);
+
+		if (!FMath::IsNearlyEqual(OldValue, ClampedValue) || !PreviousValues.Contains(Pair.Key))
+		{
+			OnCurrentSecondaryAttributeChanged.Broadcast(Pair.Key, ClampedValue, OldValue);
+		}
+	}
 }

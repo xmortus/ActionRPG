@@ -5,7 +5,7 @@
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
 #include "Items/Pickups/ItemPickupActor.h"
-#include "Characters/ActionRPGPlayerCharacter.h"
+#include "Components/Progression/SecondaryAttributeComponent.h"
 #include "Engine/World.h"
 
 UInventoryComponent::UInventoryComponent()
@@ -377,22 +377,54 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 	// Get item ID for type-specific validation
 	FName ItemID = Slot.Item->ItemData->ItemID;
 
-	// Special validation for health potions - check if player health is at max
-	if (ItemID == FName("HealthPotion") || ItemID == FName("healthpotion"))
+	const bool bIsHealthPotion = (ItemID == FName("HealthPotion") || ItemID == FName("healthpotion"));
+	const bool bIsManaPotion = (ItemID == FName("ManaPotion") || ItemID == FName("manapotion"));
+	const bool bIsStaminaPotion = (ItemID == FName("StaminaPotion") || ItemID == FName("staminapotion"));
+
+	if (bIsHealthPotion || bIsManaPotion || bIsStaminaPotion)
 	{
-		// Get the owner (should be the player character)
+		USecondaryAttributeComponent* SecondaryAttributeComponent = nullptr;
 		if (AActor* Owner = GetOwner())
 		{
-			if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(Owner))
-			{
-				if (PlayerCharacter->IsHealthAtMax())
-				{
-					UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Cannot use health potion: Health already at max (%.1f/%.1f)"), 
-						PlayerCharacter->CurrentHealth, PlayerCharacter->MaxHealth);
-					return false;
-				}
-			}
+			SecondaryAttributeComponent = Owner->FindComponentByClass<USecondaryAttributeComponent>();
 		}
+
+		if (!SecondaryAttributeComponent)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Potion failed: SecondaryAttributeComponent missing"));
+			return false;
+		}
+
+		const ESecondaryAttribute TargetAttribute = bIsHealthPotion ? ESecondaryAttribute::MaxHealth
+			: (bIsManaPotion ? ESecondaryAttribute::MaxMana : ESecondaryAttribute::MaxStamina);
+		const TCHAR* AttributeLabel = bIsHealthPotion ? TEXT("Health") : (bIsManaPotion ? TEXT("Mana") : TEXT("Stamina"));
+
+		const float MaxValue = SecondaryAttributeComponent->GetSecondaryAttribute(TargetAttribute);
+		const float CurrentValue = SecondaryAttributeComponent->GetCurrentSecondaryAttribute(TargetAttribute);
+
+		if (MaxValue <= 0.0f)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - %s potion failed: Max value not set"), AttributeLabel);
+			return false;
+		}
+
+		if (CurrentValue >= MaxValue)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - %s already at max (%.1f/%.1f)"), AttributeLabel, CurrentValue, MaxValue);
+			return false;
+		}
+
+		const float RestoreAmount = Slot.Item->ItemData->ConsumableRestoreAmount;
+		if (RestoreAmount <= 0.0f)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - %s potion failed: Restore amount not set"), AttributeLabel);
+			return false;
+		}
+
+		SecondaryAttributeComponent->ModifyCurrentSecondaryAttribute(TargetAttribute, RestoreAmount);
+		const float NewValue = SecondaryAttributeComponent->GetCurrentSecondaryAttribute(TargetAttribute);
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Restored %.1f %s (%.1f -> %.1f/%.1f)"),
+			RestoreAmount, AttributeLabel, CurrentValue, NewValue, MaxValue);
 	}
 
 	// Check if item can be used (item-specific validation)
