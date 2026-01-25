@@ -10,6 +10,9 @@ class USpringArmComponent;
 class UCameraComponent;
 class UAttributeComponent;
 class USecondaryAttributeComponent;
+class UEquipmentComponent;
+class UExperienceComponent;
+class UClassComponent;
 
 /**
  * Player-specific Character class for ActionRPG.
@@ -44,6 +47,15 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
 	TObjectPtr<USecondaryAttributeComponent> SecondaryAttributeComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
+	TObjectPtr<UEquipmentComponent> EquipmentComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
+	TObjectPtr<UExperienceComponent> ExperienceComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components", meta = (InstanceEditable = "true"))
+	TObjectPtr<UClassComponent> ClassComponent;
 
 protected:
 	virtual void BeginPlay() override;

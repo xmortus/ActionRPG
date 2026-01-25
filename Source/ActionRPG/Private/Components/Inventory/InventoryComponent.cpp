@@ -5,6 +5,8 @@
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
 #include "Items/Pickups/ItemPickupActor.h"
+#include "Items/Equipment/EquipmentItem.h"
+#include "Components/Inventory/EquipmentComponent.h"
 #include "Components/Progression/SecondaryAttributeComponent.h"
 #include "Engine/World.h"
 
@@ -1354,4 +1356,60 @@ FQuickUseSlot UInventoryComponent::GetQuickUseSlot(int32 QuickUseSlotIndex) cons
 	}
 
 	return FQuickUseSlot();
+}
+
+bool UInventoryComponent::EquipItemFromSlot(int32 SlotIndex)
+{
+	if (!InventorySlots.IsValidIndex(SlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::EquipItemFromSlot - Invalid slot index: %d"), SlotIndex);
+		return false;
+	}
+
+	FInventorySlot& Slot = InventorySlots[SlotIndex];
+	if (Slot.bIsEmpty || !Slot.Item)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::EquipItemFromSlot - Slot %d is empty"), SlotIndex);
+		return false;
+	}
+
+	UEquipmentItem* EquipmentItem = Cast<UEquipmentItem>(Slot.Item);
+	if (!EquipmentItem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::EquipItemFromSlot - Item is not equipment"));
+		return false;
+	}
+
+	UEquipmentComponent* EquipmentComponent = GetOwner() ? GetOwner()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+	if (!EquipmentComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::EquipItemFromSlot - EquipmentComponent missing"));
+		return false;
+	}
+
+	if (!EquipmentComponent->EquipItem(EquipmentItem))
+	{
+		return false;
+	}
+
+	return RemoveItem(SlotIndex, 1);
+}
+
+bool UInventoryComponent::UnequipItemToInventory(EEquipmentSlot Slot)
+{
+	UEquipmentComponent* EquipmentComponent = GetOwner() ? GetOwner()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+	if (!EquipmentComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToInventory - EquipmentComponent missing"));
+		return false;
+	}
+
+	UEquipmentItem* UnequippedItem = EquipmentComponent->UnequipSlot(Slot);
+	if (!UnequippedItem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToInventory - No item in slot"));
+		return false;
+	}
+
+	return AddItem(UnequippedItem, 1);
 }

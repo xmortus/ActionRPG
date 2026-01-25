@@ -18,6 +18,13 @@ UItemDataAsset::UItemDataAsset()
 	Weight = 0.0f;
 	Value = 0;
 	ConsumableRestoreAmount = 25.0f;
+	EquipmentSlot = EEquipmentSlot::None;
+	EquipmentBonuses = {};
+	EquipmentPrimaryBonuses = {};
+	EquipmentRequiredLevel = 1;
+	EquipmentRequiredAttributes = {};
+	WeaponDamage = 0.0f;
+	WeaponDamageType = EDamageType::Physical;
 	SkillData = nullptr;
 	SkillClass = nullptr;
 	RequiredLevel = 1;

@@ -26,3 +26,18 @@ enum class EItemRarity : uint8
 	Legendary		UMETA(DisplayName = "Legendary")
 };
 
+UENUM(BlueprintType)
+enum class EEquipmentSlot : uint8
+{
+	None		UMETA(DisplayName = "None"),
+	MainHand	UMETA(DisplayName = "Main Hand"),
+	Offhand		UMETA(DisplayName = "Offhand"),
+	Head		UMETA(DisplayName = "Head"),
+	Chest		UMETA(DisplayName = "Chest"),
+	Legs		UMETA(DisplayName = "Legs"),
+	Hands		UMETA(DisplayName = "Hands"),
+	Feet		UMETA(DisplayName = "Feet"),
+	Ring		UMETA(DisplayName = "Ring"),
+	Amulet		UMETA(DisplayName = "Amulet")
+};
+

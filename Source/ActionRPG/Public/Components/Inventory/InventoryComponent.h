@@ -157,6 +157,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Quick Use")
 	TArray<FQuickUseSlot> GetAllQuickUseSlots() const { return QuickUseSlots; }
 
+	// Equipment Testing Helpers
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
+	bool EquipItemFromSlot(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
+	bool UnequipItemToInventory(EEquipmentSlot Slot);
+
 	// Debug
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
 	void ReportInventoryContents() const;

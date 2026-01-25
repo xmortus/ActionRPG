@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "ItemTypes.h"
+#include "Progression/Core/ProgressionTypes.h"
+#include "Skills/Core/SkillTypes.h"
 #include "ItemDataAsset.generated.h"
 
 // Forward declaration
@@ -72,6 +74,29 @@ public:
 	// Consumable Effects
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Consumable", meta = (ClampMin = "0.0"))
 	float ConsumableRestoreAmount;
+
+	// Equipment Data (used by EquipmentItem / WeaponItem)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment")
+	EEquipmentSlot EquipmentSlot;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment")
+	TMap<ESecondaryAttribute, float> EquipmentBonuses;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment")
+	TMap<EPrimaryAttribute, float> EquipmentPrimaryBonuses;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment|Requirements", meta = (ClampMin = "1"))
+	int32 EquipmentRequiredLevel;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment|Requirements")
+	TMap<EPrimaryAttribute, float> EquipmentRequiredAttributes;
+
+	// Weapon Data (used by WeaponItem)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon", meta = (ClampMin = "0.0"))
+	float WeaponDamage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon")
+	EDamageType WeaponDamageType;
 
 	// Skill Item Data (used by SkillItem / SkillStone / BeastCore)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")

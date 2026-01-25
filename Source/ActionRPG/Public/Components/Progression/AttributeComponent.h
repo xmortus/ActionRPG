@@ -5,9 +5,12 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Progression/Core/ProgressionTypes.h"
+#include "Items/Core/ItemTypes.h"
 #include "AttributeComponent.generated.h"
 
 class UPrimaryAttributeDataAsset;
+class UEquipmentComponent;
+class UEquipmentItem;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPrimaryAttributeChanged, EPrimaryAttribute, Attribute, float, NewValue, float, OldValue);
 
@@ -33,6 +36,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Attributes")
 	void ModifyAttribute(EPrimaryAttribute Attribute, float Delta);
 
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	void SetClassBonuses(const TMap<EPrimaryAttribute, float>& Bonuses);
+
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	void AddAttributePoints(int32 Points);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
+	int32 GetUnspentAttributePoints() const { return UnspentAttributePoints; }
+
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	bool AllocateAttributePoints(EPrimaryAttribute Attribute, int32 Points);
+
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnPrimaryAttributeChanged OnPrimaryAttributeChanged;
 
@@ -44,4 +59,21 @@ protected:
 	TMap<EPrimaryAttribute, float> Attributes;
 
 	float ClampAttributeValue(float Value) const;
+
+private:
+	UPROPERTY()
+	TObjectPtr<UEquipmentComponent> EquipmentComponent;
+
+	UFUNCTION()
+	void OnEquipmentChanged(EEquipmentSlot Slot, UEquipmentItem* Item);
+
+	void ApplyEquipmentBonuses();
+
+	void RecalculateAttributes();
+
+	TMap<EPrimaryAttribute, float> BaseAttributes;
+	TMap<EPrimaryAttribute, float> AllocatedAttributes;
+	TMap<EPrimaryAttribute, float> ClassBonuses;
+
+	int32 UnspentAttributePoints = 0;
 };

@@ -2,6 +2,8 @@
 
 #include "Components/Progression/SecondaryAttributeComponent.h"
 #include "Components/Progression/AttributeComponent.h"
+#include "Components/Inventory/EquipmentComponent.h"
+#include "Items/Equipment/EquipmentItem.h"
 #include "Progression/Core/SecondaryAttributeDataAsset.h"
 
 USecondaryAttributeComponent::USecondaryAttributeComponent()
@@ -18,6 +20,12 @@ void USecondaryAttributeComponent::BeginPlay()
 	if (AttributeComponent)
 	{
 		AttributeComponent->OnPrimaryAttributeChanged.AddDynamic(this, &USecondaryAttributeComponent::OnPrimaryAttributeChanged);
+	}
+
+	EquipmentComponent = GetOwner() ? GetOwner()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+	if (EquipmentComponent)
+	{
+		EquipmentComponent->OnEquipmentChanged.AddDynamic(this, &USecondaryAttributeComponent::OnEquipmentChanged);
 	}
 
 	RecalculateSecondaryAttributes();
@@ -44,7 +52,36 @@ void USecondaryAttributeComponent::RecalculateSecondaryAttributes()
 		}
 
 		SecondaryAttributes.Add(Pair.Key, Value);
-		OnSecondaryAttributeChanged.Broadcast(Pair.Key, Value);
+	}
+
+	if (EquipmentComponent)
+	{
+		const TMap<EEquipmentSlot, UEquipmentItem*> EquippedItems = EquipmentComponent->GetEquippedItems();
+		for (const TPair<EEquipmentSlot, UEquipmentItem*>& Pair : EquippedItems)
+		{
+			const UEquipmentItem* Item = Pair.Value;
+			if (!Item)
+			{
+				continue;
+			}
+
+			for (const TPair<ESecondaryAttribute, float>& Bonus : Item->GetEquipmentBonuses())
+			{
+				float& AttributeValue = SecondaryAttributes.FindOrAdd(Bonus.Key);
+				AttributeValue += Bonus.Value;
+			}
+		}
+	}
+
+	for (const TPair<ESecondaryAttribute, float>& Bonus : ClassBonuses)
+	{
+		float& AttributeValue = SecondaryAttributes.FindOrAdd(Bonus.Key);
+		AttributeValue += Bonus.Value;
+	}
+
+	for (const TPair<ESecondaryAttribute, float>& Pair : SecondaryAttributes)
+	{
+		OnSecondaryAttributeChanged.Broadcast(Pair.Key, Pair.Value);
 	}
 
 	InitializeCurrentFromMax();
@@ -88,7 +125,18 @@ void USecondaryAttributeComponent::ModifyCurrentSecondaryAttribute(ESecondaryAtt
 	SetCurrentSecondaryAttribute(Attribute, GetCurrentSecondaryAttribute(Attribute) + Delta);
 }
 
+void USecondaryAttributeComponent::SetClassBonuses(const TMap<ESecondaryAttribute, float>& Bonuses)
+{
+	ClassBonuses = Bonuses;
+	RecalculateSecondaryAttributes();
+}
+
 void USecondaryAttributeComponent::OnPrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue)
+{
+	RecalculateSecondaryAttributes();
+}
+
+void USecondaryAttributeComponent::OnEquipmentChanged(EEquipmentSlot Slot, UEquipmentItem* Item)
 {
 	RecalculateSecondaryAttributes();
 }

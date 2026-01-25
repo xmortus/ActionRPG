@@ -5,10 +5,13 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Progression/Core/ProgressionTypes.h"
+#include "Items/Core/ItemTypes.h"
 #include "SecondaryAttributeComponent.generated.h"
 
 class USecondaryAttributeDataAsset;
 class UAttributeComponent;
+class UEquipmentComponent;
+class UEquipmentItem;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSecondaryAttributeChanged, ESecondaryAttribute, Attribute, float, NewValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCurrentSecondaryAttributeChanged, ESecondaryAttribute, Attribute, float, NewValue, float, OldValue);
@@ -38,6 +41,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Attributes")
 	void ModifyCurrentSecondaryAttribute(ESecondaryAttribute Attribute, float Delta);
 
+	UFUNCTION(BlueprintCallable, Category = "Attributes")
+	void SetClassBonuses(const TMap<ESecondaryAttribute, float>& Bonuses);
+
 	UPROPERTY(BlueprintAssignable, Category = "Attributes")
 	FOnSecondaryAttributeChanged OnSecondaryAttributeChanged;
 
@@ -61,5 +67,13 @@ private:
 	UFUNCTION()
 	void OnPrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue);
 
+	UFUNCTION()
+	void OnEquipmentChanged(EEquipmentSlot Slot, UEquipmentItem* Item);
+
 	void InitializeCurrentFromMax();
+
+	UPROPERTY()
+	TObjectPtr<UEquipmentComponent> EquipmentComponent;
+
+	TMap<ESecondaryAttribute, float> ClassBonuses;
 };
