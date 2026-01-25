@@ -11,8 +11,9 @@ Days 49-52 cover progression: an XP component, class/profession component, and d
 ---
 
 ## Goals
-- Implement `ExperienceComponent` for XP, level thresholds, and events
-- Implement `ClassComponent` for class/profession selection and bonuses
+- Implement `ExperienceComponent` for unallocated XP pool
+- Implement `ClassComponent` for multi-class/profession selection and bonuses
+- Add per-class XP curves and attribute points per class level
 - Create class/profession data assets and database access
 
 ---
@@ -23,19 +24,21 @@ Days 49-52 cover progression: an XP component, class/profession component, and d
 1. Create `Source/ActionRPG/Public/Components/Progression/ExperienceComponent.h`
 2. Create `Source/ActionRPG/Private/Components/Progression/ExperienceComponent.cpp`
 3. Implement:
-   - Current XP, current level
-   - XP thresholds (data-driven or curve)
-   - `AddExperience`, `GetCurrentXP`, `GetCurrentLevel`
-   - Level-up events
+   - Unallocated XP pool
+   - `AddExperience`, `GetUnallocatedExperience`, `SpendExperience`
+   - Total XP tracking (optional)
 
 ### 2) ClassComponent
 1. Create `Source/ActionRPG/Public/Components/Progression/ClassComponent.h`
 2. Create `Source/ActionRPG/Private/Components/Progression/ClassComponent.cpp`
 3. Implement:
-   - Selected class/profession tracking
+   - Multi-class/profession selection with caps
+   - Per-class XP/level tracking
    - Requirement checks (level, attributes)
    - Bonus application hooks (primary/secondary)
    - Events for class/profession changes
+   - Allocate unallocated XP to a class
+   - Player level = sum of class levels
 
 ### 3) Class/Profession Data Assets
 1. Create `Source/ActionRPG/Public/Progression/Core/ClassDataAsset.h/.cpp`
@@ -44,6 +47,8 @@ Days 49-52 cover progression: an XP component, class/profession component, and d
    - Display name, description, icon
    - Bonus maps (primary/secondary)
    - Requirements (level, attributes)
+   - Class XP curve (optional)
+   - AttributePointsPerLevel (per class level)
 
 ### 4) Class Database
 1. Create `Source/ActionRPG/Public/Data/ClassDatabase.h/.cpp`
@@ -66,7 +71,9 @@ Days 49-52 cover progression: an XP component, class/profession component, and d
 ---
 
 ## Verification Checklist
-- XP can be granted and triggers level-up
+- XP can be granted and stored as unallocated XP
+- XP can be allocated to classes and levels them up
+- Player level equals combined class levels
 - Class selection validates requirements
 - Class bonuses affect attributes
 - Data assets load via ClassDatabase

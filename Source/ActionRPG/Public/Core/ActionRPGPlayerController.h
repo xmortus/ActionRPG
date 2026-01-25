@@ -12,6 +12,8 @@ class UInputAction;
 class UUserWidget;
 class UInventoryWidget;
 class UUnlockedSkillsPanelWidget;
+class UCharacterStatusPanelWidget;
+class UClassSelectionPanelWidget;
 class USkillManagerComponent;
 
 /**
@@ -80,6 +82,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenSkillPanelAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenCharacterStatusPanelAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenClassPanelAction;
+
 	// UI Widgets
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
@@ -92,6 +100,18 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UUnlockedSkillsPanelWidget> SkillPanelWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UCharacterStatusPanelWidget> CharacterStatusPanelWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UCharacterStatusPanelWidget> CharacterStatusPanelWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UClassSelectionPanelWidget> ClassSelectionPanelWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UClassSelectionPanelWidget> ClassSelectionPanelWidget;
 
 	// Skill Slot Input Actions
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
@@ -134,6 +154,8 @@ protected:
 	void OnOffhand();
 	void OnOpenInventory();
 	void OnOpenSkillPanel();
+	void OnOpenCharacterStatusPanel();
+	void OnOpenClassPanel();
 
 	// Skill Slot Handlers
 	void OnSkillSlot1();

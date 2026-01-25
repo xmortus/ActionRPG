@@ -12,6 +12,8 @@
 #include "Blueprint/UserWidget.h"
 #include "UI/Inventory/InventoryWidget.h"
 #include "UI/Skills/UnlockedSkillsPanelWidget.h"
+#include "UI/Progression/CharacterStatusPanelWidget.h"
+#include "UI/Progression/ClassSelectionPanelWidget.h"
 #include "Camera/CameraComponent.h"
 #include "Components/Skills/SkillManagerComponent.h"
 
@@ -111,6 +113,16 @@ void AActionRPGPlayerController::SetupInputComponent()
 		if (OpenSkillPanelAction)
 		{
 			EnhancedInputComponent->BindAction(OpenSkillPanelAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenSkillPanel);
+		}
+
+		if (OpenCharacterStatusPanelAction)
+		{
+			EnhancedInputComponent->BindAction(OpenCharacterStatusPanelAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenCharacterStatusPanel);
+		}
+
+		if (OpenClassPanelAction)
+		{
+			EnhancedInputComponent->BindAction(OpenClassPanelAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenClassPanel);
 		}
 
 		// Bind skill slot actions
@@ -570,6 +582,98 @@ void AActionRPGPlayerController::OnOpenSkillPanel()
 			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
 		}
+	}
+}
+
+void AActionRPGPlayerController::OnOpenCharacterStatusPanel()
+{
+	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - Character status panel key pressed"));
+
+	if (!CharacterStatusPanelWidget)
+	{
+		if (CharacterStatusPanelWidgetClass)
+		{
+			CharacterStatusPanelWidget = CreateWidget<UCharacterStatusPanelWidget>(this, CharacterStatusPanelWidgetClass);
+			if (!CharacterStatusPanelWidget)
+			{
+				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - Failed to create character status panel widget! Check CharacterStatusPanelWidgetClass is set in Blueprint"));
+				return;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - CharacterStatusPanelWidgetClass is not set! Set it in Blueprint"));
+			return;
+		}
+	}
+
+	bool bIsInViewport = CharacterStatusPanelWidget->IsInViewport();
+	ESlateVisibility CurrentVisibility = CharacterStatusPanelWidget->GetVisibility();
+	bool bIsVisible = bIsInViewport && (CurrentVisibility == ESlateVisibility::Visible || CurrentVisibility == ESlateVisibility::SelfHitTestInvisible || CurrentVisibility == ESlateVisibility::HitTestInvisible);
+
+	if (bIsVisible)
+	{
+		CharacterStatusPanelWidget->SetVisibility(ESlateVisibility::Collapsed);
+		SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+		bShowMouseCursor = true;
+		SetPause(false);
+	}
+	else
+	{
+		if (!bIsInViewport)
+		{
+			CharacterStatusPanelWidget->AddToViewport(110);
+		}
+
+		CharacterStatusPanelWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+		bShowMouseCursor = true;
+	}
+}
+
+void AActionRPGPlayerController::OnOpenClassPanel()
+{
+	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenClassPanel - Class panel key pressed"));
+
+	if (!ClassSelectionPanelWidget)
+	{
+		if (ClassSelectionPanelWidgetClass)
+		{
+			ClassSelectionPanelWidget = CreateWidget<UClassSelectionPanelWidget>(this, ClassSelectionPanelWidgetClass);
+			if (!ClassSelectionPanelWidget)
+			{
+				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenClassPanel - Failed to create class panel widget! Check ClassSelectionPanelWidgetClass is set in Blueprint"));
+				return;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenClassPanel - ClassSelectionPanelWidgetClass is not set! Set it in Blueprint"));
+			return;
+		}
+	}
+
+	bool bIsInViewport = ClassSelectionPanelWidget->IsInViewport();
+	ESlateVisibility CurrentVisibility = ClassSelectionPanelWidget->GetVisibility();
+	bool bIsVisible = bIsInViewport && (CurrentVisibility == ESlateVisibility::Visible || CurrentVisibility == ESlateVisibility::SelfHitTestInvisible || CurrentVisibility == ESlateVisibility::HitTestInvisible);
+
+	if (bIsVisible)
+	{
+		ClassSelectionPanelWidget->SetVisibility(ESlateVisibility::Collapsed);
+		SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+		bShowMouseCursor = true;
+		SetPause(false);
+	}
+	else
+	{
+		if (!bIsInViewport)
+		{
+			ClassSelectionPanelWidget->AddToViewport(120);
+		}
+
+		ClassSelectionPanelWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+		bShowMouseCursor = true;
 	}
 }
 
