@@ -21,10 +21,13 @@
 
 ---
 
-## Step 2: Assign Data Assets to Database
-1. Create/locate `BP_ClassDatabase` (if database is asset-driven).
-2. Add `DA_Class_*` and `DA_Profession_*` entries.
-3. Save.
+## Step 2: Register Data Assets in Asset Manager
+1. Open **Project Settings** → **Asset Manager**.
+2. Add Primary Asset Types:
+   - `ClassDataAsset` (Base Class: `ClassDataAsset`, Scan Paths: `Content/Data/Classes`)
+   - `ProfessionDataAsset` (Base Class: `ProfessionDataAsset`, Scan Paths: `Content/Data/Classes`)
+3. Ensure `DA_Class_*` and `DA_Profession_*` assets are saved in the scan paths.
+4. Save Project Settings.
 
 ---
 
@@ -75,15 +78,24 @@
 ---
 
 ## Step 9: Create UI Widgets
-1. Create `WBP_ExperiencePanel` (`UserWidget`).
-2. Add:
-   - Text for Total XP
-   - Text for Unallocated XP
-3. Create `WBP_ClassSelectionPanel` (`UserWidget`).
+1. Create `WBP_CharacterStatusPanel` (`CharacterStatusPanelWidget`).
+2. Add (optional named `TextBlock`s for auto-bind):
+   - `CurrentClassText`
+   - `CurrentProfessionText`
+   - `SelectedClassesText`
+   - `SelectedProfessionsText`
+   - `ClassSlotsText`
+   - `ProfessionSlotsText`
+   - `PlayerLevelText`
+   - `UnallocatedExperienceText`
+   - `TotalExperienceText`
+   - `PrimaryAttributesText`
+   - `UnspentAttributePointsText`
+3. Create `WBP_ClassSelectionPanel` (`ClassSelectionPanelWidget`).
 4. Add:
    - ScrollBox/VerticalBox for Classes
    - ScrollBox/VerticalBox for Professions
-5. Create `WBP_ClassEntry` (`UserWidget`).
+5. Create `WBP_ClassEntry` (`ClassEntryWidget`).
 6. Add:
    - Name text
    - Level text
@@ -93,21 +105,42 @@
 ---
 
 ## Step 10: Bind UI to Components
-1. In `WBP_ExperiencePanel`, bind text to `ExperienceComponent`:
-   - `GetTotalExperience()`
-   - `GetUnallocatedExperience()`
-2. In `WBP_ClassSelectionPanel`, get `ClassComponent` from player and:
-   - Populate class entries from `GetSelectedClasses()`
-   - Populate profession entries from `GetSelectedProfessions()`
-3. In `WBP_ClassEntry`, call:
-   - `GetClassLevel(ClassData)`
-   - `GetClassExperience(ClassData)`
-   - `GetClassExperienceToNextLevel(ClassData)`
-   - `AllocateExperienceToClass(ClassData, Amount)`
+1. In `WBP_CharacterStatusPanel`, bind to `CharacterStatusPanelWidget` getters:
+   - `GetCurrentClassName()`, `GetCurrentProfessionName()`
+   - `GetSelectedClassesText()`, `GetSelectedProfessionsText()`
+   - `GetClassSlotsText()`, `GetProfessionSlotsText()`
+   - `GetPlayerLevel()`
+   - `GetTotalExperience()`, `GetUnallocatedExperience()`
+   - `GetPrimaryAttributesText()`, `GetUnspentAttributePoints()`
+2. In `WBP_ClassSelectionPanel`, implement events and list building:
+   - Override `OnClassListUpdated(Classes, Professions)`
+   - Clear `ClassesList` container (VerticalBox/ScrollBox)
+   - For each `ClassAsset`:
+     - `Create Widget` → `WBP_ClassEntry`
+     - Call `SetClassEntry(ClassAsset, ClassComponent)`
+     - Add to `ClassesList`
+   - Clear `ProfessionsList` container
+   - For each `ProfessionAsset`:
+     - `Create Widget` → `WBP_ClassEntry`
+     - Call `SetProfessionEntry(ProfessionAsset, ClassComponent)`
+     - Add to `ProfessionsList`
+   - Override `OnClassProgressUpdated(ClassAsset, NewLevel, NewExperience, ExperienceToNextLevel)`
+     - Refresh the matching entry (or re-run `OnClassListUpdated`)
+   - Override `OnPlayerLevelUpdated(NewPlayerLevel)` to update any player-level text (optional)
+3. In `WBP_ClassEntry`, bind UI fields using getters:
+   - Name Text → `GetEntryName()`
+   - Level Text → `GetEntryLevel()`
+   - XP Progress → `GetEntryExperience()` / `GetEntryExperienceToNextLevel()` (guard divide by zero)
+   - Ensure `SetClassEntry` / `SetProfessionEntry` is called after creation
+4. For XP allocation UI, call `AllocateExperienceToClass(ClassAsset, Amount)` on `WBP_ClassSelectionPanel` (or use component directly).
 
 ---
 
 ## Step 11: Add Panel Toggle Input (Optional)
-1. Add an input action (e.g., `IA_OpenClassPanel`).
-2. In PlayerController, create/toggle `WBP_ClassSelectionPanel`.
+1. Add input actions:
+   - `IA_OpenCharacterStatusPanel`
+   - `IA_OpenClassPanel`
+2. In PlayerController, assign:
+   - `CharacterStatusPanelWidgetClass`
+   - `ClassSelectionPanelWidgetClass`
 3. Ensure panels use `SelfHitTestInvisible` if overlapping other UI.

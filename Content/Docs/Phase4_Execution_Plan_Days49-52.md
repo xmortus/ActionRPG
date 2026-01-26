@@ -58,15 +58,17 @@ Days 49-52 cover progression: an XP component, class/profession component, and d
 1. Attach `ExperienceComponent` and `ClassComponent` to `AActionRPGPlayerCharacter`
 2. Ensure class bonuses can influence attribute components
 
-### 6) UI (Experience + Class/Profession)
+### 6) UI (Character Status + Class/Profession)
 1. Create widgets:
-   - `WBP_ExperiencePanel` (XP totals, unallocated XP)
+   - `WBP_CharacterStatusPanel` (class/profession slots, current class/profession, XP totals, attributes)
    - `WBP_ClassSelectionPanel` (list of classes + professions)
    - `WBP_ClassEntry` (single class/profession row)
 2. Bind UI to components:
    - `ExperienceComponent` (Unallocated/Total XP)
    - `ClassComponent` (selected classes/professions, class XP/levels)
-3. Add input to open/close panels (if not already)
+3. Add input to open/close panels (if not already):
+   - `OpenCharacterStatusPanelAction`
+   - `OpenClassPanelAction`
 
 ---
 

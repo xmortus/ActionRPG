@@ -4,11 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Progression/Core/ProgressionTypes.h"
 #include "CharacterStatusPanelWidget.generated.h"
 
 class UTextBlock;
 class UExperienceComponent;
 class UClassComponent;
+class UAttributeComponent;
 class UClassDataAsset;
 class UProfessionDataAsset;
 
@@ -55,6 +57,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status UI")
 	FText GetProfessionSlotsText() const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status UI")
+	FText GetPrimaryAttributesText() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status UI")
+	int32 GetUnspentAttributePoints() const;
+
 protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> CurrentClassText;
@@ -83,12 +91,21 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> TotalExperienceText;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PrimaryAttributesText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> UnspentAttributePointsText;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UExperienceComponent> ExperienceComponent;
 
 	UPROPERTY()
 	TObjectPtr<UClassComponent> ClassComponent;
+
+	UPROPERTY()
+	TObjectPtr<UAttributeComponent> AttributeComponent;
 
 	void BindComponents();
 
@@ -104,6 +121,10 @@ private:
 	UFUNCTION()
 	void HandleClassLevelChanged(UClassDataAsset* ClassAsset, int32 NewLevel);
 
+	UFUNCTION()
+	void HandlePrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue);
+
 	FText BuildClassListText() const;
 	FText BuildProfessionListText() const;
+	FText BuildPrimaryAttributeText() const;
 };

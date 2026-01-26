@@ -14,7 +14,7 @@ class UProfessionDataAsset;
 /**
  * Class/profession selection panel widget with bound component events.
  */
-UCLASS()
+UCLASS(BlueprintType, Blueprintable)
 class ACTIONRPG_API UClassSelectionPanelWidget : public UUserWidget
 {
 	GENERATED_BODY()

@@ -3,6 +3,7 @@
 #include "UI/Progression/CharacterStatusPanelWidget.h"
 #include "Components/Progression/ExperienceComponent.h"
 #include "Components/Progression/ClassComponent.h"
+#include "Components/Progression/AttributeComponent.h"
 #include "Progression/Core/ClassDataAsset.h"
 #include "Progression/Core/ProfessionDataAsset.h"
 #include "Components/TextBlock.h"
@@ -43,6 +44,11 @@ void UCharacterStatusPanelWidget::NativeDestruct()
 		ClassComponent->OnClassLevelChanged.RemoveDynamic(this, &UCharacterStatusPanelWidget::HandleClassLevelChanged);
 	}
 
+	if (AttributeComponent)
+	{
+		AttributeComponent->OnPrimaryAttributeChanged.RemoveDynamic(this, &UCharacterStatusPanelWidget::HandlePrimaryAttributeChanged);
+	}
+
 	Super::NativeDestruct();
 }
 
@@ -57,6 +63,7 @@ void UCharacterStatusPanelWidget::BindComponents()
 
 	ExperienceComponent = OwningPawn->FindComponentByClass<UExperienceComponent>();
 	ClassComponent = OwningPawn->FindComponentByClass<UClassComponent>();
+	AttributeComponent = OwningPawn->FindComponentByClass<UAttributeComponent>();
 
 	if (ExperienceComponent)
 	{
@@ -77,6 +84,15 @@ void UCharacterStatusPanelWidget::BindComponents()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusPanelWidget - ClassComponent not found on owning pawn."));
 	}
+
+	if (AttributeComponent)
+	{
+		AttributeComponent->OnPrimaryAttributeChanged.AddUniqueDynamic(this, &UCharacterStatusPanelWidget::HandlePrimaryAttributeChanged);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusPanelWidget - AttributeComponent not found on owning pawn."));
+	}
 }
 
 void UCharacterStatusPanelWidget::HandleExperienceChanged(float NewUnallocatedExperience, float Delta)
@@ -95,6 +111,11 @@ void UCharacterStatusPanelWidget::HandleProfessionListChanged(UProfessionDataAss
 }
 
 void UCharacterStatusPanelWidget::HandleClassLevelChanged(UClassDataAsset* ClassAsset, int32 NewLevel)
+{
+	UpdateStatusDisplay();
+}
+
+void UCharacterStatusPanelWidget::HandlePrimaryAttributeChanged(EPrimaryAttribute Attribute, float NewValue, float OldValue)
 {
 	UpdateStatusDisplay();
 }
@@ -144,6 +165,16 @@ void UCharacterStatusPanelWidget::UpdateStatusDisplay()
 	if (TotalExperienceText)
 	{
 		TotalExperienceText->SetText(FText::AsNumber(FMath::RoundToInt(GetTotalExperience())));
+	}
+
+	if (PrimaryAttributesText)
+	{
+		PrimaryAttributesText->SetText(GetPrimaryAttributesText());
+	}
+
+	if (UnspentAttributePointsText)
+	{
+		UnspentAttributePointsText->SetText(FText::AsNumber(GetUnspentAttributePoints()));
 	}
 }
 
@@ -222,6 +253,16 @@ FText UCharacterStatusPanelWidget::GetProfessionSlotsText() const
 	return FText::FromString(FString::Printf(TEXT("%d / %d"), CurrentCount, MaxCount));
 }
 
+FText UCharacterStatusPanelWidget::GetPrimaryAttributesText() const
+{
+	return BuildPrimaryAttributeText();
+}
+
+int32 UCharacterStatusPanelWidget::GetUnspentAttributePoints() const
+{
+	return AttributeComponent ? AttributeComponent->GetUnspentAttributePoints() : 0;
+}
+
 FText UCharacterStatusPanelWidget::BuildClassListText() const
 {
 	if (!ClassComponent)
@@ -234,11 +275,17 @@ FText UCharacterStatusPanelWidget::BuildClassListText() const
 	{
 		if (ClassAsset)
 		{
-			Names.Add(ClassAsset->ClassName.ToString());
+			const int32 ClassLevel = ClassComponent->GetClassLevel(ClassAsset);
+			Names.Add(FString::Printf(TEXT("%s: %d"), *ClassAsset->ClassName.ToString(), ClassLevel));
 		}
 	}
 
-	return JoinNames(Names);
+	if (Names.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	return FText::FromString(FString::Join(Names, TEXT("\n")));
 }
 
 FText UCharacterStatusPanelWidget::BuildProfessionListText() const
@@ -258,4 +305,52 @@ FText UCharacterStatusPanelWidget::BuildProfessionListText() const
 	}
 
 	return JoinNames(Names);
+}
+
+FText UCharacterStatusPanelWidget::BuildPrimaryAttributeText() const
+{
+	if (!AttributeComponent)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	const UEnum* Enum = StaticEnum<EPrimaryAttribute>();
+	TArray<FString> Lines;
+	const int32 EnumCount = Enum ? Enum->NumEnums() : 0;
+	for (int32 Index = 0; Index < EnumCount; ++Index)
+	{
+		if (Enum)
+		{
+			const FString EnumName = Enum->GetNameStringByIndex(Index);
+			if (EnumName.EndsWith(TEXT("MAX")))
+			{
+				continue;
+			}
+		}
+
+		if (Enum && Enum->HasMetaData(TEXT("Hidden"), Index))
+		{
+			continue;
+		}
+
+		if (Enum && Enum->HasMetaData(TEXT("Spacer"), Index))
+		{
+			continue;
+		}
+
+		const EPrimaryAttribute Attribute = Enum ? static_cast<EPrimaryAttribute>(Enum->GetValueByIndex(Index)) : EPrimaryAttribute::Strength;
+		const float Value = AttributeComponent->GetAttribute(Attribute);
+		const FString DisplayName = Enum ? Enum->GetDisplayNameTextByIndex(Index).ToString() : TEXT("Attribute");
+		Lines.Add(FString::Printf(TEXT("%s: %.0f"), *DisplayName, Value));
+	}
+
+	if (Lines.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	const int32 UnspentPoints = GetUnspentAttributePoints();
+	Lines.Add(FString::Printf(TEXT("Free Attribute Points: %d"), UnspentPoints));
+
+	return FText::FromString(FString::Join(Lines, TEXT("\n")));
 }

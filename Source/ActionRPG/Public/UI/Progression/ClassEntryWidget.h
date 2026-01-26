@@ -14,7 +14,7 @@ class UTexture2D;
 /**
  * Single class/profession row entry widget.
  */
-UCLASS()
+UCLASS(BlueprintType, Blueprintable)
 class ACTIONRPG_API UClassEntryWidget : public UUserWidget
 {
 	GENERATED_BODY()
