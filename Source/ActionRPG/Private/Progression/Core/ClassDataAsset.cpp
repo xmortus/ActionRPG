@@ -10,6 +10,7 @@ UClassDataAsset::UClassDataAsset()
 	ClassDescription = FText::GetEmpty();
 	ClassIcon = nullptr;
 	RequiredLevel = 1;
+	RequiredClassLevelToUnlock = 1;
 	RequiredAttributes = {};
 	PrimaryAttributeBonuses = {};
 	SecondaryAttributeBonuses = {};

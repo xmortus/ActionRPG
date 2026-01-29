@@ -27,7 +27,22 @@ public:
 	void RefreshClassList();
 
 	UFUNCTION(BlueprintCallable, Category = "Class UI")
+	void RefreshAllClassesList();
+
+	UFUNCTION(BlueprintCallable, Category = "Class UI")
+	void SetSelectedClassForXp(UClassDataAsset* ClassAsset);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	UClassDataAsset* GetSelectedClassForXp() const { return SelectedClassForXp; }
+
+	UFUNCTION(BlueprintCallable, Category = "Class UI")
+	bool AllocateExperienceToSelectedClass(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category = "Class UI")
 	bool AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount);
+
+	UFUNCTION(BlueprintCallable, Category = "Class UI")
+	bool AllocateExperienceToClassAllowUnselected(UClassDataAsset* ClassAsset, float Amount);
 
 	UFUNCTION(BlueprintCallable, Category = "Class UI")
 	bool AddClass(UClassDataAsset* ClassAsset);
@@ -51,9 +66,21 @@ public:
 	TArray<UClassDataAsset*> GetSelectedClasses() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	FText GetSelectedClassesText() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	TArray<UClassDataAsset*> GetAllClasses() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
 	TArray<UProfessionDataAsset*> GetSelectedProfessions() const;
 
 protected:
+	UFUNCTION(BlueprintImplementableEvent, Category = "Class UI")
+	void OnAllClassesListUpdated(const TArray<UClassDataAsset*>& Classes);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Class UI")
+	void OnSelectedClassForXpChanged(UClassDataAsset* ClassAsset);
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Class UI")
 	void OnClassListUpdated(const TArray<UClassDataAsset*>& Classes, const TArray<UProfessionDataAsset*>& Professions);
 
@@ -69,6 +96,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UExperienceComponent> ExperienceComponent;
+
+	UPROPERTY()
+	TObjectPtr<UClassDataAsset> SelectedClassForXp;
 
 	void BindComponents();
 

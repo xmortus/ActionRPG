@@ -115,3 +115,8 @@ bool UClassEntryWidget::IsSelected() const
 
 	return false;
 }
+
+void UClassEntryWidget::SetSelectedForXp(bool bSelected)
+{
+	bIsSelectedForXp = bSelected;
+}

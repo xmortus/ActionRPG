@@ -5,6 +5,7 @@
 #include "Components/Progression/ExperienceComponent.h"
 #include "Progression/Core/ClassDataAsset.h"
 #include "Progression/Core/ProfessionDataAsset.h"
+#include "Data/ClassDatabase.h"
 #include "GameFramework/Pawn.h"
 
 void UClassSelectionPanelWidget::NativeConstruct()
@@ -12,6 +13,7 @@ void UClassSelectionPanelWidget::NativeConstruct()
 	Super::NativeConstruct();
 
 	BindComponents();
+	RefreshAllClassesList();
 	RefreshClassList();
 
 	if (ClassComponent)
@@ -67,9 +69,30 @@ void UClassSelectionPanelWidget::RefreshClassList()
 	OnClassListUpdated(ClassComponent->GetSelectedClasses(), ClassComponent->GetSelectedProfessions());
 }
 
+void UClassSelectionPanelWidget::RefreshAllClassesList()
+{
+	OnAllClassesListUpdated(GetAllClasses());
+}
+
+void UClassSelectionPanelWidget::SetSelectedClassForXp(UClassDataAsset* ClassAsset)
+{
+	SelectedClassForXp = ClassAsset;
+	OnSelectedClassForXpChanged(SelectedClassForXp);
+}
+
+bool UClassSelectionPanelWidget::AllocateExperienceToSelectedClass(float Amount)
+{
+	return AllocateExperienceToClassAllowUnselected(SelectedClassForXp, Amount);
+}
+
 bool UClassSelectionPanelWidget::AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount)
 {
 	return ClassComponent ? ClassComponent->AllocateExperienceToClass(ClassAsset, Amount) : false;
+}
+
+bool UClassSelectionPanelWidget::AllocateExperienceToClassAllowUnselected(UClassDataAsset* ClassAsset, float Amount)
+{
+	return ClassComponent ? ClassComponent->AllocateExperienceToClassAllowUnselected(ClassAsset, Amount) : false;
 }
 
 bool UClassSelectionPanelWidget::AddClass(UClassDataAsset* ClassAsset)
@@ -105,6 +128,41 @@ float UClassSelectionPanelWidget::GetUnallocatedExperience() const
 TArray<UClassDataAsset*> UClassSelectionPanelWidget::GetSelectedClasses() const
 {
 	return ClassComponent ? ClassComponent->GetSelectedClasses() : TArray<UClassDataAsset*>();
+}
+
+FText UClassSelectionPanelWidget::GetSelectedClassesText() const
+{
+	if (!ClassComponent)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	TArray<FString> Lines;
+	for (UClassDataAsset* ClassAsset : ClassComponent->GetSelectedClasses())
+	{
+		if (ClassAsset)
+		{
+			const int32 ClassLevel = ClassComponent->GetClassLevel(ClassAsset);
+			Lines.Add(FString::Printf(TEXT("%s: %d"), *ClassAsset->ClassName.ToString(), ClassLevel));
+		}
+	}
+
+	if (Lines.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	return FText::FromString(FString::Join(Lines, TEXT("\n")));
+}
+
+TArray<UClassDataAsset*> UClassSelectionPanelWidget::GetAllClasses() const
+{
+	if (UClassDatabase* Database = UClassDatabase::Get())
+	{
+		return Database->GetAllClasses();
+	}
+
+	return TArray<UClassDataAsset*>();
 }
 
 TArray<UProfessionDataAsset*> UClassSelectionPanelWidget::GetSelectedProfessions() const

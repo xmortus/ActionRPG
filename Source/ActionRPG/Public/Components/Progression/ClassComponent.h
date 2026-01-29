@@ -105,6 +105,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Class")
 	bool AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount);
 
+	UFUNCTION(BlueprintCallable, Category = "Class")
+	bool AllocateExperienceToClassAllowUnselected(UClassDataAsset* ClassAsset, float Amount);
+
 	UPROPERTY(BlueprintAssignable, Category = "Class|Events")
 	FOnClassChanged OnClassChanged;
 
@@ -154,4 +157,6 @@ private:
 	bool CanAddClass() const;
 	bool CanAddProfession() const;
 	float GetExperienceRequiredForLevel(UClassDataAsset* ClassAsset, int32 Level) const;
+
+	bool AllocateExperienceInternal(UClassDataAsset* ClassAsset, float Amount, bool bAllowUnselected);
 };

@@ -9,6 +9,7 @@
 class UClassDataAsset;
 class UProfessionDataAsset;
 class UClassComponent;
+class UClassSelectionPanelWidget;
 class UTexture2D;
 
 /**
@@ -50,6 +51,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
 	bool IsSelected() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Class UI")
+	void SetSelectedForXp(bool bSelected);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	bool IsSelectedForXp() const { return bIsSelectedForXp; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	UClassDataAsset* GetClassAsset() const { return ClassAsset; }
+
+	UPROPERTY(BlueprintReadWrite, Category = "Class UI", meta = (ExposeOnSpawn = "true"))
+	TObjectPtr<UClassSelectionPanelWidget> ParentPanel;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UClassDataAsset> ClassAsset;
@@ -62,4 +75,7 @@ private:
 
 	UPROPERTY()
 	bool bIsProfessionEntry = false;
+
+	UPROPERTY()
+	bool bIsSelectedForXp = false;
 };

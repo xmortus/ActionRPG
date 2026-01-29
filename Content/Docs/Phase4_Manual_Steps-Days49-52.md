@@ -14,6 +14,7 @@
 3. Set:
    - Display Name, Description, Icon
    - Requirements (Level/Attributes)
+   - RequiredClassLevelToUnlock (class level needed before auto-add)
    - Primary/Secondary bonus maps
    - AttributePointsPerLevel (attribute points gained per class level)
    - ClassExperienceCurve (optional per-class XP curve)
@@ -47,17 +48,25 @@
 
 ---
 
-## Step 5: Test Class Selection
-1. Use Blueprint to call `SelectClass(DA_Class_Warrior)` on `ClassComponent`.
+## Step 5: Pick a Class
+1. Call `SelectClass(DA_Class_Warrior)` on `ClassComponent`.
 2. Verify requirements pass.
 3. Confirm bonuses apply to attributes and update secondary attributes.
+4. From UI:
+   - Open the Class Selection panel.
+   - Click your class entry (wire button to `AddClass` or `SelectClass`).
+   - Confirm the class appears in the selected list.
 
 ---
 
-## Step 6: Allocate XP to Class
+## Step 6: Add XP to a Class
 1. Call `AllocateExperienceToClass(DA_Class_Warrior, 50)` on `ClassComponent`.
 2. Verify class XP increases and class level increases when XP threshold is reached.
 3. Confirm attribute points are awarded on class level-up.
+4. From UI:
+   - Enter XP amount (use a numeric input or a preset button).
+   - Click Allocate on the class entry (wire to `AllocateExperienceToClass`).
+   - Verify the row updates (level/XP/next level).
 
 ---
 
@@ -93,14 +102,19 @@
    - `UnspentAttributePointsText`
 3. Create `WBP_ClassSelectionPanel` (`ClassSelectionPanelWidget`).
 4. Add:
-   - ScrollBox/VerticalBox for Classes
-   - ScrollBox/VerticalBox for Professions
+   - `AllClassesList` (VerticalBox or ScrollBox, **Is Variable** checked)
+   - `ClassesList` (VerticalBox or ScrollBox, **Is Variable** checked)
+   - `ProfessionsList` (VerticalBox or ScrollBox, **Is Variable** checked)
 5. Create `WBP_ClassEntry` (`ClassEntryWidget`).
 6. Add:
    - Name text
    - Level text
    - XP progress bar
-   - Buttons: Select/Add, Remove, Allocate XP
+   - Button: Select/Add (optional)
+7. Add UI controls for class selection and XP allocation in `WBP_ClassSelectionPanel`:
+   - `Input_XPAmount` (numeric `EditableTextBox`) or preset buttons (e.g., +10, +50)
+   - `Button_AllocateXP`
+   - (Optional) Text showing the currently selected class for XP
 
 ---
 
@@ -113,26 +127,39 @@
    - `GetTotalExperience()`, `GetUnallocatedExperience()`
    - `GetPrimaryAttributesText()`, `GetUnspentAttributePoints()`
 2. In `WBP_ClassSelectionPanel`, implement events and list building:
+   - Override `OnAllClassesListUpdated(Classes)`:
+     - Clear `AllClassesList`
+     - For each `ClassAsset`:
+       - `Create Widget` → `WBP_ClassEntry`
+       - Get `ClassComponent` from owning pawn
+       - Call `SetClassEntry(ClassAsset, ClassComponent)`
+       - Add to `AllClassesList`
    - Override `OnClassListUpdated(Classes, Professions)`
-   - Clear `ClassesList` container (VerticalBox/ScrollBox)
+   - Clear `ClassesList` container
    - For each `ClassAsset`:
      - `Create Widget` → `WBP_ClassEntry`
+     - Get `ClassComponent` from owning pawn
      - Call `SetClassEntry(ClassAsset, ClassComponent)`
      - Add to `ClassesList`
    - Clear `ProfessionsList` container
    - For each `ProfessionAsset`:
      - `Create Widget` → `WBP_ClassEntry`
+     - Get `ClassComponent` from owning pawn
      - Call `SetProfessionEntry(ProfessionAsset, ClassComponent)`
      - Add to `ProfessionsList`
    - Override `OnClassProgressUpdated(ClassAsset, NewLevel, NewExperience, ExperienceToNextLevel)`
-     - Refresh the matching entry (or re-run `OnClassListUpdated`)
+     - Rebuild list or refresh matching entry
    - Override `OnPlayerLevelUpdated(NewPlayerLevel)` to update any player-level text (optional)
+   - Override `OnSelectedClassForXpChanged(ClassAsset)` to update selection highlight (optional)
 3. In `WBP_ClassEntry`, bind UI fields using getters:
    - Name Text → `GetEntryName()`
    - Level Text → `GetEntryLevel()`
    - XP Progress → `GetEntryExperience()` / `GetEntryExperienceToNextLevel()` (guard divide by zero)
    - Ensure `SetClassEntry` / `SetProfessionEntry` is called after creation
-4. For XP allocation UI, call `AllocateExperienceToClass(ClassAsset, Amount)` on `WBP_ClassSelectionPanel` (or use component directly).
+4. For class unlocking via XP (single panel controls):
+   - On class entry click, call `SetSelectedClassForXp(ClassAsset)`
+   - On `Button_AllocateXP`, call `AllocateExperienceToSelectedClass(Amount)`
+   - Set `RequiredClassLevelToUnlock` in the class data asset to control when it gets added
 
 ---
 

@@ -286,12 +286,23 @@ float UClassComponent::GetClassExperienceToNextLevel(UClassDataAsset* ClassAsset
 
 bool UClassComponent::AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount)
 {
+	return AllocateExperienceInternal(ClassAsset, Amount, false);
+}
+
+bool UClassComponent::AllocateExperienceToClassAllowUnselected(UClassDataAsset* ClassAsset, float Amount)
+{
+	return AllocateExperienceInternal(ClassAsset, Amount, true);
+}
+
+bool UClassComponent::AllocateExperienceInternal(UClassDataAsset* ClassAsset, float Amount, bool bAllowUnselected)
+{
 	if (!ClassAsset || Amount <= 0.0f)
 	{
 		return false;
 	}
 
-	if (!SelectedClasses.Contains(ClassAsset))
+	const bool bIsSelected = SelectedClasses.Contains(ClassAsset);
+	if (!bIsSelected && !bAllowUnselected)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AllocateExperienceToClass - Class not selected"));
 		return false;
@@ -303,11 +314,16 @@ bool UClassComponent::AllocateExperienceToClass(UClassDataAsset* ClassAsset, flo
 		return false;
 	}
 
+	const bool bWasInProgress = ClassProgress.Contains(ClassAsset);
 	FClassProgress& Progress = ClassProgress.FindOrAdd(ClassAsset);
+	if (!bWasInProgress && !bIsSelected && bAllowUnselected)
+	{
+		Progress.Level = 0;
+	}
 	Progress.Experience += Amount;
 	OnClassExperienceChanged.Broadcast(ClassAsset, Progress.Experience);
 
-	float Required = GetExperienceRequiredForLevel(ClassAsset, Progress.Level);
+	float Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
 	while (Progress.Experience >= Required)
 	{
 		Progress.Experience -= Required;
@@ -318,7 +334,12 @@ bool UClassComponent::AllocateExperienceToClass(UClassDataAsset* ClassAsset, flo
 		{
 			AttributeComponent->AddAttributePoints(PointsPerLevel);
 		}
-		Required = GetExperienceRequiredForLevel(ClassAsset, Progress.Level);
+		Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
+	}
+
+	if (!bIsSelected && ClassAsset && Progress.Level >= ClassAsset->RequiredClassLevelToUnlock)
+	{
+		AddClass(ClassAsset);
 	}
 
 	return true;

@@ -40,6 +40,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Class|Requirements", meta = (ClampMin = "1"))
 	int32 RequiredLevel;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Class|Requirements", meta = (ClampMin = "1"))
+	int32 RequiredClassLevelToUnlock;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Class|Requirements")
 	TMap<EPrimaryAttribute, float> RequiredAttributes;
 
