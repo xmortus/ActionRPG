@@ -221,6 +221,55 @@ TArray<UProfessionDataAsset*> UClassComponent::GetSelectedProfessions() const
 	return Result;
 }
 
+FText UClassComponent::GetSelectedProfessionsText() const
+{
+	if (SelectedProfessions.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	TArray<FString> Names;
+	for (const TObjectPtr<UProfessionDataAsset>& ProfessionAsset : SelectedProfessions)
+	{
+		if (ProfessionAsset)
+		{
+			Names.Add(ProfessionAsset->ProfessionName.ToString());
+		}
+	}
+
+	if (Names.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	return FText::FromString(FString::Join(Names, TEXT("\n")));
+}
+
+FText UClassComponent::GetSelectedClassesText() const
+{
+	if (SelectedClasses.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	TArray<FString> Lines;
+	for (const TObjectPtr<UClassDataAsset>& ClassAsset : SelectedClasses)
+	{
+		if (ClassAsset)
+		{
+			const int32 ClassLevel = GetClassLevel(ClassAsset);
+			Lines.Add(FString::Printf(TEXT("%s: %d"), *ClassAsset->ClassName.ToString(), ClassLevel));
+		}
+	}
+
+	if (Lines.Num() == 0)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	return FText::FromString(FString::Join(Lines, TEXT("\n")));
+}
+
 int32 UClassComponent::GetPlayerLevel() const
 {
 	int32 TotalLevel = 0;

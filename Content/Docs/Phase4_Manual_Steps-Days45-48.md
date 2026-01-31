@@ -47,7 +47,41 @@
 
 ---
 
-## Step 5: Output Log Validation
+## Step 5: Equipment UI Setup (UE 5.7)
+1. Create `WBP_EquipmentWidget` (UserWidget).
+2. Add layout sections:
+   - Left: paper-doll slots (VerticalBox/Canvas for equipment slots)
+   - Center: stats panel (primary + secondary)
+   - Right: inventory grid (UniformGridPanel)
+   - Bottom: filter buttons (Armor, Weapons, Food & Potions, Quest Items, All Items)
+3. Create `WBP_EquipmentSlot` (UserWidget) for each equipment slot:
+   - Add slot icon + empty background
+   - Expose `EquipmentSlot` enum on the widget
+4. Create `WBP_EquipmentStats` (UserWidget):
+   - Add text for primary + secondary stats (bind later)
+5. Create `WBP_EquipmentInventory` (UserWidget):
+   - Reuse inventory slot widgets or create equipment-inventory slot widget
+6. In `WBP_EquipmentWidget`:
+   - Place slot widgets in the paper-doll area
+   - Place stats widget in the center panel
+   - Place inventory widget on the right
+   - Place filter buttons at the bottom
+7. Bind to components:
+   - Equipment slots → `EquipmentComponent`
+   - Inventory grid → `InventoryComponent`
+   - Stats panel → `AttributeComponent` + `SecondaryAttributeComponent`
+8. Wire drag & drop:
+   - Inventory slot drag → equipment slot drop
+   - Equipment slot drag → inventory drop
+9. Filter buttons (optional):
+   - Add buttons: Armor, Weapons, Food & Potions, Quest Items, All Items
+   - On click, call an inventory filter function (e.g., set a category enum and refresh grid)
+   - Default filter = All Items
+10. Save and compile all widgets.
+
+---
+
+## Step 6: Output Log Validation
 1. Open Output Log.
 2. Confirm messages for:
    - Equip success/failure

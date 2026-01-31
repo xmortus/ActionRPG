@@ -91,6 +91,12 @@ public:
 	TArray<UProfessionDataAsset*> GetSelectedProfessions() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class")
+	FText GetSelectedProfessionsText() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class")
+	FText GetSelectedClassesText() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class")
 	int32 GetPlayerLevel() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class")

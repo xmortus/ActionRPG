@@ -74,6 +74,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
 	TArray<UProfessionDataAsset*> GetSelectedProfessions() const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	FText GetSelectedProfessionsText() const;
+
 protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Class UI")
 	void OnAllClassesListUpdated(const TArray<UClassDataAsset*>& Classes);

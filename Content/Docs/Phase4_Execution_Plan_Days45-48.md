@@ -15,6 +15,7 @@ Days 45-48 establish the equipment system: a component for slot management, equi
 - Add equipment item classes (`EquipmentItem`, `WeaponItem`)
 - Extend `ItemDataAsset` to support equipment slots and stat bonuses (if not present)
 - Aggregate equipment bonuses into `SecondaryAttributeComponent`
+- Build equipment UI layout (paper-doll + stats + inventory grid)
 
 ---
 
@@ -51,6 +52,20 @@ Days 45-48 establish the equipment system: a component for slot management, equi
 1. Attach `EquipmentComponent` to `AActionRPGPlayerCharacter`
 2. Ensure equip/unequip triggers secondary attribute recalculation
 
+### 6) Equipment UI (Paper-Doll + Inventory)
+1. Create widgets:
+   - `WBP_EquipmentWidget` (overall layout)
+   - `WBP_EquipmentSlot` (paper-doll slot)
+   - `WBP_EquipmentStats` (stats panel)
+   - `WBP_EquipmentInventory` (inventory grid + filters)
+2. Layout targets:
+   - Left: equipment paper-doll slots (head, chest, legs, hands, feet, main/offhand, ring, amulet)
+   - Center: stats panel (primary + secondary)
+   - Right: inventory grid with icons/stacks
+   - Bottom: category filters (Armor, Weapons, Food & Potions, Quest Items, All Items)
+3. Bind to `EquipmentComponent` and `InventoryComponent`
+4. Wire drag & drop between inventory and equipment slots
+
 ---
 
 ## Verification Checklist
@@ -58,6 +73,7 @@ Days 45-48 establish the equipment system: a component for slot management, equi
 - Equipment items can be equipped into valid slots
 - Equipment bonuses affect secondary attributes
 - Equip/Unequip events fire and update UI safely
+- Equipment UI displays slots, stats, and inventory grid
 
 ---
 

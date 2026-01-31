@@ -137,22 +137,7 @@ FText UClassSelectionPanelWidget::GetSelectedClassesText() const
 		return FText::FromString(TEXT("None"));
 	}
 
-	TArray<FString> Lines;
-	for (UClassDataAsset* ClassAsset : ClassComponent->GetSelectedClasses())
-	{
-		if (ClassAsset)
-		{
-			const int32 ClassLevel = ClassComponent->GetClassLevel(ClassAsset);
-			Lines.Add(FString::Printf(TEXT("%s: %d"), *ClassAsset->ClassName.ToString(), ClassLevel));
-		}
-	}
-
-	if (Lines.Num() == 0)
-	{
-		return FText::FromString(TEXT("None"));
-	}
-
-	return FText::FromString(FString::Join(Lines, TEXT("\n")));
+	return ClassComponent->GetSelectedClassesText();
 }
 
 TArray<UClassDataAsset*> UClassSelectionPanelWidget::GetAllClasses() const
@@ -168,6 +153,16 @@ TArray<UClassDataAsset*> UClassSelectionPanelWidget::GetAllClasses() const
 TArray<UProfessionDataAsset*> UClassSelectionPanelWidget::GetSelectedProfessions() const
 {
 	return ClassComponent ? ClassComponent->GetSelectedProfessions() : TArray<UProfessionDataAsset*>();
+}
+
+FText UClassSelectionPanelWidget::GetSelectedProfessionsText() const
+{
+	if (!ClassComponent)
+	{
+		return FText::FromString(TEXT("None"));
+	}
+
+	return ClassComponent->GetSelectedProfessionsText();
 }
 
 void UClassSelectionPanelWidget::HandleClassListChanged(UClassDataAsset* ChangedClass, bool bAdded)

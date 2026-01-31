@@ -270,22 +270,7 @@ FText UCharacterStatusPanelWidget::BuildClassListText() const
 		return FText::FromString(TEXT("None"));
 	}
 
-	TArray<FString> Names;
-	for (UClassDataAsset* ClassAsset : ClassComponent->GetSelectedClasses())
-	{
-		if (ClassAsset)
-		{
-			const int32 ClassLevel = ClassComponent->GetClassLevel(ClassAsset);
-			Names.Add(FString::Printf(TEXT("%s: %d"), *ClassAsset->ClassName.ToString(), ClassLevel));
-		}
-	}
-
-	if (Names.Num() == 0)
-	{
-		return FText::FromString(TEXT("None"));
-	}
-
-	return FText::FromString(FString::Join(Names, TEXT("\n")));
+	return ClassComponent->GetSelectedClassesText();
 }
 
 FText UCharacterStatusPanelWidget::BuildProfessionListText() const

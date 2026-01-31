@@ -31,6 +31,7 @@
 - Create class and profession Data Assets
 - Build attribute and class UI widgets
 - Build equipment UI (EquipmentWidget, EquipmentSlotWidget)
+- Build equipment UI layout similar to paper-doll + inventory + stats
 - Integrate equipment bonuses into SecondaryAttributeComponent
 
 ### Phase 4 Deliverables
@@ -40,6 +41,7 @@
 - Equipment item classes (EquipmentItem, WeaponItem)
 - Equipment bonuses system
 - Equipment UI with drag and drop
+- Equipment UI layout with paper-doll slots, stats, inventory grid, filters
 - XP management and allocation system
 - Class/Profession leveling system
 - Class specialization system
@@ -123,10 +125,23 @@
    - Equipment bonuses apply to SecondaryAttributeComponent
    - Validate requirements with AttributeComponent
 
+4. **Equipment UI Layout (Paper-Doll + Inventory)**
+   - Create `EquipmentWidget` (overall layout: paper-doll + stats + inventory)
+   - Create `EquipmentSlotWidget` (equipment slots + quick equip targets)
+   - Create `EquipmentStatsWidget` (primary + secondary stats panel)
+   - Create `EquipmentInventoryWidget` (inventory grid + filters)
+   - Layout targets:
+     - Left panel: paper-doll equipment slots
+     - Center panel: stats (primary + secondary, damage/defense)
+     - Right panel: inventory grid with item icons and stack counts
+     - Bottom filters: Armor, Weapons, Food & Potions, Quest Items, All Items
+   - Wire drag & drop from inventory to equipment slots and back
+
 #### Deliverables
 - Equipment system with slot management
 - Equipment item classes
 - Equipment bonuses apply to stats
+- Equipment UI layout wired to components
 
 ---
 
@@ -173,10 +188,19 @@
 ### 4) UI Integration
 - Create widgets:
   - `AttributeWidget`
-  - `EquipmentWidget`
-  - `EquipmentSlotWidget`
+  - `EquipmentWidget` (overall layout: paper-doll + stats + inventory)
+  - `EquipmentSlotWidget` (paper-doll slots + quick equip targets)
+  - `EquipmentStatsWidget` (derived stats panel)
+  - `EquipmentInventoryWidget` (inventory grid + filters)
   - `ClassWidget`
 - Bind widgets to components and update on events
+
+#### Equipment UI Layout Notes (target style)
+- **Left panel:** paper-doll equipment slots (head, chest, legs, hands, feet, main hand, offhand, ring, amulet)
+- **Center panel:** character stats (primary + secondary, damage/defense)
+- **Right panel:** inventory grid with item icons and stack counts
+- **Bottom filters:** category buttons (Armor, Weapons, Food & Potions, Quest Items, All Items)
+- **Drag & drop:** items move between inventory and equipment slots; invalid drops return to inventory
 
 ---
 
