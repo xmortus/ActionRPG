@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Inventory/InventoryWidget.h"
+#include "UI/Equipment/EquipmentWidget.h"
 #include "UI/Skills/UnlockedSkillsPanelWidget.h"
 #include "UI/Progression/CharacterStatusPanelWidget.h"
 #include "UI/Progression/ClassSelectionPanelWidget.h"
@@ -108,6 +109,11 @@ void AActionRPGPlayerController::SetupInputComponent()
 		if (OpenInventoryAction)
 		{
 			EnhancedInputComponent->BindAction(OpenInventoryAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenInventory);
+		}
+
+		if (OpenEquipmentAction)
+		{
+			EnhancedInputComponent->BindAction(OpenEquipmentAction, ETriggerEvent::Started, this, &AActionRPGPlayerController::OnOpenEquipment);
 		}
 
 		if (OpenSkillPanelAction)
@@ -517,6 +523,70 @@ void AActionRPGPlayerController::OnOpenInventory()
 			bShowMouseCursor = true;
 			// Optional: Pause game when inventory is open
 			// SetPause(true);
+		}
+	}
+}
+
+void AActionRPGPlayerController::OnOpenEquipment()
+{
+	UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Equipment key pressed"));
+
+	// Create widget if it doesn't exist
+	if (!EquipmentWidget)
+	{
+		if (EquipmentWidgetClass)
+		{
+			EquipmentWidget = CreateWidget<UEquipmentWidget>(this, EquipmentWidgetClass);
+			if (EquipmentWidget)
+			{
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Equipment widget created"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenEquipment - Failed to create equipment widget! Check EquipmentWidgetClass is set in Blueprint"));
+				return;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenEquipment - EquipmentWidgetClass is not set! Set it in Blueprint"));
+			return;
+		}
+	}
+
+	// Toggle widget visibility
+	if (EquipmentWidget)
+	{
+		bool bIsInViewport = EquipmentWidget->IsInViewport();
+		ESlateVisibility CurrentVisibility = EquipmentWidget->GetVisibility();
+		bool bIsVisible = bIsInViewport && (CurrentVisibility == ESlateVisibility::Visible || CurrentVisibility == ESlateVisibility::SelfHitTestInvisible || CurrentVisibility == ESlateVisibility::HitTestInvisible);
+
+		if (bIsVisible)
+		{
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Hiding equipment (current visibility: %d, in viewport: %s)"),
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
+
+			EquipmentWidget->SetVisibility(ESlateVisibility::Collapsed);
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+			bShowMouseCursor = true;
+			SetPause(false);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Showing equipment (current visibility: %d, in viewport: %s)"),
+				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
+
+			if (!bIsInViewport)
+			{
+				// Add to viewport with Z-Order 90 (between inventory at 50 and skill panel at 100)
+				EquipmentWidget->AddToViewport(90);
+				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Widget added to viewport with Z-Order 90"));
+			}
+
+			// Ensure widget is visible but does not block clicks in empty areas
+			EquipmentWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+			bShowMouseCursor = true;
 		}
 	}
 }

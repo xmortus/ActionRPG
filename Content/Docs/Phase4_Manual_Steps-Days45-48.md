@@ -31,8 +31,9 @@
 
 ## Step 3: Attach EquipmentComponent to Player
 1. Open `BP_ActionRPGPlayerCharacter`.
-2. Add component: `EquipmentComponent`.
-3. Compile and save.
+2. **Do NOT add another EquipmentComponent.** The C++ player character already creates one.
+3. Verify the existing `EquipmentComponent` shows in the Components list.
+4. Compile and save.
 
 ---
 
@@ -48,36 +49,61 @@
 ---
 
 ## Step 5: Equipment UI Setup (UE 5.7)
-1. Create `WBP_EquipmentWidget` (UserWidget).
-2. Add layout sections:
-   - Left: paper-doll slots (VerticalBox/Canvas for equipment slots)
-   - Center: stats panel (primary + secondary)
-   - Right: inventory grid (UniformGridPanel)
-   - Bottom: filter buttons (Armor, Weapons, Food & Potions, Quest Items, All Items)
-3. Create `WBP_EquipmentSlot` (UserWidget) for each equipment slot:
-   - Add slot icon + empty background
-   - Expose `EquipmentSlot` enum on the widget
-4. Create `WBP_EquipmentStats` (UserWidget):
-   - Add text for primary + secondary stats (bind later)
-5. Create `WBP_EquipmentInventory` (UserWidget):
-   - Reuse inventory slot widgets or create equipment-inventory slot widget
-6. In `WBP_EquipmentWidget`:
-   - Place slot widgets in the paper-doll area
-   - Place stats widget in the center panel
-   - Place inventory widget on the right
-   - Place filter buttons at the bottom
-7. Bind to components:
-   - Equipment slots → `EquipmentComponent`
-   - Inventory grid → `InventoryComponent`
-   - Stats panel → `AttributeComponent` + `SecondaryAttributeComponent`
-8. Wire drag & drop:
-   - Inventory slot drag → equipment slot drop
-   - Equipment slot drag → inventory drop
-9. Filter buttons (optional):
-   - Add buttons: Armor, Weapons, Food & Potions, Quest Items, All Items
-   - On click, call an inventory filter function (e.g., set a category enum and refresh grid)
-   - Default filter = All Items
-10. Save and compile all widgets.
+1. Create `WBP_EquipmentWidget` (UserWidget) and reparent it to `UEquipmentWidget`.
+2. Layout the root widget:
+   - Use a `CanvasPanel` as root.
+   - Add three panels: Left (paper‑doll), Center (stats), Right (inventory).
+   - Add a bottom row for filter buttons.
+3. Paper‑doll area:
+   - Add `WBP_EquipmentSlot` widgets for each slot (MainHand, Offhand, Head, Chest, Legs, Hands, Feet, Ring, Amulet).
+   - Set each slot widget’s `EquipmentSlot` property in the Details panel.
+4. Create `WBP_EquipmentSlot` (UserWidget) and reparent to `UEquipmentSlotWidget`:
+   - Add an Image for the slot icon and a background frame.
+   - (Optional) Add a Border for selection/hover states.
+5. Stats panel:
+   - Create `WBP_EquipmentStats` (UserWidget) and reparent to `UEquipmentStatsWidget`.
+   - Add TextBlocks for primary stats and secondary stats (or a vertical list).
+6. Inventory panel:
+   - Create `WBP_EquipmentInventory` (UserWidget) and reparent to `UEquipmentInventoryWidget`.
+   - Add a `UniformGridPanel` for item slots.
+   - **Recommended:** create a dedicated equipment‑inventory slot widget (avoid reusing `WBP_InventorySlot`, which expects a `UInventoryWidget` parent).
+7. Filters row:
+   - Add buttons: Armor, Weapons, Food & Potions, Quest Items, All Items.
+8. Bind widget events (Blueprint logic details):
+   - In `WBP_EquipmentWidget`:
+     - Override `OnEquipmentUpdated`: call `UpdatePaperDoll()` (custom event) to refresh all slot widgets.
+     - Override `OnInventoryUpdated`: call `EquipmentInventoryWidget->OnInventoryUpdated` (or a `RefreshInventory` custom event).
+     - Override `OnStatsUpdated`: call `EquipmentStatsWidget->OnStatsUpdated`.
+   - In `WBP_EquipmentSlot`:
+     - Override `OnSlotUpdated(Item)`:
+       - If `Item` is valid: set slot icon to `Item->GetItemIcon()` (or data asset icon).
+       - If `Item` is null: set slot icon to empty/placeholder.
+   - In `WBP_EquipmentStats`:
+     - Override `OnStatsUpdated`:
+       - Read primary stats from `AttributeComponent`.
+       - Read secondary stats from `SecondaryAttributeComponent`.
+       - Update TextBlocks (STR/AGI/CON/etc., HP/Mana/Armor/Crit/MoveSpeed).
+   - In `WBP_EquipmentInventory`:
+     - Override `OnInventoryUpdated`:
+       - Clear `UniformGridPanel` children.
+       - Get `InventoryComponent->GetInventorySlots()`.
+       - For each slot:
+          - Create your equipment‑inventory slot widget.
+         - Call a setup function (slot index, item, quantity).
+         - Add to grid (Row = Index / Columns, Column = Index % Columns).
+9. Drag & drop wiring:
+   - Inventory slot drag → equipment slot drop (equip via `InventoryComponent->EquipItemFromSlot`).
+   - Equipment slot drag → inventory drop (unequip via `InventoryComponent->UnequipItemToInventory`).
+   - Invalid drops return item to original slot.
+10. Filter button logic (optional):
+   - On click, set a local category enum and refresh the grid.
+   - Default filter = All Items.
+11. **Equipment UI toggle:**
+    - In `BP_ActionRPGPlayerController`, set:
+      - `EquipmentWidgetClass` = `WBP_EquipmentWidget`
+      - `OpenEquipmentAction` = your input action (added to your mapping context)
+    - This enables the C++ toggle for the equipment UI.
+12. Save and compile all widgets.
 
 ---
 

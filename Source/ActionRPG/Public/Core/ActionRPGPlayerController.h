@@ -11,6 +11,7 @@ class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
 class UInventoryWidget;
+class UEquipmentWidget;
 class UUnlockedSkillsPanelWidget;
 class UCharacterStatusPanelWidget;
 class UClassSelectionPanelWidget;
@@ -80,6 +81,9 @@ protected:
 	TObjectPtr<UInputAction> OpenInventoryAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> OpenEquipmentAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> OpenSkillPanelAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -94,6 +98,12 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UInventoryWidget> InventoryWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UEquipmentWidget> EquipmentWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UEquipmentWidget> EquipmentWidget;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUnlockedSkillsPanelWidget> SkillPanelWidgetClass;
@@ -153,6 +163,7 @@ protected:
 	void OnDodge();
 	void OnOffhand();
 	void OnOpenInventory();
+	void OnOpenEquipment();
 	void OnOpenSkillPanel();
 	void OnOpenCharacterStatusPanel();
 	void OnOpenClassPanel();

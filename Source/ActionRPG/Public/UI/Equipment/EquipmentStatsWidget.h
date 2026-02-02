@@ -28,6 +28,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment UI")
 	USecondaryAttributeComponent* GetSecondaryAttributeComponent() const { return SecondaryAttributeComponent; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment UI")
+	FText GetPrimaryAttributesText() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment UI")
+	FText GetSecondaryAttributesText() const;
+
 protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment UI")
 	void OnStatsUpdated();
@@ -46,4 +52,7 @@ private:
 
 	UFUNCTION()
 	void HandleSecondaryAttributeChanged(ESecondaryAttribute Attribute, float NewValue);
+
+	FText BuildPrimaryAttributeText() const;
+	FText BuildSecondaryAttributeText() const;
 };
