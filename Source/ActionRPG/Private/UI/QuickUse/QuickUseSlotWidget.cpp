@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/QuickUse/QuickUseSlotWidget.h"
+#include "UI/Skills/SkillDragDropOperation.h"
+#include "UI/ActionRPGUITheme.h"
 #include "UI/QuickUse/QuickUseBarWidget.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
 #include "Components/Image.h"
@@ -18,6 +20,7 @@
 void UQuickUseSlotWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ActionRPGUITheme::StyleBlueprintWidgetTree(WidgetTree, true);
 
 	UE_LOG(LogTemp, Log, TEXT("QuickUseSlotWidget::NativeConstruct - Constructing slot widget"));
 
@@ -34,8 +37,8 @@ void UQuickUseSlotWidget::NativeConstruct()
 	SlotType = EQuickUseBarSlotType::Consumable;
 
 	// Initialize visual feedback colors
-	DefaultBorderColor = FLinearColor(0.4f, 0.4f, 0.45f, 1.0f);
-	HoverBorderColor = FLinearColor(0.5f, 0.5f, 0.6f, 1.0f);
+	DefaultBorderColor = ActionRPGUITheme::Slot();
+	HoverBorderColor = ActionRPGUITheme::SlotHover();
 	ValidDropBorderColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f); // Green for valid drop
 	InvalidDropBorderColor = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f); // Red for invalid drop
 	
@@ -449,6 +452,10 @@ bool UQuickUseSlotWidget::CanAcceptItem(UItemBase* Item) const
 
 bool UQuickUseSlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
+	if (USkillDragDropOperation* SkillDragOp = Cast<USkillDragDropOperation>(InOperation))
+	{
+		return ParentQuickUseBar && ParentQuickUseBar->CanAssignDroppedSkill(SlotIndex, SkillDragOp->Skill);
+	}
 	// Check if this is an item drag operation from inventory
 	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
 	if (!ItemDragOp || !ItemDragOp->Item)
@@ -470,6 +477,13 @@ bool UQuickUseSlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const FD
 
 bool UQuickUseSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
+	if (USkillDragDropOperation* SkillDragOp = Cast<USkillDragDropOperation>(InOperation))
+	{
+		bIsDragOver = false;
+		if (SlotBorder) SlotBorder->SetBrushColor(DefaultBorderColor);
+		SkillDragOp->bWasHandled = true;
+		return ParentQuickUseBar && ParentQuickUseBar->AssignDroppedSkill(SlotIndex, SkillDragOp->Skill);
+	}
 	// Check if this is an item drag operation from inventory
 	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
 	if (!ItemDragOp || !ItemDragOp->Item)
@@ -559,6 +573,16 @@ bool UQuickUseSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragD
 void UQuickUseSlotWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
 	Super::NativeOnDragEnter(InGeometry, InDragDropEvent, InOperation);
+	if (USkillDragDropOperation* SkillDragOp = Cast<USkillDragDropOperation>(InOperation))
+	{
+		bIsDragOver = true;
+		if (SlotBorder)
+		{
+			SlotBorder->SetBrushColor(ParentQuickUseBar && ParentQuickUseBar->CanAssignDroppedSkill(SlotIndex, SkillDragOp->Skill)
+				? ValidDropBorderColor : InvalidDropBorderColor);
+		}
+		return;
+	}
 
 	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
 	if (!ItemDragOp || !ItemDragOp->Item)

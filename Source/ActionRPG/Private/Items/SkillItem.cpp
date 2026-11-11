@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/SkillItem.h"
+#include "Items/SkillStoneItem.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Components/Skills/SkillManagerComponent.h"
 #include "Skills/Core/SkillBase.h"
@@ -8,10 +9,15 @@
 
 void USkillItem::Use()
 {
+	TryUse();
+}
+
+bool USkillItem::TryUse()
+{
 	if (!CanUse())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillItem::Use - Cannot use skill item"));
-		return;
+		return false;
 	}
 
 	AActor* OwnerActor = nullptr;
@@ -19,37 +25,41 @@ void USkillItem::Use()
 	if (!SkillManager || !OwnerActor)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillItem::Use - SkillManager or OwnerActor missing"));
-		return;
+		return false;
 	}
 
 	USkillDataAsset* SkillData = nullptr;
 	TSubclassOf<USkillBase> SkillClass;
 	if (!ResolveSkillDefinition(SkillData, SkillClass))
 	{
-		return;
+		return false;
 	}
 
 	if (IsSkillAlreadyUnlocked(SkillManager, SkillData, SkillClass))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillItem::Use - Skill already unlocked"));
-		return;
+		return false;
 	}
 
 	USkillBase* SkillInstance = CreateSkillInstance(OwnerActor, SkillClass, SkillData);
 	if (!SkillInstance)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillItem::Use - Failed to create skill instance"));
-		return;
+		return false;
 	}
 
-	if (!SkillManager->UnlockSkill(SkillInstance))
+	const bool bUnlocked = IsA<USkillStoneItem>()
+		? SkillManager->UnlockSkillFromStone(SkillInstance)
+		: SkillManager->UnlockSkill(SkillInstance);
+	if (!bUnlocked)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillItem::Use - UnlockSkill failed"));
-		return;
+		return false;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillItem::Use - Unlocked skill: %s"),
 		SkillData ? *SkillData->SkillName.ToString() : TEXT("NULL"));
+	return true;
 }
 
 bool USkillItem::CanUse() const

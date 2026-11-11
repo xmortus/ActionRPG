@@ -4,19 +4,37 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
+#include "Components/Progression/ExperienceComponent.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Items/Pickups/ItemPickupActor.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "UI/Inventory/InventoryWidget.h"
 #include "UI/Equipment/EquipmentWidget.h"
 #include "UI/Skills/UnlockedSkillsPanelWidget.h"
 #include "UI/Progression/CharacterStatusPanelWidget.h"
 #include "UI/Progression/ClassSelectionPanelWidget.h"
+#include "UI/Trials/TrialTrackerWidget.h"
+#include "UI/Quests/QuestTrackerWidget.h"
+#include "UI/Crafting/CraftingPanelWidget.h"
+#include "UI/HUD/VitalBarsWidget.h"
+#include "UI/HUD/PlayerDeathWidget.h"
+#include "UI/Menu/PrototypeMenuWidget.h"
+#include "Components/Progression/SecondaryAttributeComponent.h"
+#include "Components/Combat/StatusEffectComponent.h"
+#include "Components/Progression/TrainingComponent.h"
+#include "Components/Progression/AttributeComponent.h"
+#include "Components/Progression/ClassComponent.h"
+#include "InputCoreTypes.h"
 #include "Camera/CameraComponent.h"
 #include "Components/Skills/SkillManagerComponent.h"
+#include "GameFramework/PlayerStart.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Components/InputComponent.h"
+#include "TimerManager.h"
 
 AActionRPGPlayerController::AActionRPGPlayerController()
 {
@@ -52,11 +70,293 @@ void AActionRPGPlayerController::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to get EnhancedInputLocalPlayerSubsystem!"));
 	}
+	EnsureTrialTracker();
+	EnsureQuestTracker();
+	EnsureCraftingPanel();
+	EnsureVitalBars();
+	BindPlayerLifeEvents();
+	if (IsLocalController() && GetWorld() &&
+		(GetWorld()->WorldType == EWorldType::PIE || GetWorld()->WorldType == EWorldType::Game))
+	{
+		ShowPrototypeMenu(true);
+	}
+}
+
+void AActionRPGPlayerController::ShowPrototypeMenu(bool bInitial)
+{
+	if (!IsLocalController()) return;
+	if (!PrototypeMenuWidget)
+	{
+		PrototypeMenuWidget = CreateWidget<UPrototypeMenuWidget>(this, UPrototypeMenuWidget::StaticClass());
+		if (!PrototypeMenuWidget) return;
+		PrototypeMenuWidget->OnPlayRequested.AddUniqueDynamic(this, &AActionRPGPlayerController::HandleMenuPlay);
+		PrototypeMenuWidget->OnExitRequested.AddUniqueDynamic(this, &AActionRPGPlayerController::HandleMenuExit);
+	}
+	PrototypeMenuWidget->SetInitialMenu(bInitial);
+	if (!PrototypeMenuWidget->IsInViewport()) PrototypeMenuWidget->AddToViewport(2000);
+	SetPause(true);
+	SetInputMode(FInputModeGameAndUI().SetWidgetToFocus(PrototypeMenuWidget->TakeWidget()).SetHideCursorDuringCapture(false));
+	bShowMouseCursor = true;
+}
+
+void AActionRPGPlayerController::TogglePauseMenu()
+{
+	if (!bHasStartedPrototype || (DeathWidget && DeathWidget->IsInViewport())) return;
+	if (PrototypeMenuWidget && PrototypeMenuWidget->IsInViewport()) HandleMenuPlay();
+	else ShowPrototypeMenu(false);
+}
+
+void AActionRPGPlayerController::HandleMenuPlay()
+{
+	if (PrototypeMenuWidget) PrototypeMenuWidget->RemoveFromParent();
+	bHasStartedPrototype = true;
+	SetPause(false);
+	SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+	bShowMouseCursor = true;
+}
+
+void AActionRPGPlayerController::HandleMenuExit()
+{
+	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+}
+
+void AActionRPGPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	EnsureTrialTracker();
+	EnsureQuestTracker();
+	EnsureCraftingPanel();
+	EnsureVitalBars();
+	BindPlayerLifeEvents();
+}
+
+void AActionRPGPlayerController::RPGTestDamageSelf(float DamageAmount)
+{
+	UWorld* World = GetWorld();
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (!World || World->WorldType != EWorldType::PIE || !PlayerCharacter || PlayerCharacter->IsDead()
+		|| !FMath::IsFinite(DamageAmount) || DamageAmount <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RPGTestDamageSelf requires a living PIE player and positive finite damage"));
+		return;
+	}
+
+	const float AppliedDamage = UGameplayStatics::ApplyDamage(PlayerCharacter, DamageAmount, this, PlayerCharacter, nullptr);
+	UE_LOG(LogTemp, Display, TEXT("RPGTestDamageSelf applied %.2f damage; dead=%d"),
+		AppliedDamage, PlayerCharacter->IsDead());
+}
+
+void AActionRPGPlayerController::RPGTrainingStatus()
+{
+	UWorld* World = GetWorld();
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (!World || World->WorldType != EWorldType::PIE || !PlayerCharacter ||
+		!PlayerCharacter->TrainingComponent || !PlayerCharacter->AttributeComponent) return;
+	const UTrainingComponent* Training = PlayerCharacter->TrainingComponent;
+	const UAttributeComponent* Attributes = PlayerCharacter->AttributeComponent;
+	const FAttributeTrainingRule* Rule = Training->Rules.FindByPredicate([](const FAttributeTrainingRule& Candidate)
+	{
+		return Candidate.Attribute == EPrimaryAttribute::Strength && Candidate.Activity == TEXT("MeleeHit");
+	});
+	const FString Message = FString::Printf(TEXT("Strength practice: %d/%d | training gain: +%d | Strength: %.0f | free points: %d"),
+		Training->GetPracticeProgress(EPrimaryAttribute::Strength, TEXT("MeleeHit")),
+		Rule ? Rule->PracticePerGain : 0,
+		Training->GetEarnedTrainingGain(EPrimaryAttribute::Strength),
+		Attributes->GetPersistentAttribute(EPrimaryAttribute::Strength),
+		Attributes->GetUnspentAttributePoints());
+	UE_LOG(LogTemp, Display, TEXT("%s"), *Message);
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 7.0f, FColor::Green, Message);
+}
+
+void AActionRPGPlayerController::RPGTestGrantSkillPoints(int32 Points)
+{
+	const UWorld* World = GetWorld();
+	const AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	USkillManagerComponent* Skills = PlayerCharacter ? PlayerCharacter->FindComponentByClass<USkillManagerComponent>() : nullptr;
+	if (!World || World->WorldType != EWorldType::PIE || !Skills || Points <= 0 || !Skills->AddSkillPoints(Points))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RPGTestGrantSkillPoints requires a PIE player and a positive grant"));
+		return;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Granted %d free skill points; balance is now %d"), Points, Skills->GetUnspentSkillPoints());
+}
+
+void AActionRPGPlayerController::RPGTestGrantXP(float Amount)
+{
+	const UWorld* World = GetWorld();
+	const AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	UExperienceComponent* Experience = PlayerCharacter ? PlayerCharacter->ExperienceComponent : nullptr;
+	if (!World || World->WorldType != EWorldType::PIE || !Experience || !FMath::IsFinite(Amount)
+		|| Amount <= 0.0f || !FMath::IsFinite(Experience->GetUnallocatedExperience() + Amount)
+		|| !FMath::IsFinite(Experience->GetTotalExperience() + Amount))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RPGTestGrantXP requires a PIE player and a positive finite amount that fits the XP pool"));
+		return;
+	}
+	Experience->AddExperience(Amount);
+	UE_LOG(LogTemp, Display, TEXT("Granted %.0f XP; available %.0f, total %.0f"), Amount,
+		Experience->GetUnallocatedExperience(), Experience->GetTotalExperience());
+}
+
+void AActionRPGPlayerController::BindPlayerLifeEvents()
+{
+	AActionRPGPlayerCharacter* ControlledPawn = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (LifeEventPlayer == ControlledPawn) return;
+	if (LifeEventPlayer)
+	{
+		LifeEventPlayer->OnPlayerDied.RemoveDynamic(this, &AActionRPGPlayerController::HandlePlayerDied);
+		LifeEventPlayer->OnPlayerRevived.RemoveDynamic(this, &AActionRPGPlayerController::HandlePlayerRevived);
+	}
+	LifeEventPlayer = ControlledPawn;
+	if (ControlledPawn)
+	{
+		InitialPlayerTransform = ControlledPawn->GetActorTransform();
+		ControlledPawn->OnPlayerDied.AddUniqueDynamic(this, &AActionRPGPlayerController::HandlePlayerDied);
+		ControlledPawn->OnPlayerRevived.AddUniqueDynamic(this, &AActionRPGPlayerController::HandlePlayerRevived);
+		if (ControlledPawn->IsDead()) HandlePlayerDied(ControlledPawn, nullptr);
+	}
+}
+
+void AActionRPGPlayerController::HandlePlayerDied(AActionRPGPlayerCharacter* DeadCharacter, AActor* DamageCauser)
+{
+	if (!IsLocalController() || DeadCharacter != GetPawn()) return;
+	if (!DeathWidget)
+	{
+		DeathWidget = CreateWidget<UPlayerDeathWidget>(this, UPlayerDeathWidget::StaticClass());
+		if (DeathWidget)
+		{
+			DeathWidget->OnRespawnRequested.AddUniqueDynamic(this, &AActionRPGPlayerController::RequestRespawn);
+			DeathWidget->OnExitRequested.AddUniqueDynamic(this, &AActionRPGPlayerController::HandleMenuExit);
+		}
+	}
+	if (DeathWidget)
+	{
+		DeathWidget->SetRespawnReady(false);
+		DeathWidget->AddToViewport(1000);
+		SetInputMode(FInputModeUIOnly());
+		bShowMouseCursor = true;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(RespawnUnlockTimer);
+		if (RespawnDelaySeconds > 0.0f)
+			World->GetTimerManager().SetTimer(RespawnUnlockTimer, this, &AActionRPGPlayerController::UnlockRespawn, RespawnDelaySeconds, false);
+		else UnlockRespawn();
+	}
+}
+
+void AActionRPGPlayerController::UnlockRespawn()
+{
+	if (LifeEventPlayer && LifeEventPlayer->IsDead() && DeathWidget) DeathWidget->SetRespawnReady(true);
+}
+
+void AActionRPGPlayerController::RequestRespawn()
+{
+	if (!LifeEventPlayer || !LifeEventPlayer->IsDead() || !GetWorld()
+		|| GetWorld()->GetTimerManager().IsTimerActive(RespawnUnlockTimer))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Respawn blocked: player=%s dead=%d world=%s timer=%d"),
+			*GetNameSafe(LifeEventPlayer.Get()), LifeEventPlayer ? LifeEventPlayer->IsDead() : 0,
+			*GetNameSafe(GetWorld()), GetWorld() ? GetWorld()->GetTimerManager().IsTimerActive(RespawnUnlockTimer) : 0);
+		return;
+	}
+	const AActor* Start = UGameplayStatics::GetActorOfClass(this, APlayerStart::StaticClass());
+	const FTransform Destination = Start ? Start->GetActorTransform() : InitialPlayerTransform;
+	if (!LifeEventPlayer->TeleportTo(Destination.GetLocation(), Destination.Rotator(), false, true))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Respawn failed: could not teleport the player to the spawn point"));
+		return;
+	}
+	LifeEventPlayer->Revive(1.0f);
+}
+
+void AActionRPGPlayerController::HandlePlayerRevived(AActionRPGPlayerCharacter* RevivedCharacter)
+{
+	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(RespawnUnlockTimer);
+	if (DeathWidget) DeathWidget->RemoveFromParent();
+	SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+}
+
+void AActionRPGPlayerController::EnsureVitalBars()
+{
+	if (!IsLocalController()) return;
+	APawn* PlayerPawn = GetPawn();
+	if (!PlayerPawn) return;
+	if (!VitalBarsWidget)
+	{
+		VitalBarsWidget = CreateWidget<UVitalBarsWidget>(this, UVitalBarsWidget::StaticClass());
+		if (VitalBarsWidget) VitalBarsWidget->AddToViewport(40);
+	}
+	if (VitalBarsWidget)
+	{
+		VitalBarsWidget->BindAttributes(PlayerPawn->FindComponentByClass<USecondaryAttributeComponent>());
+		VitalBarsWidget->BindEffects(PlayerPawn->FindComponentByClass<UStatusEffectComponent>());
+	}
+}
+
+void AActionRPGPlayerController::EnsureCraftingPanel()
+{
+	if (!IsLocalController()) return;
+	APawn* PlayerPawn = GetPawn();
+	if (!PlayerPawn) return;
+	if (!CraftingPanelWidget)
+	{
+		CraftingPanelWidget = CreateWidget<UCraftingPanelWidget>(this, UCraftingPanelWidget::StaticClass());
+		if (CraftingPanelWidget) CraftingPanelWidget->AddToViewport(130);
+	}
+	if (CraftingPanelWidget) CraftingPanelWidget->BindPlayer(PlayerPawn);
+	SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
+}
+
+void AActionRPGPlayerController::EnsureTrialTracker()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (!PlayerCharacter || !PlayerCharacter->TrialComponent)
+	{
+		return;
+	}
+	if (!TrialTrackerWidget)
+	{
+		TrialTrackerWidget = CreateWidget<UTrialTrackerWidget>(this, UTrialTrackerWidget::StaticClass());
+		if (TrialTrackerWidget)
+		{
+			TrialTrackerWidget->AddToViewport(50);
+		}
+	}
+	if (TrialTrackerWidget)
+	{
+		TrialTrackerWidget->BindTrialComponent(PlayerCharacter->TrialComponent);
+		TrialTrackerWidget->BindJourneySources(PlayerCharacter->QuestComponent, PlayerCharacter->ClassComponent,
+			PlayerCharacter->EquipmentComponent, PlayerCharacter->InventoryComponent);
+	}
+}
+
+void AActionRPGPlayerController::EnsureQuestTracker()
+{
+	if (!IsLocalController()) return;
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn());
+	if (!PlayerCharacter || !PlayerCharacter->QuestComponent) return;
+	if (!QuestTrackerWidget)
+	{
+		QuestTrackerWidget = CreateWidget<UQuestTrackerWidget>(this, UQuestTrackerWidget::StaticClass());
+		if (QuestTrackerWidget) QuestTrackerWidget->AddToViewport(51);
+	}
+	if (QuestTrackerWidget) QuestTrackerWidget->BindQuestComponent(PlayerCharacter->QuestComponent);
 }
 
 void AActionRPGPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+	InputComponent->BindKey(EKeys::R, IE_Pressed, this, &AActionRPGPlayerController::OnOpenCrafting);
+	FInputKeyBinding& MenuBinding = InputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &AActionRPGPlayerController::TogglePauseMenu);
+	MenuBinding.bExecuteWhenPaused = true;
+	// PIE reserves Escape for stopping play, so P also opens the in-game pause menu.
+	FInputKeyBinding& PieMenuBinding = InputComponent->BindKey(EKeys::P, IE_Pressed, this, &AActionRPGPlayerController::TogglePauseMenu);
+	PieMenuBinding.bExecuteWhenPaused = true;
 
 	UE_LOG(LogTemp, Log, TEXT("SetupInputComponent called"));
 
@@ -190,6 +490,12 @@ void AActionRPGPlayerController::SetupInputComponent()
 	}
 }
 
+void AActionRPGPlayerController::OnOpenCrafting()
+{
+	EnsureCraftingPanel();
+	if (CraftingPanelWidget) CraftingPanelWidget->TogglePanel();
+}
+
 void AActionRPGPlayerController::OnMove(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -237,6 +543,33 @@ void AActionRPGPlayerController::OnInteract()
 		return;
 	}
 
+	// An interaction key acts on an item the character can actually reach,
+	// even when the mouse is pointing elsewhere in the top-down view.
+	TArray<AActor*> PickupActors;
+	UGameplayStatics::GetAllActorsOfClass(World, AItemPickupActor::StaticClass(), PickupActors);
+	AItemPickupActor* NearestPickup = nullptr;
+	float NearestDistanceSquared = MAX_FLT;
+	const FVector PlayerPosition = PlayerCharacter->GetActorLocation();
+	for (AActor* Actor : PickupActors)
+	{
+		AItemPickupActor* Pickup = Cast<AItemPickupActor>(Actor);
+		if (!Pickup) continue;
+		const float DistanceSquared = FVector::DistSquared(PlayerPosition, Pickup->GetActorLocation());
+		if (DistanceSquared <= FMath::Square(Pickup->GetInteractionRange()) && DistanceSquared < NearestDistanceSquared)
+		{
+			NearestPickup = Pickup;
+			NearestDistanceSquared = DistanceSquared;
+		}
+	}
+	if (NearestPickup)
+	{
+		if (NearestPickup->TryInteract(PlayerCharacter))
+		{
+			UE_LOG(LogTemp, Log, TEXT("OnInteract: Picked up nearby %s"), *NearestPickup->GetName());
+		}
+		return;
+	}
+
 	// Get mouse cursor position and direction for line trace (cursor-based pickup)
 	FVector TraceStart;
 	FVector TraceDirection;
@@ -265,8 +598,8 @@ void AActionRPGPlayerController::OnInteract()
 	}
 
 	// Calculate trace end (trace from camera through mouse cursor direction)
-	// For top-down view, trace a reasonable distance (1000 units should be enough)
-	FVector TraceEnd = TraceStart + (TraceDirection * 1000.0f);
+	// The top-down camera can sit over 1000 units above the ground.
+	FVector TraceEnd = TraceStart + (TraceDirection * 3000.0f);
 
 	// Use sphere sweep to create a cone-like detection area
 	// This makes it easier to pick up small items
@@ -290,7 +623,7 @@ void AActionRPGPlayerController::OnInteract()
 	FCollisionShape SweepShape = FCollisionShape::MakeSphere(SweepRadius);
 	
 	// Sweep against world dynamic objects (item pickups use ECC_WorldDynamic)
-	bool bHit = World->SweepMultiByChannel(
+	World->SweepMultiByChannel(
 		HitResults,
 		TraceStart,
 		TraceEnd,
@@ -305,7 +638,9 @@ void AActionRPGPlayerController::OnInteract()
 	float ClosestDistance = MAX_FLT;
 	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
 	
-	if (bHit && HitResults.Num() > 0)
+	// SweepMultiByChannel's return value only reports blocking hits. Pickups are
+	// overlap-only, so inspect the accumulated hits even when it returns false.
+	if (HitResults.Num() > 0)
 	{
 		for (const FHitResult& Hit : HitResults)
 		{
@@ -326,7 +661,7 @@ void AActionRPGPlayerController::OnInteract()
 	if (!ClosestPickup)
 	{
 		HitResults.Empty();
-		bHit = World->SweepMultiByChannel(
+		World->SweepMultiByChannel(
 			HitResults,
 			TraceStart,
 			TraceEnd,
@@ -336,7 +671,7 @@ void AActionRPGPlayerController::OnInteract()
 			QueryParams
 		);
 		
-		if (bHit && HitResults.Num() > 0)
+		if (HitResults.Num() > 0)
 		{
 			for (const FHitResult& Hit : HitResults)
 			{
@@ -359,14 +694,14 @@ void AActionRPGPlayerController::OnInteract()
 		UE_LOG(LogTemp, Log, TEXT("OnInteract: Found item pickup in cone area: %s (Distance: %.2f)"), 
 		       *ClosestPickup->GetName(), ClosestDistance);
 		
-		if (ClosestPickup->CanPickup(PlayerCharacter))
+		if (ClosestDistance > ClosestPickup->GetInteractionRange())
 		{
-			UE_LOG(LogTemp, Log, TEXT("OnInteract: Attempting to pickup item: %s"), 
-			       *ClosestPickup->GetName());
-			
-			ClosestPickup->PickupItem(PlayerCharacter);
-			UE_LOG(LogTemp, Log, TEXT("OnInteract: Successfully picked up item: %s"), 
-			       *ClosestPickup->GetName());
+			UE_LOG(LogTemp, Verbose, TEXT("OnInteract: Item pickup is out of interaction range"));
+			return;
+		}
+		if (ClosestPickup->TryInteract(PlayerCharacter))
+		{
+			UE_LOG(LogTemp, Log, TEXT("OnInteract: Successfully interacted with pickup"));
 		}
 		else
 		{
@@ -403,8 +738,10 @@ void AActionRPGPlayerController::OnAttack()
 
 void AActionRPGPlayerController::OnDodge()
 {
-	// TODO: Implement dodge in Phase 2
-	UE_LOG(LogTemp, Warning, TEXT("Dodge pressed"));
+	if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(GetPawn()))
+	{
+		PlayerCharacter->TryDodge();
+	}
 }
 
 void AActionRPGPlayerController::OnOffhand()
@@ -496,6 +833,10 @@ void AActionRPGPlayerController::OnOpenInventory()
 				InventoryWidget->AddToViewport(50);
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenInventory - Widget added to viewport with Z-Order 50 (quick-use bar should be at 200+)"));
 			}
+			const FVector2D InventorySize(760.0f, 500.0f);
+			InventoryWidget->SetDesiredSizeInViewport(InventorySize);
+			InventoryWidget->SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+			InventoryWidget->SetPositionInViewport(UWidgetLayoutLibrary::GetViewportSize(this) * 0.5f, true);
 			
 			// Ensure widget is visible but does not block clicks in empty areas
 			InventoryWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -566,6 +907,7 @@ void AActionRPGPlayerController::OnOpenEquipment()
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Hiding equipment (current visibility: %d, in viewport: %s)"),
 				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
 
+			EquipmentWidget->HideInventoryContextMenu();
 			EquipmentWidget->SetVisibility(ESlateVisibility::Collapsed);
 			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
@@ -582,6 +924,11 @@ void AActionRPGPlayerController::OnOpenEquipment()
 				EquipmentWidget->AddToViewport(90);
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenEquipment - Widget added to viewport with Z-Order 90"));
 			}
+			const FVector2D ViewportSize = UWidgetLayoutLibrary::GetViewportSize(this);
+			const FVector2D EquipmentSize(940.f, 910.f);
+			EquipmentWidget->SetDesiredSizeInViewport(EquipmentSize);
+			EquipmentWidget->SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+			EquipmentWidget->SetPositionInViewport(ViewportSize * 0.5f - FVector2D(0.0f, 25.0f), true);
 
 			// Ensure widget is visible but does not block clicks in empty areas
 			EquipmentWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -630,6 +977,7 @@ void AActionRPGPlayerController::OnOpenSkillPanel()
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Hiding skill panel (current visibility: %d, in viewport: %s)"),
 				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
 
+			SkillPanelWidget->HideSkillContextMenu();
 			SkillPanelWidget->SetVisibility(ESlateVisibility::Collapsed);
 			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
@@ -639,6 +987,7 @@ void AActionRPGPlayerController::OnOpenSkillPanel()
 		{
 			UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Showing skill panel (current visibility: %d, in viewport: %s)"),
 				(int32)CurrentVisibility, bIsInViewport ? TEXT("YES") : TEXT("NO"));
+			SkillPanelWidget->HideSkillContextMenu();
 
 			if (!bIsInViewport)
 			{
@@ -646,9 +995,15 @@ void AActionRPGPlayerController::OnOpenSkillPanel()
 				SkillPanelWidget->AddToViewport(100);
 				UE_LOG(LogTemp, Log, TEXT("ActionRPGPlayerController::OnOpenSkillPanel - Widget added to viewport with Z-Order 100 (quick-use bar should be at 200+)"));
 			}
+			const FVector2D ViewportSize = UWidgetLayoutLibrary::GetViewportSize(this);
+			const FVector2D SkillsSize(300.f, 600.f);
+			SkillPanelWidget->SetDesiredSizeInViewport(SkillsSize);
+			SkillPanelWidget->SetPositionInViewport((ViewportSize - SkillsSize) * 0.5f, false);
 
 			// Ensure widget is visible but does not block clicks in empty areas
 			SkillPanelWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			SkillPanelWidget->RefreshUnlockedSkills();
+			SkillPanelWidget->RefreshCatalog();
 			SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false));
 			bShowMouseCursor = true;
 		}
@@ -661,18 +1016,10 @@ void AActionRPGPlayerController::OnOpenCharacterStatusPanel()
 
 	if (!CharacterStatusPanelWidget)
 	{
-		if (CharacterStatusPanelWidgetClass)
+		CharacterStatusPanelWidget = CreateWidget<UCharacterStatusPanelWidget>(this, UCharacterStatusPanelWidget::StaticClass());
+		if (!CharacterStatusPanelWidget)
 		{
-			CharacterStatusPanelWidget = CreateWidget<UCharacterStatusPanelWidget>(this, CharacterStatusPanelWidgetClass);
-			if (!CharacterStatusPanelWidget)
-			{
-				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - Failed to create character status panel widget! Check CharacterStatusPanelWidgetClass is set in Blueprint"));
-				return;
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - CharacterStatusPanelWidgetClass is not set! Set it in Blueprint"));
+			UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenCharacterStatusPanel - Failed to create native character status panel widget"));
 			return;
 		}
 	}
@@ -707,18 +1054,10 @@ void AActionRPGPlayerController::OnOpenClassPanel()
 
 	if (!ClassSelectionPanelWidget)
 	{
-		if (ClassSelectionPanelWidgetClass)
+		ClassSelectionPanelWidget = CreateWidget<UClassSelectionPanelWidget>(this, UClassSelectionPanelWidget::StaticClass());
+		if (!ClassSelectionPanelWidget)
 		{
-			ClassSelectionPanelWidget = CreateWidget<UClassSelectionPanelWidget>(this, ClassSelectionPanelWidgetClass);
-			if (!ClassSelectionPanelWidget)
-			{
-				UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenClassPanel - Failed to create class panel widget! Check ClassSelectionPanelWidgetClass is set in Blueprint"));
-				return;
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerController::OnOpenClassPanel - ClassSelectionPanelWidgetClass is not set! Set it in Blueprint"));
+			UE_LOG(LogTemp, Error, TEXT("ActionRPGPlayerController::OnOpenClassPanel - Failed to create native class panel widget"));
 			return;
 		}
 	}

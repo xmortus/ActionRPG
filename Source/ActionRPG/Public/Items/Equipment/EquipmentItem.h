@@ -6,6 +6,7 @@
 #include "Items/Core/ItemBase.h"
 #include "Progression/Core/ProgressionTypes.h"
 #include "Items/Core/ItemTypes.h"
+#include "Skills/Core/SkillTypes.h"
 #include "EquipmentItem.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
@@ -22,6 +23,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment")
 	const TMap<EPrimaryAttribute, float>& GetPrimaryAttributeBonuses() const;
+
+	const TMap<EDamageType, float>& GetDamageResistanceBonuses() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment")
 	int32 GetRequiredLevel() const;

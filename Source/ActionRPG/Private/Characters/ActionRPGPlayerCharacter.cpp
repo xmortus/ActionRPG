@@ -8,14 +8,34 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Components/Inventory/EquipmentComponent.h"
 #include "Components/Progression/AttributeComponent.h"
+#include "Components/Progression/AcquiredAttributeComponent.h"
 #include "Components/Progression/SecondaryAttributeComponent.h"
+#include "Components/Combat/StatusEffectComponent.h"
+#include "Components/Skills/SkillManagerComponent.h"
+#include "Skills/Core/SkillBase.h"
 #include "Components/Progression/ExperienceComponent.h"
 #include "Components/Progression/ClassComponent.h"
+#include "Components/Progression/TrialComponent.h"
+#include "Components/Progression/QuestComponent.h"
+#include "Components/Progression/TrainingComponent.h"
+#include "Characters/ActionRPGEnemyCharacter.h"
+#include "EngineUtils.h"
+#include "TimerManager.h"
+#include "Combat/DamageResolution.h"
+#include "Combat/ActionRPGDamageTypes.h"
+#include "Progression/Core/SecondaryAttributeDataAsset.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimSequence.h"
+#include "Items/Equipment/EquipmentItem.h"
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
 #include "Engine/World.h"
+#include "Engine/DamageEvents.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "UObject/ConstructorHelpers.h"
 
 AActionRPGPlayerCharacter::AActionRPGPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -64,19 +84,51 @@ AActionRPGPlayerCharacter::AActionRPGPlayerCharacter(const FObjectInitializer& O
 
 	// Create Attribute Components
 	AttributeComponent = CreateDefaultSubobject<UAttributeComponent>(TEXT("AttributeComponent"));
+	AcquiredAttributeComponent = CreateDefaultSubobject<UAcquiredAttributeComponent>(TEXT("AcquiredAttributeComponent"));
+	TrainingComponent = CreateDefaultSubobject<UTrainingComponent>(TEXT("TrainingComponent"));
 	SecondaryAttributeComponent = CreateDefaultSubobject<USecondaryAttributeComponent>(TEXT("SecondaryAttributeComponent"));
+	StatusEffectComponent = CreateDefaultSubobject<UStatusEffectComponent>(TEXT("StatusEffectComponent"));
 
 	// Create Equipment Component
 	EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
 
+	MainHandAttachmentName = TEXT("HandGrip_R");
+	WeaponGripTransform = FTransform::Identity;
+	// The imported sword spans about 7.9 m in source units; display it as an 80 cm weapon.
+	// Point the blade forward and place the imported mesh's hilt on the hand socket.
+	WeaponGripTransform.SetScale3D(FVector(0.1f));
+	WeaponGripTransform.SetRotation(FRotator(0.0f, 0.0f, -90.0f).Quaternion());
+	WeaponGripTransform.SetLocation(FVector(0.0f, 0.0f, 30.0f));
+	EquippedWeaponVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EquippedWeaponVisual"));
+	EquippedWeaponVisual->SetupAttachment(GetMesh(), MainHandAttachmentName);
+	EquippedWeaponVisual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	EquippedWeaponVisual->SetGenerateOverlapEvents(false);
+	EquippedWeaponVisual->SetVisibility(false);
+
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> AttackSequence(
+		TEXT("/Game/Characters/Mannequins/Anims/Unarmed/Attack/MM_Attack_01_InPlace.MM_Attack_01_InPlace"));
+	if (AttackSequence.Succeeded())
+	{
+		BasicMeleeAttackAnimation = AttackSequence.Object;
+	}
+
 	// Create Progression Components
 	ExperienceComponent = CreateDefaultSubobject<UExperienceComponent>(TEXT("ExperienceComponent"));
 	ClassComponent = CreateDefaultSubobject<UClassComponent>(TEXT("ClassComponent"));
+	TrialComponent = CreateDefaultSubobject<UTrialComponent>(TEXT("TrialComponent"));
+	QuestComponent = CreateDefaultSubobject<UQuestComponent>(TEXT("QuestComponent"));
 }
 
 void AActionRPGPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	bIsDead = false;
+
+	if (EquipmentComponent)
+	{
+		EquipmentComponent->OnEquipmentChangedNative.AddUObject(this, &AActionRPGPlayerCharacter::HandleEquipmentChanged);
+		RefreshMainHandVisual();
+	}
 	
 	// Verify character movement component exists
 	if (!GetCharacterMovement())
@@ -106,6 +158,181 @@ void AActionRPGPlayerCharacter::BeginPlay()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("ActionRPGPlayerCharacter: InventoryComponent is NULL, cannot bind to OnItemUsed"));
 	}
+	if (StarterRegenerationSkillClass)
+	{
+		if (USkillManagerComponent* Skills = FindComponentByClass<USkillManagerComponent>())
+		{
+			USkillBase* StarterSkill = NewObject<USkillBase>(this, StarterRegenerationSkillClass);
+			if (Skills->UnlockSkill(StarterSkill) && !Skills->IsSlotOccupied(7))
+			{
+				Skills->AssignSkillToSlot(7, StarterSkill);
+			}
+		}
+	}
+	if (StarterBasicAttackSkillClass)
+	{
+		if (USkillManagerComponent* Skills = FindComponentByClass<USkillManagerComponent>())
+		{
+			USkillBase* StarterSkill = NewObject<USkillBase>(this, StarterBasicAttackSkillClass);
+			if (Skills->UnlockSkill(StarterSkill))
+			{
+				Skills->AssignMainHandSkill(StarterSkill);
+			}
+		}
+	}
+}
+
+float AActionRPGPlayerCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	if (bDodgeActive && !bIsDead && FMath::IsFinite(DamageAmount) && DamageAmount > 0.0f)
+	{
+		AActionRPGEnemyCharacter* Enemy = Cast<AActionRPGEnemyCharacter>(DamageCauser);
+		if (!Enemy && DamageCauser) Enemy = Cast<AActionRPGEnemyCharacter>(DamageCauser->GetOwner());
+		if (!Enemy && EventInstigator) Enemy = Cast<AActionRPGEnemyCharacter>(EventInstigator->GetPawn());
+		if (Enemy && !Enemy->IsDead()) RecordSuccessfulDodge(Enemy);
+		return 0.0f;
+	}
+	if (!SecondaryAttributeComponent)
+	{
+		return 0.0f;
+	}
+
+	const float CurrentHealth = SecondaryAttributeComponent->GetCurrentSecondaryAttribute(ESecondaryAttribute::MaxHealth);
+	const TOptional<EDamageType> DamageKind = FActionRPGDamageTypes::GetKind(DamageEvent.DamageTypeClass);
+	const bool bPhysicalHit = DamageKind.IsSet() && DamageKind.GetValue() == EDamageType::Physical;
+	const float Armor = bPhysicalHit ? SecondaryAttributeComponent->GetSecondaryAttribute(ESecondaryAttribute::Armor) : 0.0f;
+	const USecondaryAttributeDataAsset* Rules = SecondaryAttributeComponent->SecondaryAttributeDataAsset;
+	const float ArmorScale = Rules ? Rules->ArmorMitigationScale : 100.0f;
+	float ResistedDamage = DamageAmount;
+	if (DamageKind.IsSet())
+	{
+		ResistedDamage *= 1.0f - SecondaryAttributeComponent->GetDamageResistancePercent(DamageKind.GetValue()) / 100.0f;
+	}
+	const FActionRPGDamageResult Result = bPhysicalHit
+		? FActionRPGDamageResolver::ResolvePhysical(ResistedDamage, CurrentHealth, bIsDead, Armor, ArmorScale)
+		: FActionRPGDamageResolver::Resolve(ResistedDamage, CurrentHealth, bIsDead);
+	if (Result.AppliedDamage <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	Super::TakeDamage(Result.AppliedDamage, DamageEvent, EventInstigator, DamageCauser);
+	SecondaryAttributeComponent->SetCurrentSecondaryAttribute(ESecondaryAttribute::MaxHealth, Result.RemainingHealth);
+	if (Result.bKilled)
+	{
+		HandleDeath(DamageCauser);
+	}
+	else if (Result.AppliedDamage >= 5.0f && TrainingComponent)
+	{
+		AActionRPGEnemyCharacter* Enemy = Cast<AActionRPGEnemyCharacter>(DamageCauser);
+		if (!Enemy && DamageCauser) Enemy = Cast<AActionRPGEnemyCharacter>(DamageCauser->GetOwner());
+		if (!Enemy && EventInstigator) Enemy = Cast<AActionRPGEnemyCharacter>(EventInstigator->GetPawn());
+		if (Enemy && !Enemy->IsDead())
+		{
+			TrainingComponent->RecordPractice(EPrimaryAttribute::Constitution, TEXT("SurviveEnemyHit"), Enemy);
+		}
+	}
+	return Result.AppliedDamage;
+}
+
+void AActionRPGPlayerCharacter::HandleDeath(AActor* DamageCauser)
+{
+	if (bIsDead)
+	{
+		return;
+	}
+	bIsDead = true;
+	GetWorldTimerManager().ClearTimer(DodgeEndTimer);
+	bDodgeActive = false;
+	DodgePracticeTarget = nullptr;
+	if (StatusEffectComponent) StatusEffectComponent->RemoveEffectsOnDeath();
+	if (SecondaryAttributeComponent)
+	{
+		SecondaryAttributeComponent->SetHealthRegenerationSuppressed(true);
+	}
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->StopMovementImmediately();
+		Movement->DisableMovement();
+	}
+	OnPlayerDied.Broadcast(this, DamageCauser);
+}
+
+bool AActionRPGPlayerCharacter::Revive(float HealthFraction)
+{
+	if (!bIsDead || !SecondaryAttributeComponent || !FMath::IsFinite(HealthFraction)
+		|| HealthFraction <= 0.0f || HealthFraction > 1.0f)
+	{
+		return false;
+	}
+	const float MaxHealth = SecondaryAttributeComponent->GetSecondaryAttribute(ESecondaryAttribute::MaxHealth);
+	if (!FMath::IsFinite(MaxHealth) || MaxHealth <= 0.0f)
+	{
+		return false;
+	}
+	bIsDead = false;
+	SecondaryAttributeComponent->SetCurrentSecondaryAttribute(
+		ESecondaryAttribute::MaxHealth, FMath::Max(1.0f, MaxHealth * HealthFraction));
+	SecondaryAttributeComponent->SetHealthRegenerationSuppressed(false);
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->SetMovementMode(MOVE_Walking);
+	}
+	OnPlayerRevived.Broadcast(this);
+	return true;
+}
+
+void AActionRPGPlayerCharacter::HandleEquipmentChanged(EEquipmentSlot Slot, UEquipmentItem* Item)
+{
+	if (Slot == EEquipmentSlot::MainHand)
+	{
+		RefreshMainHandVisual();
+	}
+}
+
+void AActionRPGPlayerCharacter::RefreshMainHandVisual()
+{
+	if (!EquippedWeaponVisual || !EquipmentComponent || !GetMesh())
+	{
+		return;
+	}
+
+	const FName AttachmentName = GetMesh()->DoesSocketExist(MainHandAttachmentName)
+		? MainHandAttachmentName : FName(TEXT("hand_r"));
+	if (!GetMesh()->DoesSocketExist(AttachmentName))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Player weapon visual: no main-hand bone or socket on the character mesh"));
+		EquippedWeaponVisual->SetStaticMesh(nullptr);
+		EquippedWeaponVisual->SetVisibility(false);
+		return;
+	}
+
+	EquippedWeaponVisual->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentName);
+	EquippedWeaponVisual->SetRelativeTransform(WeaponGripTransform);
+
+	const UEquipmentItem* MainHandItem = EquipmentComponent->GetEquippedItem(EEquipmentSlot::MainHand);
+	UStaticMesh* WeaponMesh = MainHandItem && MainHandItem->ItemData
+		? MainHandItem->ItemData->EquippedWeaponMesh.Get() : nullptr;
+	EquippedWeaponVisual->SetStaticMesh(WeaponMesh);
+	EquippedWeaponVisual->SetVisibility(WeaponMesh != nullptr);
+}
+
+void AActionRPGPlayerCharacter::PlayBasicMeleeAttackAnimation(float PlayRate)
+{
+	if (!BasicMeleeAttackAnimation || !GetMesh())
+	{
+		return;
+	}
+
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		if (!AnimInstance->PlaySlotAnimationAsDynamicMontage(
+			BasicMeleeAttackAnimation, TEXT("DefaultSlot"), 0.08f, 0.15f, FMath::Max(1.0f, PlayRate)))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Player melee attack animation could not play on DefaultSlot"));
+		}
+	}
 }
 
 void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)
@@ -128,6 +355,7 @@ void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)
 	FVector Direction = (ForwardVector * MovementVector.X) + (RightVector * MovementVector.Y);
 	Direction.Z = 0.0f; // Keep movement on horizontal plane
 	Direction.Normalize();
+	LastMovementDirection = Direction;
 
 	// Apply movement to Character Movement Component
 	if (GetCharacterMovement())
@@ -138,6 +366,86 @@ void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Move: CharacterMovementComponent is NULL!"));
 	}
+}
+
+bool AActionRPGPlayerCharacter::TryDodge()
+{
+	UWorld* World = GetWorld();
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!World || bIsDead || bDodgeActive || !Movement || Movement->MovementMode == MOVE_None ||
+		!SecondaryAttributeComponent || !FMath::IsFinite(DodgeStaminaCost) || DodgeStaminaCost < 0.0f ||
+		!FMath::IsFinite(DodgeCooldownSeconds) || DodgeCooldownSeconds <= 0.0f ||
+		!FMath::IsFinite(DodgeDurationSeconds) || DodgeDurationSeconds <= 0.0f ||
+		!FMath::IsFinite(DodgeLaunchSpeed) || DodgeLaunchSpeed <= 0.0f ||
+		World->GetTimeSeconds() - LastDodgeStartTime < DodgeCooldownSeconds ||
+		!SecondaryAttributeComponent->TrySpendResource(ESecondaryAttribute::MaxStamina, DodgeStaminaCost))
+	{
+		return false;
+	}
+
+	DodgePracticeTarget = nullptr;
+	float BestDistance = 400.0f;
+	for (TActorIterator<AActionRPGEnemyCharacter> It(World); It; ++It)
+	{
+		if (It->IsDead()) continue;
+		const float Distance = FVector::Dist2D(GetActorLocation(), It->GetActorLocation());
+		if (Distance < BestDistance)
+		{
+			BestDistance = Distance;
+			DodgePracticeTarget = *It;
+		}
+	}
+
+	FVector Direction = LastMovementDirection.GetSafeNormal2D();
+	if (Direction.IsNearlyZero() && DodgePracticeTarget)
+	{
+		Direction = (GetActorLocation() - DodgePracticeTarget->GetActorLocation()).GetSafeNormal2D();
+	}
+	if (Direction.IsNearlyZero()) Direction = -GetActorForwardVector().GetSafeNormal2D();
+	if (Direction.IsNearlyZero()) Direction = FVector::BackwardVector;
+
+	DodgeStartLocation = GetActorLocation();
+	DodgeStartTargetDistance = DodgePracticeTarget
+		? FVector::Dist2D(DodgeStartLocation, DodgePracticeTarget->GetActorLocation()) : 0.0f;
+	bDodgePracticeAwarded = false;
+	bDodgeSuccessNoted = false;
+	bDodgeActive = true;
+	LastDodgeStartTime = World->GetTimeSeconds();
+	LaunchCharacter(Direction * DodgeLaunchSpeed, true, false);
+	World->GetTimerManager().SetTimer(DodgeEndTimer, this, &AActionRPGPlayerCharacter::FinishDodge,
+		DodgeDurationSeconds, false);
+	return true;
+}
+
+void AActionRPGPlayerCharacter::RecordSuccessfulDodge(AActionRPGEnemyCharacter* Enemy)
+{
+	if (!bDodgeSuccessNoted && IsValid(Enemy))
+	{
+		bDodgeSuccessNoted = true;
+	}
+	if (!bDodgePracticeAwarded && TrainingComponent && IsValid(Enemy))
+	{
+		bDodgePracticeAwarded = TrainingComponent->RecordPractice(
+			EPrimaryAttribute::Agility, TEXT("CombatDodge"), Enemy);
+	}
+}
+
+void AActionRPGPlayerCharacter::FinishDodge()
+{
+	if (!bDodgeActive) return;
+	GetWorldTimerManager().ClearTimer(DodgeEndTimer);
+	bDodgeActive = false;
+	if (!bDodgePracticeAwarded && !bIsDead && IsValid(DodgePracticeTarget) && !DodgePracticeTarget->IsDead())
+	{
+		const float Displacement = FVector::Dist2D(DodgeStartLocation, GetActorLocation());
+		const float SeparationGain = FVector::Dist2D(GetActorLocation(), DodgePracticeTarget->GetActorLocation())
+			- DodgeStartTargetDistance;
+		if (Displacement >= 100.0f && SeparationGain >= 80.0f)
+		{
+			RecordSuccessfulDodge(DodgePracticeTarget);
+		}
+	}
+	DodgePracticeTarget = nullptr;
 }
 
 void AActionRPGPlayerCharacter::Look(const FVector2D& LookVector)

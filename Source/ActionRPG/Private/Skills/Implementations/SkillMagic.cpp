@@ -6,6 +6,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Actors/SkillProjectile.h"
 #include "Components/Skills/SkillComponent.h"
+#include "Components/Progression/AttributeComponent.h"
 #include "Engine/Engine.h"
 
 USkillMagic::USkillMagic()
@@ -14,9 +15,7 @@ USkillMagic::USkillMagic()
 
 USkillBase* USkillMagic::Activate(AActor* Target)
 {
-	// Call parent to handle cooldown and validation
-	USkillBase* Result = Super::Activate(Target);
-	if (!Result)
+	if (!CanActivate(Target))
 	{
 		return nullptr;
 	}
@@ -25,27 +24,27 @@ USkillBase* USkillMagic::Activate(AActor* Target)
 	if (!OwnerActor)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillMagic::Activate - OwnerActor is null"));
-		return this;
+		return nullptr;
 	}
 
 	ACharacter* OwnerCharacter = Cast<ACharacter>(OwnerActor);
 	if (!OwnerCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillMagic::Activate - OwnerActor is not a Character"));
-		return this;
+		return nullptr;
 	}
 
 	if (!SkillData)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillMagic::Activate - SkillData is null"));
-		return this;
+		return nullptr;
 	}
 
 	// Check if ProjectileClass is set
 	if (!SkillData->ProjectileClass)
 	{
 		UE_LOG(LogTemp, Error, TEXT("SkillMagic::Activate - ProjectileClass is not set in SkillDataAsset"));
-		return this;
+		return nullptr;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Executing magic attack from %s"), *OwnerActor->GetName());
@@ -60,7 +59,12 @@ USkillBase* USkillMagic::Activate(AActor* Target)
 	if (!Projectile)
 	{
 		UE_LOG(LogTemp, Error, TEXT("SkillMagic::Activate - Failed to spawn projectile"));
-		return this;
+		return nullptr;
+	}
+	if (!Super::Activate(Target))
+	{
+		Projectile->Destroy();
+		return nullptr;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Spawned projectile %s at location %s"),
@@ -183,12 +187,13 @@ float USkillMagic::GetProjectileSpeed() const
 
 float USkillMagic::GetAttackDamage() const
 {
-	if (SkillData)
-	{
-		return SkillData->BaseDamage;
-	}
-
-	return 0.0f;
+	const float BaseDamage = SkillData && FMath::IsFinite(SkillData->BaseDamage)
+		? FMath::Max(0.0f, SkillData->BaseDamage) : 0.0f;
+	const UAttributeComponent* Attributes = OwnerActor ? OwnerActor->FindComponentByClass<UAttributeComponent>() : nullptr;
+	const float Intelligence = Attributes ? FMath::Max(0.0f, Attributes->GetAttribute(EPrimaryAttribute::Intelligence)) : 0.0f;
+	const float PerIntelligence = SkillData && FMath::IsFinite(SkillData->MagicDamagePerIntelligence)
+		? FMath::Max(0.0f, SkillData->MagicDamagePerIntelligence) : 0.0f;
+	return (BaseDamage + Intelligence * PerIntelligence) * GetDamageMultiplier();
 }
 
 float USkillMagic::GetAreaOfEffectRadius() const

@@ -44,6 +44,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Pickup")
 	int32 GetQuantity() const { return Quantity; }
+	float GetInteractionRange() const { return InteractionRange; }
 
 	// Pickup Logic (public for cursor-based pickup)
 	UFUNCTION(BlueprintCallable, Category = "Pickup")

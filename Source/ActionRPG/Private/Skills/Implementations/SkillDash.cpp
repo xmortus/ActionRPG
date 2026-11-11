@@ -57,12 +57,27 @@ USkillBase* USkillDash::Activate(AActor* Target)
 
 float USkillDash::GetDashSpeed() const
 {
-	if (SkillData && SkillData->AbilityMoveSpeed > 0.0f)
-	{
-		return SkillData->AbilityMoveSpeed;
-	}
+	const float BaseSpeed = SkillData && FMath::IsFinite(SkillData->AbilityMoveSpeed) && SkillData->AbilityMoveSpeed > 0.0f
+		? SkillData->AbilityMoveSpeed : 1200.0f;
+	if (!SkillData) return BaseSpeed;
+	const float PerLevel = FMath::IsFinite(SkillData->DashSpeedPercentPerLevel)
+		? FMath::Max(0.0f, SkillData->DashSpeedPercentPerLevel) : 0.0f;
+	const float MaxMultiplier = FMath::IsFinite(SkillData->MaxDashSpeedMultiplier)
+		? FMath::Max(1.0f, SkillData->MaxDashSpeedMultiplier) : 1.0f;
+	const float LevelsGained = static_cast<float>(FMath::Max(0, SkillLevel - 1));
+	return BaseSpeed * FMath::Clamp(1.0f + LevelsGained * PerLevel / 100.0f, 1.0f, MaxMultiplier);
+}
 
-	return 1200.0f;
+float USkillDash::GetStaminaCost() const
+{
+	const float BaseCost = Super::GetStaminaCost();
+	if (!SkillData || !FMath::IsFinite(BaseCost) || BaseCost <= 0.0f) return 0.0f;
+	const float Reduction = FMath::IsFinite(SkillData->DashStaminaReductionPerLevel)
+		? FMath::Max(0.0f, SkillData->DashStaminaReductionPerLevel) : 0.0f;
+	const float Minimum = FMath::IsFinite(SkillData->MinDashStaminaCost)
+		? FMath::Clamp(SkillData->MinDashStaminaCost, 0.0f, BaseCost) : BaseCost;
+	const float LevelsGained = static_cast<float>(FMath::Max(0, SkillLevel - 1));
+	return FMath::Max(Minimum, BaseCost - LevelsGained * Reduction);
 }
 
 float USkillDash::GetInvincibilityFrames() const

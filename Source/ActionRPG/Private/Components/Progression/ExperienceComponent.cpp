@@ -10,7 +10,9 @@ UExperienceComponent::UExperienceComponent()
 
 void UExperienceComponent::AddExperience(float Amount)
 {
-	if (Amount <= 0.0f)
+	if (!FMath::IsFinite(Amount) || Amount <= 0.0f ||
+		!FMath::IsFinite(UnallocatedExperience + Amount) ||
+		!FMath::IsFinite(TotalExperience + Amount))
 	{
 		return;
 	}
@@ -22,7 +24,7 @@ void UExperienceComponent::AddExperience(float Amount)
 
 bool UExperienceComponent::CanSpendExperience(float Amount) const
 {
-	return Amount > 0.0f && UnallocatedExperience >= Amount;
+	return FMath::IsFinite(Amount) && Amount > 0.0f && UnallocatedExperience >= Amount;
 }
 
 bool UExperienceComponent::SpendExperience(float Amount)

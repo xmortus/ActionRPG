@@ -7,9 +7,11 @@
 #include "Progression/Core/ProgressionTypes.h"
 #include "ProfessionDataAsset.generated.h"
 
-/**
- * Data Asset for defining profession properties and bonuses.
- */
+class USkillBase;
+class USkillDataAsset;
+class UCraftingRecipeDataAsset;
+
+	/** Data Asset for profession skills and fixed attribute growth. */
 UCLASS(BlueprintType)
 class ACTIONRPG_API UProfessionDataAsset : public UPrimaryDataAsset
 {
@@ -42,6 +44,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Requirements")
 	TMap<EPrimaryAttribute, float> RequiredAttributes;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Skills")
+	TSubclassOf<USkillBase> GrantedSkillClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Skills")
+	TObjectPtr<USkillDataAsset> GrantedSkillData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Crafting")
+	TArray<TObjectPtr<UCraftingRecipeDataAsset>> Recipes;
+
+	/** Permanent attribute gain for each earned profession level, including level one. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Progression")
+	TMap<EPrimaryAttribute, float> AttributeGainsPerLevel;
+
+	// Legacy serialized fields. ClassComponent does not apply profession attribute bonuses.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Profession|Bonuses")
 	TMap<EPrimaryAttribute, float> PrimaryAttributeBonuses;
 

@@ -1,12 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/Inventory/InventoryWidget.h"
+#include "UI/ActionRPGUITheme.h"
+#include "UI/Common/DraggablePanelHandleWidget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/UniformGridPanel.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "UI/Inventory/InventorySlotWidget.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
 #include "UI/Inventory/InventoryContextMenuWidget.h"
+#include "UI/Equipment/EquipmentDragDropOperation.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Characters/ActionRPGPlayerCharacter.h"
 #include "GameFramework/PlayerController.h"
@@ -17,9 +24,90 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Blueprint/UserWidget.h"
 
+void UInventoryWidget::StyleInventoryLayout()
+{
+	UCanvasPanel* Canvas = WidgetTree ? Cast<UCanvasPanel>(WidgetTree->RootWidget) : nullptr;
+	if (!Canvas || !InventoryGrid || !WeightText || !CapacityText || !CloseButton)
+	{
+		return;
+	}
+
+	auto Place = [](UWidget* Widget, const FVector2D Position, const FVector2D Size, const int32 ZOrder = 0)
+	{
+		if (UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot))
+		{
+			Slot->SetAnchors(FAnchors(0.0f, 0.0f));
+			Slot->SetAlignment(FVector2D::ZeroVector);
+			Slot->SetAutoSize(false);
+			Slot->SetPosition(Position);
+			Slot->SetSize(Size);
+			Slot->SetZOrder(ZOrder);
+		}
+	};
+
+	if (UWidget* Background = WidgetTree->FindWidget(TEXT("Border")))
+	{
+		Place(Background, FVector2D::ZeroVector, FVector2D(760.0f, 500.0f), -2);
+	}
+
+	UBorder* ItemsCard = Cast<UBorder>(WidgetTree->FindWidget(TEXT("InventoryItemsCard")));
+	if (!ItemsCard)
+	{
+		ItemsCard = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("InventoryItemsCard"));
+		ItemsCard->SetBrushColor(ActionRPGUITheme::Surface());
+		ItemsCard->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		Canvas->AddChildToCanvas(ItemsCard);
+	}
+	Place(ItemsCard, FVector2D(12.0f, 72.0f), FVector2D(736.0f, 366.0f), -1);
+
+	UTextBlock* Title = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("TextBlock_27")));
+	if (Title)
+	{
+		Title->SetText(FText::FromString(TEXT("INVENTORY")));
+		Title->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		FSlateFontInfo Font = Title->GetFont();
+		Font.Size = 25;
+		Title->SetFont(Font);
+		Place(Title, FVector2D(20.0f, 14.0f), FVector2D(580.0f, 42.0f));
+	}
+
+	UTextBlock* ItemsHeading = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("InventoryItemsHeading")));
+	if (!ItemsHeading)
+	{
+		ItemsHeading = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryItemsHeading"));
+		ItemsHeading->SetText(FText::FromString(TEXT("ITEMS")));
+		ItemsHeading->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		FSlateFontInfo Font = ItemsHeading->GetFont();
+		Font.Size = 16;
+		ItemsHeading->SetFont(Font);
+		Canvas->AddChildToCanvas(ItemsHeading);
+	}
+	Place(ItemsHeading, FVector2D(24.0f, 84.0f), FVector2D(200.0f, 28.0f));
+	Place(InventoryGrid, FVector2D(20.0f, 116.0f), FVector2D(720.0f, 310.0f));
+
+	Place(WeightText, FVector2D(20.0f, 453.0f), FVector2D(220.0f, 28.0f));
+	Place(CapacityText, FVector2D(240.0f, 453.0f), FVector2D(330.0f, 28.0f));
+	WeightText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	CapacityText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+
+	if (UTextBlock* CloseLabel = Cast<UTextBlock>(CloseButton->GetContent()))
+	{
+		CloseLabel->SetText(FText::FromString(TEXT("Close [Tab]")));
+		CloseLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		FSlateFontInfo Font = CloseLabel->GetFont();
+		Font.Size = 16;
+		CloseLabel->SetFont(Font);
+	}
+	CloseButton->SetColorAndOpacity(FLinearColor::White);
+	Place(CloseButton, FVector2D(615.0f, 16.0f), FVector2D(125.0f, 36.0f));
+}
+
 void UInventoryWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ActionRPGUITheme::StyleBlueprintWidgetTree(WidgetTree);
+	StyleInventoryLayout();
+	UDraggablePanelHandleWidget::AttachToCanvasTitle(this, TEXT("TextBlock_27"));
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::NativeConstruct - Constructing inventory widget"));
 
@@ -418,10 +506,10 @@ void UInventoryWidget::SplitItemFromContextMenu(int32 SlotIndex)
 
 void UInventoryWidget::EquipItemFromContextMenu(int32 SlotIndex)
 {
-	UE_LOG(LogTemp, Log, TEXT("InventoryWidget::EquipItemFromContextMenu - Equipping item from slot %d (placeholder for future implementation)"), SlotIndex);
-	
-	// TODO: Implement equipment system in future phase
-	// For now, just log that equip was requested
+	if (InventoryComponent && InventoryComponent->EquipItemFromSlot(SlotIndex))
+	{
+		UpdateInventoryDisplay();
+	}
 }
 
 void UInventoryWidget::HideContextMenu()
@@ -796,12 +884,67 @@ bool UInventoryWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDrag
 		return true; // Accept the drag operation
 	}
 
+	UEquipmentDragDropOperation* EquipmentDragOp = Cast<UEquipmentDragDropOperation>(InOperation);
+	if (EquipmentDragOp)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("InventoryWidget::NativeOnDragOver - Accepting equipment drag operation"));
+		return true;
+	}
+
 	return Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
 }
 
 bool UInventoryWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
 	Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+
+	UEquipmentDragDropOperation* EquipmentDragOp = Cast<UEquipmentDragDropOperation>(InOperation);
+	if (EquipmentDragOp)
+	{
+		if (!InventoryComponent)
+		{
+			return false;
+		}
+
+		int32 TargetSlotIndex = -1;
+
+		// Try to find a slot under the drop location (same geometry method used for item drops)
+		FVector2D ScreenPosition = InDragDropEvent.GetScreenSpacePosition();
+		for (int32 i = 0; i < SlotWidgets.Num(); i++)
+		{
+			if (!SlotWidgets[i] || !SlotWidgets[i]->IsValidLowLevel())
+			{
+				continue;
+			}
+
+			FGeometry SlotGeometry = SlotWidgets[i]->GetCachedGeometry();
+			FVector2D SlotScreenSize = SlotGeometry.GetLocalSize() * SlotGeometry.Scale;
+			if (SlotScreenSize.X <= 0.0f || SlotScreenSize.Y <= 0.0f)
+			{
+				continue;
+			}
+
+			FVector2D SlotScreenPos = SlotGeometry.LocalToAbsolute(FVector2D::ZeroVector);
+			if (ScreenPosition.X >= SlotScreenPos.X && ScreenPosition.X <= SlotScreenPos.X + SlotScreenSize.X &&
+				ScreenPosition.Y >= SlotScreenPos.Y && ScreenPosition.Y <= SlotScreenPos.Y + SlotScreenSize.Y)
+			{
+				TargetSlotIndex = i;
+				break;
+			}
+		}
+
+		const bool bUnequipped = (TargetSlotIndex >= 0)
+			? InventoryComponent->UnequipItemToSlot(EquipmentDragOp->EquipmentSlot, TargetSlotIndex)
+			: InventoryComponent->UnequipItemToInventory(EquipmentDragOp->EquipmentSlot);
+		if (bUnequipped)
+		{
+			EquipmentDragOp->bWasHandled = true;
+			ActiveDragOperation = nullptr;
+			return true;
+		}
+
+		return false;
+	}
 
 	// Check if this is an item drag operation
 	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);

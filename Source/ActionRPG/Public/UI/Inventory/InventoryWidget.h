@@ -13,6 +13,8 @@
 
 class UInventoryComponent;
 class AActionRPGPlayerCharacter;
+class UEquipmentDragDropOperation;
+class UCanvasPanel;
 
 /**
  * Main inventory widget displaying inventory slots in a grid.
@@ -153,6 +155,7 @@ protected:
 	void OnCloseButtonClicked();
 
 private:
+	void StyleInventoryLayout();
 	/**
 	 * Handle dragging item to world (when dropped outside inventory widget).
 	 * Calculates world location from mouse position and drops item using DropItemToWorld.

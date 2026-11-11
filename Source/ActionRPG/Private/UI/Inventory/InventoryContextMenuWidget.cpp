@@ -1,16 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/Inventory/InventoryContextMenuWidget.h"
+#include "UI/ActionRPGUITheme.h"
 #include "UI/Inventory/InventoryWidget.h"
+#include "UI/Equipment/EquipmentInventoryWidget.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
+#include "Items/Equipment/EquipmentItem.h"
+#include "Components/Inventory/EquipmentComponent.h"
+#include "GameFramework/Pawn.h"
 
 void UInventoryContextMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ActionRPGUITheme::StyleBlueprintWidgetTree(WidgetTree, true);
 
 	// Bind button click handlers
 	if (UseButton)
@@ -69,8 +75,19 @@ void UInventoryContextMenuWidget::InitializeMenu(int32 InSlotIndex, UItemBase* I
 	Item = InItem;
 	Quantity = InQuantity;
 	ParentInventoryWidget = InParentWidget;
+	ParentEquipmentInventoryWidget = nullptr;
 
 	// Update button visibility based on item type
+	UpdateButtonVisibility();
+}
+
+void UInventoryContextMenuWidget::InitializeEquipmentMenu(int32 InSlotIndex, UItemBase* InItem, int32 InQuantity, UEquipmentInventoryWidget* InParentWidget)
+{
+	SlotIndex = InSlotIndex;
+	Item = InItem;
+	Quantity = InQuantity;
+	ParentInventoryWidget = nullptr;
+	ParentEquipmentInventoryWidget = InParentWidget;
 	UpdateButtonVisibility();
 }
 
@@ -78,7 +95,7 @@ void UInventoryContextMenuWidget::ShowMenuAtPosition(FVector2D ScreenPosition)
 {
 	if (!IsInViewport())
 	{
-		AddToViewport(100); // High Z-order to appear above inventory
+		AddToViewport(220); // Above inventory and equipment panels.
 	}
 
 	// Store the target position (Blueprint can access this via GetTargetScreenPosition)
@@ -130,6 +147,10 @@ void UInventoryContextMenuWidget::OnUseButtonClicked()
 	{
 		ParentInventoryWidget->UseItemFromContextMenu(SlotIndex);
 	}
+	else if (ParentEquipmentInventoryWidget)
+	{
+		ParentEquipmentInventoryWidget->UseItemFromContextMenu(SlotIndex);
+	}
 	
 	HideMenu();
 }
@@ -141,6 +162,10 @@ void UInventoryContextMenuWidget::OnDropButtonClicked()
 	if (ParentInventoryWidget)
 	{
 		ParentInventoryWidget->DropItemFromContextMenu(SlotIndex);
+	}
+	else if (ParentEquipmentInventoryWidget)
+	{
+		ParentEquipmentInventoryWidget->DropItemFromContextMenu(SlotIndex);
 	}
 	
 	HideMenu();
@@ -154,6 +179,10 @@ void UInventoryContextMenuWidget::OnSplitButtonClicked()
 	{
 		ParentInventoryWidget->SplitItemFromContextMenu(SlotIndex);
 	}
+	else if (ParentEquipmentInventoryWidget)
+	{
+		ParentEquipmentInventoryWidget->SplitItemFromContextMenu(SlotIndex);
+	}
 	
 	HideMenu();
 }
@@ -166,6 +195,10 @@ void UInventoryContextMenuWidget::OnEquipButtonClicked()
 	{
 		ParentInventoryWidget->EquipItemFromContextMenu(SlotIndex);
 	}
+	else if (ParentEquipmentInventoryWidget)
+	{
+		ParentEquipmentInventoryWidget->EquipItemFromContextMenu(SlotIndex);
+	}
 	
 	HideMenu();
 }
@@ -176,18 +209,12 @@ void UInventoryContextMenuWidget::UpdateButtonVisibility()
 	bool bShowUse = true;
 	bool bShowDrop = true;
 	bool bShowSplit = (Quantity > 1); // Only show split if quantity > 1
-	bool bShowEquip = true;
+	bool bShowEquip = false;
 
-	// Hide Equip button for Consumables, SkillItems, and SkillStones
 	if (Item && Item->ItemData)
 	{
-		EItemType ItemType = Item->ItemData->Type;
-		if (ItemType == EItemType::Consumable || 
-			ItemType == EItemType::SkillItem || 
-			ItemType == EItemType::SkillStone)
-		{
-			bShowEquip = false;
-		}
+		bShowEquip = Item->ItemData->Type == EItemType::Equipment;
+		bShowSplit = bShowSplit && Item->ItemData->MaxStackSize > 1;
 	}
 	else
 	{
@@ -217,6 +244,23 @@ void UInventoryContextMenuWidget::UpdateButtonVisibility()
 	if (EquipButton)
 	{
 		EquipButton->SetVisibility(bShowEquip ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		if (bShowEquip)
+		{
+			const APawn* Pawn = GetOwningPlayerPawn();
+			const UEquipmentComponent* Equipment = Pawn ? Pawn->FindComponentByClass<UEquipmentComponent>() : nullptr;
+			const FText Failure = Equipment
+				? Equipment->GetEquipFailureReason(Cast<UEquipmentItem>(Item))
+				: FText::FromString(TEXT("Equipment unavailable"));
+			EquipButton->SetIsEnabled(Failure.IsEmpty());
+			EquipButton->SetToolTipText(Failure);
+			if (EquipButtonText && Item && Item->ItemData)
+			{
+				const int32 RequiredLevel = FMath::Max(1, Item->ItemData->EquipmentRequiredLevel);
+				EquipButtonText->SetText(RequiredLevel > 1
+					? FText::FromString(FString::Printf(TEXT("Equip (Lv %d)"), RequiredLevel))
+					: FText::FromString(TEXT("Equip")));
+			}
+		}
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("InventoryContextMenuWidget::UpdateButtonVisibility - Use: %d, Drop: %d, Split: %d, Equip: %d"), 

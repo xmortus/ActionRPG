@@ -12,6 +12,8 @@ class UProfessionDataAsset;
 class UAttributeComponent;
 class USecondaryAttributeComponent;
 class UExperienceComponent;
+class USkillBase;
+class USkillComponent;
 
 USTRUCT(BlueprintType)
 struct FClassProgress
@@ -25,12 +27,23 @@ struct FClassProgress
 	float Experience = 0.0f;
 };
 
+USTRUCT()
+struct FClassGrantedSkillState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<TObjectPtr<USkillBase>> Instances;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClassChanged, UClassDataAsset*, NewClass);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProfessionChanged, UProfessionDataAsset*, NewProfession);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClassListChanged, UClassDataAsset*, ChangedClass, bool, bAdded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProfessionListChanged, UProfessionDataAsset*, ChangedProfession, bool, bAdded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClassExperienceChanged, UClassDataAsset*, ClassAsset, float, NewExperience);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClassLevelChanged, UClassDataAsset*, ClassAsset, int32, NewLevel);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProfessionExperienceChanged, UProfessionDataAsset*, ProfessionAsset, float, NewExperience);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProfessionLevelChanged, UProfessionDataAsset*, ProfessionAsset, int32, NewLevel);
 
 UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class ACTIONRPG_API UClassComponent : public UActorComponent
@@ -108,6 +121,21 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class")
 	float GetClassExperienceToNextLevel(UClassDataAsset* ClassAsset) const;
 
+	/** Returns the first unmet skill milestone for the next class level, if any. */
+	bool GetUnmetClassSkillRequirement(UClassDataAsset* ClassAsset, FName& OutSkillID, int32& OutRequiredLevel) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Profession")
+	int32 GetProfessionLevel(UProfessionDataAsset* ProfessionAsset) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Profession")
+	float GetProfessionExperience(UProfessionDataAsset* ProfessionAsset) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Profession")
+	float GetProfessionExperienceToNextLevel(UProfessionDataAsset* ProfessionAsset) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Profession")
+	bool AllocateExperienceToProfession(UProfessionDataAsset* ProfessionAsset, float Amount);
+
 	UFUNCTION(BlueprintCallable, Category = "Class")
 	bool AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount);
 
@@ -132,6 +160,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Class|Events")
 	FOnClassLevelChanged OnClassLevelChanged;
 
+	UPROPERTY(BlueprintAssignable, Category = "Profession|Events")
+	FOnProfessionExperienceChanged OnProfessionExperienceChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Profession|Events")
+	FOnProfessionLevelChanged OnProfessionLevelChanged;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UClassDataAsset> CurrentClass;
@@ -146,7 +180,20 @@ private:
 	TArray<TObjectPtr<UProfessionDataAsset>> SelectedProfessions;
 
 	UPROPERTY()
+	TMap<TObjectPtr<UProfessionDataAsset>, TObjectPtr<USkillBase>> GrantedProfessionSkills;
+
+	UPROPERTY()
+	TMap<TObjectPtr<UClassDataAsset>, FClassGrantedSkillState> GrantedClassSkills;
+
+	UPROPERTY()
 	TMap<TObjectPtr<UClassDataAsset>, FClassProgress> ClassProgress;
+
+	/** Highest class level whose tier-based free attribute points were awarded. */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UClassDataAsset>, int32> AwardedAttributePointLevels;
+
+	UPROPERTY()
+	TMap<TObjectPtr<UProfessionDataAsset>, FClassProgress> ProfessionProgress;
 
 	UPROPERTY()
 	TObjectPtr<UAttributeComponent> AttributeComponent;
@@ -157,12 +204,29 @@ private:
 	UPROPERTY()
 	TObjectPtr<UExperienceComponent> ExperienceComponent;
 
+	UPROPERTY()
+	TObjectPtr<USkillComponent> SkillComponent;
+
 	bool MeetsRequirements(int32 RequiredLevel, const TMap<EPrimaryAttribute, float>& RequiredAttributes) const;
+	bool GrantProfessionSkill(UProfessionDataAsset* Profession);
+	void RevokeProfessionSkill(UProfessionDataAsset* Profession);
+	bool HasValidClassSkillGrants(const UClassDataAsset* ClassAsset) const;
+	bool GrantClassSkills(UClassDataAsset* ClassAsset);
+	void RevokeClassSkills(UClassDataAsset* ClassAsset);
 	void UpdateAppliedBonuses();
+	void GrantAttributePointsForClassLevels(UClassDataAsset* ClassAsset, int32 NewLevel);
 
 	bool CanAddClass() const;
 	bool CanAddProfession() const;
 	float GetExperienceRequiredForLevel(UClassDataAsset* ClassAsset, int32 Level) const;
 
 	bool AllocateExperienceInternal(UClassDataAsset* ClassAsset, float Amount, bool bAllowUnselected);
+	bool MeetsClassSkillRequirements(UClassDataAsset* ClassAsset, int32 TargetLevel) const;
+	bool AdvanceClassIfReady(UClassDataAsset* ClassAsset, FClassProgress& Progress);
+
+	UFUNCTION()
+	void HandleSkillLevelUp(USkillBase* Skill, int32 NewLevel);
+
+	UFUNCTION()
+	void HandleSkillRevoked(USkillBase* Skill);
 };

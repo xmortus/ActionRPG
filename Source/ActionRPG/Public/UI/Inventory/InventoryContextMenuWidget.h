@@ -10,6 +10,7 @@
 #include "InventoryContextMenuWidget.generated.h"
 
 class UInventoryWidget;
+class UEquipmentInventoryWidget;
 
 /**
  * Context menu widget for inventory slots.
@@ -33,6 +34,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Context Menu")
 	void InitializeMenu(int32 InSlotIndex, class UItemBase* InItem, int32 InQuantity, UInventoryWidget* InParentWidget);
+	void InitializeEquipmentMenu(int32 InSlotIndex, class UItemBase* InItem, int32 InQuantity, UEquipmentInventoryWidget* InParentWidget);
 
 	/**
 	 * Show the context menu at the specified screen position.
@@ -112,6 +114,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UInventoryWidget> ParentInventoryWidget;
+
+	UPROPERTY()
+	TObjectPtr<UEquipmentInventoryWidget> ParentEquipmentInventoryWidget;
 
 	// Screen position where the menu should be displayed
 	UPROPERTY()

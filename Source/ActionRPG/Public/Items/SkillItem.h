@@ -21,6 +21,7 @@ class ACTIONRPG_API USkillItem : public UItemBase
 public:
 	// Item usage
 	virtual void Use() override;
+	virtual bool TryUse() override;
 	virtual bool CanUse() const override;
 
 protected:

@@ -42,9 +42,10 @@
 ---
 
 ## Step 4: Test XP Gain
-1. PIE.
-2. Call `AddExperience(100)` on the player (via Blueprint or console).
-3. Confirm unallocated XP increases (Output Log or UI).
+1. The 5.8 project includes a native `AExperiencePickupActor` with `ExperienceAmount` set to 25 by default. Place an instance in a test level, or spawn it from C++ when a reward is earned. It is not placed in the current level by default.
+2. PIE and move the player into the pickup. Confirm unallocated and total XP each increase by the configured amount and the pickup disappears; it must not award XP twice. Avoid spawning the pickup already overlapping the player at PlayerStart when testing entry-overlap behavior.
+3. Other gameplay reward sources can call `ExperienceComponent::AddExperience(Amount)` when those systems exist. The current project does not yet have an enemy-death or quest-completion hook.
+4. For the class-panel numeric input, type an amount and click Allocate once; confirm XP is spent and the class row updates. Verified in UE 5.8 PIE on 2026-10-22: 25 XP was awarded and allocated with one click, and the Warrior row showed `25 / 100`.
 
 ---
 
@@ -83,6 +84,13 @@
    - Class selection success/failure
    - Bonus application events
    - Attribute point allocation events
+
+## Blacksmith Crafting Check (UE 5.8)
+1. Complete a trial to earn at least 100 unallocated XP. First Steps now awards exactly 100 XP.
+2. Open the class panel with **B** and click Blacksmith. This targets Blacksmith for XP but must not yet grant the profession or its crafting skill. Enter 100 and click **Assign**; Blacksmith unlocks at level 1 and the 100 XP is consumed.
+3. Collect the Iron Ore pickup near PlayerStart in `/Game/NewMap`; it adds 2 Iron Ore (`DA_Item_IronOre`) to inventory on overlap. Confirm Blacksmith Crafting appears among unlocked skills and assign it to a skill-bar slot.
+4. Activate the skill. It crafts the first available Blacksmith recipe: consumes 2 Iron Ore and adds 1 Iron Sword. Without enough ore or inventory capacity, it must not change the inventory.
+5. Remove or replace Blacksmith and confirm Blacksmith Crafting is revoked and any assigned skill-bar slot is cleared. Reselecting the already-unlocked profession costs no additional XP. Profession selection must not change attribute bonuses.
 
 ---
 

@@ -18,6 +18,9 @@ USkillDataAsset::USkillDataAsset()
 	CastTime = 0.0f;
 	Range = 0.0f;
 	RequiredLevel = 1;
+	RequiredClass = nullptr;
+	RequiredClassLevel = 1;
+	SkillPointCost = 1;
 	BaseDamage = 0.0f;
 	DamageType = EDamageType::Physical;
 	AreaOfEffectRadius = 0.0f;

@@ -1,6 +1,6 @@
 # Documentation Index
 **ActionRPG Project Documentation**  
-**Last Updated:** 2025-01-07
+**Last Updated:** 2026-10-18
 
 ---
 
@@ -9,6 +9,7 @@
 ### 🚀 Getting Started
 - [Phase 2 Quick Reference](./Phase2_Quick_Reference.md) - Quick start guide and checklist
 - [Architecture Design Plan](./Architecture_Design_Plan.md) - Overall system architecture
+- [C++-Only Migration Plan](./Cpp_Only_Migration_Plan.md) - Blueprint-to-native migration roadmap
 
 ### 📚 System Documentation
 - [Inventory System Architecture](./Inventory_System_Architecture.md) - Complete inventory system documentation
@@ -22,8 +23,7 @@
 
 ### ⚙️ Setup & Configuration
 - [Phase 2 InventoryComponent Settings Guide](./Phase2_InventoryComponent_Settings_Guide.md) - Component settings reference
-- [Phase 2 Manual Steps Days 15-16](./Phase2_Manual_Steps_Days15-16.md) - Inventory component setup
-- [Phase 2 Manual Steps Days 17-18](./Phase2_Manual_Steps_Days17-18.md) - Item pickup setup
+- [Phase 2 Manual Steps](./Phase2_Manual_Steps_Complete.md) - Inventory and item-pickup editor setup
 
 ### 📋 Implementation Plans
 - [Phase 2 Implementation Plan](./Phase2_Implementation_Plan.md) - Detailed implementation plan
@@ -32,6 +32,11 @@
 ### 📝 Phase 1 Documentation
 - [Phase 1 Manual Steps Complete](./Phase1_Manual_Steps_Complete.md) - Phase 1 setup guide
 - [Phase 1 Implementation Plan](./Phase1_Implementation_Plan.md) - Phase 1 plan
+
+### 🧩 Current Feature Work
+- [Phase 3 Implementation Plan](./Phase3_Implementation_Plan.md) - Skills system
+- [Phase 4 Implementation Plan](./Phase4_Implementation_Plan.md) - Progression, equipment, and class UI
+- [Phase 5 Trials Implementation Plan](./Phase5_Trials_Implementation_Plan.md) - Trial lifecycle, rewards, sample content, and UI
 
 ---
 
@@ -57,7 +62,7 @@
 
 ---
 
-## Recent Updates (2025-01-07)
+## Recent Updates (2026-10-17)
 
 ### Major Changes
 1. **UE 5.7 Compliance Updates**
@@ -115,7 +120,7 @@
 3. Check console logs for detailed error messages
 
 ### For Implementation
-1. Follow [Phase 2 Manual Steps](./Phase2_Manual_Steps_Days15-16.md) for setup
+1. Follow [Phase 2 Manual Steps](./Phase2_Manual_Steps_Complete.md) for setup
 2. Reference [Phase 2 Implementation Plan](./Phase2_Implementation_Plan.md) for details
 3. Use [Phase 2 Quick Reference](./Phase2_Quick_Reference.md) for quick lookups
 

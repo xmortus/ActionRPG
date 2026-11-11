@@ -23,11 +23,12 @@ public:
 
 	// Override Activate to implement dash logic
 	virtual USkillBase* Activate(AActor* Target = nullptr) override;
+	virtual float GetStaminaCost() const override;
 
-protected:
-	/** Get dash speed from SkillDataAsset. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill|Movement")
 	float GetDashSpeed() const;
 
+protected:
 	/** Get invincibility duration from SkillDataAsset. */
 	float GetInvincibilityFrames() const;
 

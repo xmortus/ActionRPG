@@ -7,11 +7,12 @@
 #include "SkillMeleeAttack.generated.h"
 
 class AActor;
-struct FHitResult;
+class UDamageType;
+class UItemDataAsset;
 
 /**
  * Melee Attack skill implementation.
- * Performs a melee attack using sphere trace for hit detection.
+ * Performs a short-range melee overlap for hit detection.
  * Applies damage to all valid targets within range.
  */
 UCLASS(BlueprintType, Blueprintable)
@@ -25,12 +26,19 @@ public:
 	// Override Activate to implement melee attack logic
 	virtual USkillBase* Activate(AActor* Target = nullptr) override;
 
+	/** Uses the equipped damaging weapon's type, or the skill's type when unarmed. */
+	TSubclassOf<UDamageType> GetMeleeDamageTypeClass() const;
+
+	float GetAttackDamage() const;
+	virtual float GetEffectiveCooldownDuration() const override;
+
 protected:
+	const UItemDataAsset* GetMainHandWeaponData() const;
 	/**
-	 * Perform melee hit detection using sphere trace.
-	 * @return Array of hit results for valid targets
+	 * Find unique pawn targets in melee reach, favoring the facing direction.
+	 * @return Actors that can be damaged by this swing
 	 */
-	TArray<FHitResult> PerformMeleeHitDetection() const;
+	TArray<AActor*> PerformMeleeHitDetection() const;
 
 	/**
 	 * Apply damage to a target actor.
@@ -52,5 +60,4 @@ protected:
 	 * May scale with skill level in the future.
 	 * @return Attack damage value
 	 */
-	float GetAttackDamage() const;
 };

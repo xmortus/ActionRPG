@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/Inventory/InventoryComponent.h"
+#include "Items/Equipment/WeaponItem.h"
 #include "Items/Core/ItemBase.h"
 #include "Items/Core/ItemDataAsset.h"
 #include "Items/Core/ItemTypes.h"
+#include "Crafting/CraftingRecipeDataAsset.h"
 #include "Items/Pickups/ItemPickupActor.h"
 #include "Items/Equipment/EquipmentItem.h"
 #include "Components/Inventory/EquipmentComponent.h"
 #include "Components/Progression/SecondaryAttributeComponent.h"
+#include "Components/Progression/TrialComponent.h"
 #include "Engine/World.h"
 
 UInventoryComponent::UInventoryComponent()
@@ -31,7 +34,7 @@ UInventoryComponent::UInventoryComponent()
 
 void UInventoryComponent::BeginPlay()
 {
-	UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::BeginPlay - CALLED! This will initialize/reset slots."));
+	UE_LOG(LogTemp, Verbose, TEXT("InventoryComponent::BeginPlay - normalizing slot state"));
 	
 	// Check if we have any items before clearing
 	int32 ItemsBeforeBeginPlay = 0;
@@ -40,7 +43,7 @@ void UInventoryComponent::BeginPlay()
 		if (InventorySlots[i].Item && InventorySlots[i].Quantity > 0)
 		{
 			ItemsBeforeBeginPlay++;
-			UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::BeginPlay - WARNING: Slot %d has item before BeginPlay! Item=%s, Quantity=%d"),
+			UE_LOG(LogTemp, Verbose, TEXT("InventoryComponent::BeginPlay - preserving slot %d item=%s quantity=%d"),
 				i,
 				InventorySlots[i].Item->ItemData ? *InventorySlots[i].Item->ItemData->ItemName.ToString() : TEXT("NULL ItemData"),
 				InventorySlots[i].Quantity);
@@ -49,7 +52,7 @@ void UInventoryComponent::BeginPlay()
 	
 	if (ItemsBeforeBeginPlay > 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("InventoryComponent::BeginPlay - ERROR: %d items will be lost because BeginPlay is clearing slots!"), ItemsBeforeBeginPlay);
+		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::BeginPlay - preserving %d preloaded item slots"), ItemsBeforeBeginPlay);
 	}
 
 	Super::BeginPlay();
@@ -88,6 +91,10 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 	if (!Item || !Item->ItemData || Quantity <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::AddItem - Invalid item or quantity"));
+		return false;
+	}
+	if (const UWeaponItem* Weapon = Cast<UWeaponItem>(Item); Weapon && Weapon->IsBoundToOtherOwner(GetOwner()))
+	{
 		return false;
 	}
 
@@ -138,6 +145,10 @@ bool UInventoryComponent::AddItem(UItemBase* Item, int32 Quantity)
 
 		NewItem->ItemData = Item->ItemData;
 		NewItem->Quantity = StackSize;
+		if (UWeaponItem* Weapon = Cast<UWeaponItem>(NewItem); Weapon && !Weapon->BindToOwner(GetOwner()))
+		{
+			return false;
+		}
 
 		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::AddItem - Item instance created: %s (Quantity: %d, ItemData: %s, Outer: Component)"),
 			NewItem ? TEXT("Valid") : TEXT("nullptr"),
@@ -256,7 +267,6 @@ bool UInventoryComponent::MoveItem(int32 FromSlot, int32 ToSlot)
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::MoveItem - Invalid slot indices: %d -> %d"), FromSlot, ToSlot);
 		return false;
 	}
-
 	if (FromSlot == ToSlot)
 	{
 		return true; // Nothing to do
@@ -279,6 +289,7 @@ bool UInventoryComponent::MoveItem(int32 FromSlot, int32 ToSlot)
 		
 		BroadcastInventoryChanged(FromSlot, nullptr);
 		BroadcastInventoryChanged(ToSlot, ToSlotRef.Item);
+		ReconcileQuickUseBindings();
 		
 		return true;
 	}
@@ -294,16 +305,47 @@ bool UInventoryComponent::MoveItem(int32 FromSlot, int32 ToSlot)
 			if (AvailableSpace > 0)
 			{
 				int32 StackAmount = FMath::Min(AvailableSpace, FromSlotRef.Quantity);
+				UItemBase* SourceItem = FromSlotRef.Item;
 				ToSlotRef.Quantity += StackAmount;
 				FromSlotRef.Quantity -= StackAmount;
+				ToSlotRef.Item->Quantity = ToSlotRef.Quantity;
 
 				if (FromSlotRef.Quantity <= 0)
 				{
 					FromSlotRef = FInventorySlot(); // Clear source slot
 				}
+				else
+				{
+					FromSlotRef.Item->Quantity = FromSlotRef.Quantity;
+				}
 
 				BroadcastInventoryChanged(FromSlot, FromSlotRef.Item);
 				BroadcastInventoryChanged(ToSlot, ToSlotRef.Item);
+				if (FromSlotRef.bIsEmpty)
+				{
+					bool bDestinationBound = false;
+					for (const FQuickUseSlot& QuickSlot : QuickUseSlots)
+					{
+						if (QuickSlot.Item == ToSlotRef.Item) bDestinationBound = true;
+					}
+					for (int32 QuickIndex = 0; QuickIndex < QuickUseSlots.Num(); ++QuickIndex)
+					{
+						FQuickUseSlot& QuickSlot = QuickUseSlots[QuickIndex];
+						if (QuickSlot.Item != SourceItem) continue;
+						if (bDestinationBound)
+						{
+							ClearQuickUseSlot(QuickIndex);
+						}
+						else
+						{
+							QuickSlot.Item = ToSlotRef.Item;
+							QuickSlot.InventorySlotIndex = ToSlot;
+							OnQuickUseSlotChanged.Broadcast(QuickIndex, QuickSlot.Item);
+							bDestinationBound = true;
+						}
+					}
+				}
+				ReconcileQuickUseBindings();
 				
 				return true;
 			}
@@ -334,6 +376,7 @@ bool UInventoryComponent::SwapItems(int32 SlotA, int32 SlotB)
 	// Broadcast events
 	BroadcastInventoryChanged(SlotA, InventorySlots[SlotA].Item);
 	BroadcastInventoryChanged(SlotB, InventorySlots[SlotB].Item);
+	ReconcileQuickUseBindings();
 
 	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::SwapItems - Swapped slots %d <-> %d"), SlotA, SlotB);
 
@@ -377,6 +420,10 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 	}
 
 	// Get item ID for type-specific validation
+	if (!Slot.Item->CanUse())
+	{
+		return false;
+	}
 	FName ItemID = Slot.Item->ItemData->ItemID;
 
 	const bool bIsHealthPotion = (ItemID == FName("HealthPotion") || ItemID == FName("healthpotion"));
@@ -423,18 +470,13 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 			return false;
 		}
 
-		SecondaryAttributeComponent->ModifyCurrentSecondaryAttribute(TargetAttribute, RestoreAmount);
+		if (!SecondaryAttributeComponent->RestoreResource(TargetAttribute, RestoreAmount))
+		{
+			return false;
+		}
 		const float NewValue = SecondaryAttributeComponent->GetCurrentSecondaryAttribute(TargetAttribute);
 		UE_LOG(LogTemp, Log, TEXT("InventoryComponent::UseItem - Restored %.1f %s (%.1f -> %.1f/%.1f)"),
 			RestoreAmount, AttributeLabel, CurrentValue, NewValue, MaxValue);
-	}
-
-	// Check if item can be used (item-specific validation)
-	if (!Slot.Item->CanUse())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UseItem - Item cannot be used: %s (Slot: %d)"), 
-			*Slot.Item->ItemData->ItemName.ToString(), SlotIndex);
-		return false;
 	}
 
 	// Get item type for type-specific handling
@@ -476,8 +518,11 @@ bool UInventoryComponent::UseItem(int32 SlotIndex)
 		break;
 	}
 
-	// Use the item (calls ItemBase::Use() which broadcasts OnItemUsed)
-	Slot.Item->Use();
+	// Do not consume or broadcast a use when a skill grant fails after preflight.
+	if (!Slot.Item->TryUse())
+	{
+		return false;
+	}
 
 	// Broadcast inventory event
 	OnItemUsed.Broadcast(Slot.Item);
@@ -532,11 +577,225 @@ int32 UInventoryComponent::FindItemSlot(const FName& ItemID) const
 	return INDEX_NONE;
 }
 
+int32 UInventoryComponent::CountItemData(const UItemDataAsset* ItemData) const
+{
+	if (!ItemData)
+	{
+		return 0;
+	}
+
+	int32 Count = 0;
+	for (const FInventorySlot& Slot : InventorySlots)
+	{
+		if (!Slot.bIsEmpty && Slot.Item && Slot.Item->ItemData == ItemData && Slot.Quantity > 0)
+		{
+			Count += Slot.Quantity;
+		}
+	}
+	return Count;
+}
+
+bool UInventoryComponent::BuildCraftPlan(const UCraftingRecipeDataAsset* Recipe, TArray<int32>& Quantities,
+	TArray<int32>& Consumed, TArray<int32>& Added) const
+{
+	Quantities.Reset();
+	Consumed.Reset();
+	Added.Reset();
+	if (!Recipe || Recipe->Ingredients.IsEmpty() || !Recipe->OutputItem || Recipe->OutputQuantity <= 0 ||
+		Recipe->OutputItem->MaxStackSize <= 0 || !FMath::IsFinite(Recipe->OutputItem->Weight) || Recipe->OutputItem->Weight < 0.0f)
+	{
+		return false;
+	}
+
+	const int32 NumSlots = InventorySlots.Num();
+	Quantities.Init(0, NumSlots);
+	Consumed.Init(0, NumSlots);
+	Added.Init(0, NumSlots);
+	for (int32 Index = 0; Index < NumSlots; ++Index)
+	{
+		const FInventorySlot& Slot = InventorySlots[Index];
+		if (!Slot.bIsEmpty && Slot.Item && Slot.Item->ItemData && Slot.Quantity > 0)
+		{
+			Quantities[Index] = Slot.Quantity;
+		}
+	}
+
+	for (const FCraftingIngredient& Ingredient : Recipe->Ingredients)
+	{
+		if (!Ingredient.Item || Ingredient.Quantity <= 0)
+		{
+			return false;
+		}
+		int32 Remaining = Ingredient.Quantity;
+		for (int32 Index = 0; Index < NumSlots && Remaining > 0; ++Index)
+		{
+			const FInventorySlot& Slot = InventorySlots[Index];
+			if (Quantities[Index] > 0 && Slot.Item && Slot.Item->ItemData == Ingredient.Item)
+			{
+				const int32 Taken = FMath::Min(Remaining, Quantities[Index]);
+				Quantities[Index] -= Taken;
+				Consumed[Index] += Taken;
+				Remaining -= Taken;
+			}
+		}
+		if (Remaining > 0)
+		{
+			return false;
+		}
+	}
+
+	double WeightAfterCraft = static_cast<double>(Recipe->OutputItem->Weight) * Recipe->OutputQuantity;
+	for (int32 Index = 0; Index < NumSlots; ++Index)
+	{
+		if (Quantities[Index] > 0)
+		{
+			const UItemDataAsset* Data = InventorySlots[Index].Item->ItemData;
+			if (!FMath::IsFinite(Data->Weight) || Data->Weight < 0.0f)
+			{
+				return false;
+			}
+			WeightAfterCraft += static_cast<double>(Data->Weight) * Quantities[Index];
+		}
+	}
+	if (!FMath::IsFinite(WeightAfterCraft) || WeightAfterCraft > MaxWeight)
+	{
+		return false;
+	}
+
+	int32 RemainingOutput = Recipe->OutputQuantity;
+	const int32 MaxStack = Recipe->OutputItem->MaxStackSize;
+	for (int32 Index = 0; Index < NumSlots && RemainingOutput > 0; ++Index)
+	{
+		const FInventorySlot& Slot = InventorySlots[Index];
+		if (Quantities[Index] > 0 && Slot.Item && Slot.Item->ItemData == Recipe->OutputItem)
+		{
+			const int32 ToAdd = FMath::Min(RemainingOutput, FMath::Max(0, MaxStack - Quantities[Index]));
+			Quantities[Index] += ToAdd;
+			Added[Index] += ToAdd;
+			RemainingOutput -= ToAdd;
+		}
+	}
+	for (int32 Index = 0; Index < NumSlots && RemainingOutput > 0; ++Index)
+	{
+		if (Quantities[Index] == 0)
+		{
+			const int32 ToAdd = FMath::Min(RemainingOutput, MaxStack);
+			Quantities[Index] = ToAdd;
+			Added[Index] = ToAdd;
+			RemainingOutput -= ToAdd;
+		}
+	}
+	return RemainingOutput == 0;
+}
+
+bool UInventoryComponent::CanCraftRecipe(const UCraftingRecipeDataAsset* Recipe) const
+{
+	TArray<int32> Quantities, Consumed, Added;
+	return BuildCraftPlan(Recipe, Quantities, Consumed, Added);
+}
+
+bool UInventoryComponent::CraftRecipe(const UCraftingRecipeDataAsset* Recipe)
+{
+	TArray<int32> Quantities, Consumed, Added;
+	if (!BuildCraftPlan(Recipe, Quantities, Consumed, Added))
+	{
+		return false;
+	}
+
+	TArray<UItemBase*> NewItems;
+	NewItems.Init(nullptr, InventorySlots.Num());
+	UClass* OutputClass = Recipe->OutputItem->ItemClass ? Recipe->OutputItem->ItemClass.Get() : UItemBase::StaticClass();
+	for (int32 Index = 0; Index < InventorySlots.Num(); ++Index)
+	{
+		if (Added[Index] > 0 && (InventorySlots[Index].bIsEmpty || Consumed[Index] == InventorySlots[Index].Quantity))
+		{
+			UItemBase* NewItem = NewObject<UItemBase>(this, OutputClass);
+			if (!NewItem)
+			{
+				return false;
+			}
+			NewItem->ItemData = Recipe->OutputItem;
+			NewItem->Quantity = Quantities[Index];
+			NewItems[Index] = NewItem;
+		}
+	}
+
+	TArray<UItemBase*> RemovedItems;
+	RemovedItems.Init(nullptr, InventorySlots.Num());
+	for (int32 Index = 0; Index < InventorySlots.Num(); ++Index)
+	{
+		if (Consumed[Index] == 0 && Added[Index] == 0)
+		{
+			continue;
+		}
+		FInventorySlot& Slot = InventorySlots[Index];
+		RemovedItems[Index] = Slot.Item;
+		const bool bOldItemGone = Consumed[Index] > 0 && Consumed[Index] == Slot.Quantity;
+		if (Quantities[Index] == 0 || bOldItemGone)
+		{
+			for (int32 QuickIndex = 0; QuickIndex < QuickUseSlots.Num(); ++QuickIndex)
+			{
+				if (QuickUseSlots[QuickIndex].InventorySlotIndex == Index)
+				{
+					ClearQuickUseSlot(QuickIndex);
+				}
+			}
+		}
+		if (NewItems[Index])
+		{
+			Slot.Item = NewItems[Index];
+		}
+		else if (Quantities[Index] == 0)
+		{
+			Slot.Item = nullptr;
+		}
+		Slot.Quantity = Quantities[Index];
+		Slot.bIsEmpty = Quantities[Index] == 0;
+		if (Slot.Item)
+		{
+			Slot.Item->Quantity = Slot.Quantity;
+		}
+	}
+
+	for (int32 Index = 0; Index < InventorySlots.Num(); ++Index)
+	{
+		if (Consumed[Index] > 0 || Added[Index] > 0)
+		{
+			BroadcastInventoryChanged(Index, InventorySlots[Index].Item);
+			if (Consumed[Index] > 0)
+			{
+				OnItemRemoved.Broadcast(RemovedItems[Index], Consumed[Index]);
+			}
+			if (Added[Index] > 0)
+			{
+				OnItemAdded.Broadcast(InventorySlots[Index].Item);
+			}
+		}
+	}
+	if (!Recipe->RecipeID.IsNone())
+	{
+		if (AActor* OwnerActor = GetOwner())
+		{
+			if (UTrialComponent* Trials = OwnerActor->FindComponentByClass<UTrialComponent>())
+			{
+				Trials->ReportRecipeCrafted(Recipe->RecipeID);
+			}
+		}
+	}
+	return true;
+}
+
 bool UInventoryComponent::HasSpaceFor(const UItemBase* Item, int32 Quantity) const
 {
 	if (!Item || !Item->ItemData || Quantity <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::HasSpaceFor - Invalid item or quantity"));
+		return false;
+	}
+	const int32 MaxStackSize = Item->ItemData->MaxStackSize;
+	if (MaxStackSize <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::HasSpaceFor - Invalid maximum stack size"));
 		return false;
 	}
 
@@ -550,37 +809,25 @@ bool UInventoryComponent::HasSpaceFor(const UItemBase* Item, int32 Quantity) con
 		return false;
 	}
 
-	// Check capacity (need at least one empty slot or existing stack with space)
-	int32 EmptySlots = GetEmptySlotCount();
-	if (EmptySlots > 0)
-	{
-		return true; // Have empty slots
-	}
-
-	// Check if we can stack with existing items
-	FName ItemID = Item->ItemData->ItemID;
-	int32 RemainingQuantity = Quantity;
-	
+	// Count every unit that can fit, including partial matching stacks and all empty slots.
+	const FName ItemID = Item->ItemData->ItemID;
+	int64 AvailableUnits = 0;
 	for (const FInventorySlot& Slot : InventorySlots)
 	{
-		if (!Slot.bIsEmpty && Slot.Item && Slot.Item->ItemData)
+		if (Slot.bIsEmpty)
 		{
-			if (Slot.Item->ItemData->ItemID == ItemID && Slot.Quantity < Slot.Item->ItemData->MaxStackSize)
-			{
-				int32 AvailableSpace = Slot.Item->ItemData->MaxStackSize - Slot.Quantity;
-				RemainingQuantity -= FMath::Min(RemainingQuantity, AvailableSpace);
-				
-				if (RemainingQuantity <= 0)
-				{
-					return true; // Can stack all items with existing
-				}
-			}
+			AvailableUnits += MaxStackSize;
 		}
+		else if (Slot.Item && Slot.Item->ItemData && Slot.Item->ItemData->ItemID == ItemID)
+		{
+			AvailableUnits += FMath::Max(0, Slot.Item->ItemData->MaxStackSize - Slot.Quantity);
+		}
+		if (AvailableUnits >= Quantity) return true;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::HasSpaceFor - No space available (Need %d slots for %d items, Empty slots: %d)"),
-		Quantity, Quantity, EmptySlots);
-	return false; // No space
+	UE_LOG(LogTemp, Log, TEXT("InventoryComponent::HasSpaceFor - Capacity insufficient (Need %d units, have %lld)"),
+		Quantity, AvailableUnits);
+	return false;
 }
 
 float UInventoryComponent::GetCurrentWeight() const
@@ -825,6 +1072,11 @@ bool UInventoryComponent::SplitStack(int32 SlotIndex, int32 SplitQuantity)
 	}
 
 	const UItemDataAsset* ItemData = Slot.Item->ItemData;
+	if (ItemData->bSoulboundGrowth)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Soulbound item cannot be split"));
+		return false;
+	}
 	if (ItemData->MaxStackSize <= 1)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::SplitStack - Item cannot stack (MaxStackSize: %d)"), 
@@ -1049,7 +1301,9 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 	// Validate quantity
 	if (Quantity <= 0 || Quantity > Slot.Quantity)
 	{
-		Quantity = Slot.Quantity; // Drop entire stack if invalid quantity
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::DropItemToWorld - Invalid quantity %d for slot with %d items"),
+			Quantity, Slot.Quantity);
+		return false;
 	}
 
 	// Get world context
@@ -1068,6 +1322,11 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 	}
 
 	const UItemDataAsset* ItemData = Slot.Item->ItemData;
+	if (ItemData->bSoulboundGrowth)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Soulbound item cannot be dropped"));
+		return false;
+	}
 
 	// Determine which class to spawn: Blueprint class from DataAsset if specified, otherwise base class
 	TSubclassOf<AItemPickupActor> PickupActorClass = ItemData->ItemPickupActorClass;
@@ -1128,6 +1387,8 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 	if (SetQuantityResult != Quantity)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UInventoryComponent::DropItemToWorld - Quantity mismatch: Expected %d, Got %d"), Quantity, SetQuantityResult);
+		PickupActor->Destroy();
+		return false;
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - SetItemData and SetQuantity calls completed successfully"));
@@ -1151,12 +1412,15 @@ bool UInventoryComponent::DropItemToWorld(int32 SlotIndex, int32 Quantity, const
 	UE_LOG(LogTemp, Log, TEXT("UInventoryComponent::DropItemToWorld - Dropped %d of %s at location (%.2f, %.2f, %.2f)"), 
 		Quantity, *ItemData->ItemName.ToString(), WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
 
-	// Clear quick-use slots referencing this inventory slot
-	for (int32 i = 0; i < QuickUseSlots.Num(); i++)
+	// A partial drop leaves the same item instance in this slot, so its hotkey remains valid.
+	if (Slot.bIsEmpty)
 	{
-		if (QuickUseSlots[i].InventorySlotIndex == SlotIndex)
+		for (int32 i = 0; i < QuickUseSlots.Num(); i++)
 		{
-			ClearQuickUseSlot(i);
+			if (QuickUseSlots[i].InventorySlotIndex == SlotIndex)
+			{
+				ClearQuickUseSlot(i);
+			}
 		}
 	}
 
@@ -1358,6 +1622,34 @@ FQuickUseSlot UInventoryComponent::GetQuickUseSlot(int32 QuickUseSlotIndex) cons
 	return FQuickUseSlot();
 }
 
+void UInventoryComponent::ReconcileQuickUseBindings()
+{
+	for (int32 QuickIndex = 0; QuickIndex < QuickUseSlots.Num(); ++QuickIndex)
+	{
+		FQuickUseSlot& QuickSlot = QuickUseSlots[QuickIndex];
+		if (!QuickSlot.Item) continue;
+		int32 NewInventoryIndex = INDEX_NONE;
+		for (int32 InventoryIndex = 0; InventoryIndex < InventorySlots.Num(); ++InventoryIndex)
+		{
+			const FInventorySlot& InventorySlot = InventorySlots[InventoryIndex];
+			if (!InventorySlot.bIsEmpty && InventorySlot.Item == QuickSlot.Item)
+			{
+				NewInventoryIndex = InventoryIndex;
+				break;
+			}
+		}
+		if (NewInventoryIndex == INDEX_NONE)
+		{
+			ClearQuickUseSlot(QuickIndex);
+		}
+		else if (QuickSlot.InventorySlotIndex != NewInventoryIndex)
+		{
+			QuickSlot.InventorySlotIndex = NewInventoryIndex;
+			OnQuickUseSlotChanged.Broadcast(QuickIndex, QuickSlot.Item);
+		}
+	}
+}
+
 bool UInventoryComponent::EquipItemFromSlot(int32 SlotIndex)
 {
 	if (!InventorySlots.IsValidIndex(SlotIndex))
@@ -1403,6 +1695,22 @@ bool UInventoryComponent::UnequipItemToInventory(EEquipmentSlot Slot)
 		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToInventory - EquipmentComponent missing"));
 		return false;
 	}
+	UEquipmentItem* EquippedItem = EquipmentComponent->GetEquippedItem(Slot);
+	if (!EquippedItem)
+	{
+		return false;
+	}
+	if (!HasSpaceFor(EquippedItem, 1))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToInventory - No inventory capacity for equipped item"));
+		return false;
+	}
+	const bool bPreserveSoulboundInstance = EquippedItem->ItemData && EquippedItem->ItemData->bSoulboundGrowth;
+	const int32 TargetSlotIndex = bPreserveSoulboundInstance ? FindEmptySlot() : INDEX_NONE;
+	if (bPreserveSoulboundInstance && TargetSlotIndex == INDEX_NONE)
+	{
+		return false;
+	}
 
 	UEquipmentItem* UnequippedItem = EquipmentComponent->UnequipSlot(Slot);
 	if (!UnequippedItem)
@@ -1411,5 +1719,54 @@ bool UInventoryComponent::UnequipItemToInventory(EEquipmentSlot Slot)
 		return false;
 	}
 
+	if (bPreserveSoulboundInstance)
+	{
+		FInventorySlot& TargetSlot = InventorySlots[TargetSlotIndex];
+		TargetSlot.Item = UnequippedItem;
+		TargetSlot.Quantity = 1;
+		TargetSlot.bIsEmpty = false;
+		BroadcastInventoryChanged(TargetSlotIndex, UnequippedItem);
+		OnItemAdded.Broadcast(UnequippedItem);
+		return true;
+	}
 	return AddItem(UnequippedItem, 1);
+}
+
+bool UInventoryComponent::UnequipItemToSlot(EEquipmentSlot Slot, int32 TargetSlotIndex)
+{
+	if (!InventorySlots.IsValidIndex(TargetSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToSlot - Invalid target slot index: %d"), TargetSlotIndex);
+		return false;
+	}
+
+	UEquipmentComponent* EquipmentComponent = GetOwner() ? GetOwner()->FindComponentByClass<UEquipmentComponent>() : nullptr;
+	if (!EquipmentComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToSlot - EquipmentComponent missing"));
+		return false;
+	}
+
+	FInventorySlot& TargetSlot = InventorySlots[TargetSlotIndex];
+	if (!TargetSlot.bIsEmpty)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToSlot - Target slot %d is not empty"), TargetSlotIndex);
+		return false;
+	}
+
+	UEquipmentItem* UnequippedItem = EquipmentComponent->UnequipSlot(Slot);
+	if (!UnequippedItem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::UnequipItemToSlot - No item in slot"));
+		return false;
+	}
+
+	TargetSlot.Item = UnequippedItem;
+	TargetSlot.Quantity = 1;
+	TargetSlot.bIsEmpty = false;
+
+	BroadcastInventoryChanged(TargetSlotIndex, TargetSlot.Item);
+	OnItemAdded.Broadcast(TargetSlot.Item);
+
+	return true;
 }

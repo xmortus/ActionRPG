@@ -18,6 +18,11 @@ UClassDataAsset::UClassDataAsset()
 	ClassExperienceCurve = nullptr;
 }
 
+int32 UClassDataAsset::GetFreeAttributePointsPerLevel() const
+{
+	return ClassTier == ECharacterClassTier::Advanced ? 5 : 4;
+}
+
 FPrimaryAssetId UClassDataAsset::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(ClassType, ClassID);

@@ -7,6 +7,10 @@
 #include "Progression/Core/ClassDataAsset.h"
 #include "Progression/Core/ProfessionDataAsset.h"
 #include "Progression/Core/ProgressionTypes.h"
+#include "Components/Skills/SkillManagerComponent.h"
+#include "Components/Skills/SkillComponent.h"
+#include "Skills/Core/SkillBase.h"
+#include "Skills/Core/SkillDataAsset.h"
 
 UClassComponent::UClassComponent()
 {
@@ -21,18 +25,87 @@ void UClassComponent::BeginPlay()
 	AttributeComponent = GetOwner() ? GetOwner()->FindComponentByClass<UAttributeComponent>() : nullptr;
 	SecondaryAttributeComponent = GetOwner() ? GetOwner()->FindComponentByClass<USecondaryAttributeComponent>() : nullptr;
 	ExperienceComponent = GetOwner() ? GetOwner()->FindComponentByClass<UExperienceComponent>() : nullptr;
+	SkillComponent = GetOwner() ? GetOwner()->FindComponentByClass<USkillComponent>() : nullptr;
+	if (SkillComponent)
+	{
+		SkillComponent->OnSkillLevelUp.AddUniqueDynamic(this, &UClassComponent::HandleSkillLevelUp);
+	}
+	if (GetOwner())
+	{
+		if (USkillManagerComponent* Manager = GetOwner()->FindComponentByClass<USkillManagerComponent>())
+		{
+			Manager->OnSkillRevoked.AddUniqueDynamic(this, &UClassComponent::HandleSkillRevoked);
+		}
+	}
+	for (const TObjectPtr<UClassDataAsset>& ClassAsset : SelectedClasses)
+	{
+		GrantClassSkills(ClassAsset);
+	}
+	for (const TObjectPtr<UProfessionDataAsset>& Profession : SelectedProfessions)
+	{
+		if (Profession)
+		{
+			GrantProfessionSkill(Profession);
+		}
+	}
 }
 
 bool UClassComponent::SelectClass(UClassDataAsset* NewClass)
 {
+	if (!NewClass || !HasValidClassSkillGrants(NewClass)
+		|| !MeetsRequirements(NewClass->RequiredLevel, NewClass->RequiredAttributes)
+		|| (GetClassLevel(NewClass) < 1 && !MeetsClassSkillRequirements(NewClass, 1)))
+	{
+		return false;
+	}
+
+	if (SelectedClasses.Num() == 1 && SelectedClasses.Contains(NewClass))
+	{
+		GrantAttributePointsForClassLevels(NewClass, GetClassLevel(NewClass));
+		GrantClassSkills(NewClass);
+		return true;
+	}
+
 	ClearClass();
-	return AddClass(NewClass);
+	SelectedClasses.Add(NewClass);
+	ClassProgress.FindOrAdd(NewClass);
+	CurrentClass = NewClass;
+	UpdateAppliedBonuses();
+	GrantAttributePointsForClassLevels(NewClass, GetClassLevel(NewClass));
+	GrantClassSkills(NewClass);
+	OnClassChanged.Broadcast(CurrentClass);
+	OnClassListChanged.Broadcast(NewClass, true);
+	return true;
 }
 
 bool UClassComponent::SelectProfession(UProfessionDataAsset* NewProfession)
 {
+	if (!NewProfession || !MeetsRequirements(NewProfession->RequiredLevel, NewProfession->RequiredAttributes))
+	{
+		return false;
+	}
+	if (GetProfessionLevel(NewProfession) < 1)
+	{
+		return false;
+	}
+
+	if (SelectedProfessions.Num() == 1 && SelectedProfessions.Contains(NewProfession))
+	{
+		return true;
+	}
+	if (!GrantProfessionSkill(NewProfession))
+	{
+		return false;
+	}
+
 	ClearProfession();
-	return AddProfession(NewProfession);
+	SelectedProfessions.Add(NewProfession);
+	ProfessionProgress.FindOrAdd(NewProfession);
+	CurrentProfession = NewProfession;
+	UpdateAppliedBonuses();
+	OnProfessionChanged.Broadcast(CurrentProfession);
+	OnProfessionListChanged.Broadcast(NewProfession, true);
+	return true;
 }
 
 bool UClassComponent::AddClass(UClassDataAsset* NewClass)
@@ -45,7 +118,14 @@ bool UClassComponent::AddClass(UClassDataAsset* NewClass)
 
 	if (SelectedClasses.Contains(NewClass))
 	{
+		GrantAttributePointsForClassLevels(NewClass, GetClassLevel(NewClass));
+		GrantClassSkills(NewClass);
 		return true;
+	}
+	if (!HasValidClassSkillGrants(NewClass))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AddClass - Invalid class skill grants"));
+		return false;
 	}
 
 	if (!CanAddClass())
@@ -59,6 +139,11 @@ bool UClassComponent::AddClass(UClassDataAsset* NewClass)
 		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AddClass - Requirements not met"));
 		return false;
 	}
+	if (GetClassLevel(NewClass) < 1 && !MeetsClassSkillRequirements(NewClass, 1))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AddClass - Skill requirement not met"));
+		return false;
+	}
 
 	SelectedClasses.Add(NewClass);
 	if (!ClassProgress.Contains(NewClass))
@@ -67,6 +152,8 @@ bool UClassComponent::AddClass(UClassDataAsset* NewClass)
 	}
 	CurrentClass = NewClass;
 	UpdateAppliedBonuses();
+	GrantAttributePointsForClassLevels(NewClass, GetClassLevel(NewClass));
+	GrantClassSkills(NewClass);
 	OnClassChanged.Broadcast(CurrentClass);
 	OnClassListChanged.Broadcast(NewClass, true);
 	return true;
@@ -96,8 +183,18 @@ bool UClassComponent::AddProfession(UProfessionDataAsset* NewProfession)
 		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AddProfession - Requirements not met"));
 		return false;
 	}
+	if (GetProfessionLevel(NewProfession) < 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent::AddProfession - Profession needs its first XP level"));
+		return false;
+	}
+	if (!GrantProfessionSkill(NewProfession))
+	{
+		return false;
+	}
 
 	SelectedProfessions.Add(NewProfession);
+	ProfessionProgress.FindOrAdd(NewProfession);
 	CurrentProfession = NewProfession;
 	UpdateAppliedBonuses();
 	OnProfessionChanged.Broadcast(CurrentProfession);
@@ -116,6 +213,7 @@ bool UClassComponent::RemoveClass(UClassDataAsset* ClassToRemove)
 	{
 		return false;
 	}
+	RevokeClassSkills(ClassToRemove);
 
 	if (CurrentClass == ClassToRemove)
 	{
@@ -139,6 +237,7 @@ bool UClassComponent::RemoveProfession(UProfessionDataAsset* ProfessionToRemove)
 	{
 		return false;
 	}
+	RevokeProfessionSkill(ProfessionToRemove);
 
 	if (CurrentProfession == ProfessionToRemove)
 	{
@@ -158,16 +257,17 @@ void UClassComponent::ClearClass()
 		return;
 	}
 
-	for (const TObjectPtr<UClassDataAsset>& ClassAsset : SelectedClasses)
+	const TArray<TObjectPtr<UClassDataAsset>> RemovedClasses = SelectedClasses;
+	SelectedClasses.Reset();
+	CurrentClass = nullptr;
+	for (const TObjectPtr<UClassDataAsset>& ClassAsset : RemovedClasses)
 	{
 		if (ClassAsset)
 		{
+			RevokeClassSkills(ClassAsset);
 			OnClassListChanged.Broadcast(ClassAsset, false);
 		}
 	}
-
-	SelectedClasses.Reset();
-	CurrentClass = nullptr;
 	UpdateAppliedBonuses();
 	OnClassChanged.Broadcast(nullptr);
 }
@@ -183,6 +283,7 @@ void UClassComponent::ClearProfession()
 	{
 		if (ProfessionAsset)
 		{
+			RevokeProfessionSkill(ProfessionAsset);
 			OnProfessionListChanged.Broadcast(ProfessionAsset, false);
 		}
 	}
@@ -233,7 +334,7 @@ FText UClassComponent::GetSelectedProfessionsText() const
 	{
 		if (ProfessionAsset)
 		{
-			Names.Add(ProfessionAsset->ProfessionName.ToString());
+			Names.Add(FString::Printf(TEXT("%s: %d"), *ProfessionAsset->ProfessionName.ToString(), GetProfessionLevel(ProfessionAsset)));
 		}
 	}
 
@@ -288,8 +389,15 @@ int32 UClassComponent::GetPlayerLevel() const
 			TotalLevel += 1;
 		}
 	}
+	for (const TObjectPtr<UProfessionDataAsset>& ProfessionAsset : SelectedProfessions)
+	{
+		if (ProfessionAsset)
+		{
+			TotalLevel += FMath::Max(1, GetProfessionLevel(ProfessionAsset));
+		}
+	}
 
-	return FMath::Max(1, TotalLevel);
+	return TotalLevel;
 }
 
 int32 UClassComponent::GetClassLevel(UClassDataAsset* ClassAsset) const
@@ -324,13 +432,73 @@ float UClassComponent::GetClassExperience(UClassDataAsset* ClassAsset) const
 
 float UClassComponent::GetClassExperienceToNextLevel(UClassDataAsset* ClassAsset) const
 {
-	const int32 Level = GetClassLevel(ClassAsset);
-	if (Level <= 0)
+	if (!ClassAsset)
 	{
 		return 0.0f;
 	}
 
-	return GetExperienceRequiredForLevel(ClassAsset, Level);
+	const int32 Level = GetClassLevel(ClassAsset);
+	return GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Level));
+}
+
+int32 UClassComponent::GetProfessionLevel(UProfessionDataAsset* ProfessionAsset) const
+{
+	if (!ProfessionAsset) return 0;
+	if (const FClassProgress* Progress = ProfessionProgress.Find(ProfessionAsset)) return Progress->Level;
+	return SelectedProfessions.Contains(ProfessionAsset) ? 1 : 0;
+}
+
+float UClassComponent::GetProfessionExperience(UProfessionDataAsset* ProfessionAsset) const
+{
+	if (!ProfessionAsset) return 0.0f;
+	if (const FClassProgress* Progress = ProfessionProgress.Find(ProfessionAsset)) return Progress->Experience;
+	return 0.0f;
+}
+
+float UClassComponent::GetProfessionExperienceToNextLevel(UProfessionDataAsset* ProfessionAsset) const
+{
+	if (!ProfessionAsset) return 0.0f;
+	return BaseExperienceToLevel + ExperiencePerLevel * FMath::Max(0, GetProfessionLevel(ProfessionAsset) - 1);
+}
+
+bool UClassComponent::AllocateExperienceToProfession(UProfessionDataAsset* ProfessionAsset, float Amount)
+{
+	if (!ProfessionAsset || !FMath::IsFinite(Amount) || Amount <= 0.0f)
+	{
+		return false;
+	}
+	if (!ExperienceComponent && GetOwner())
+	{
+		ExperienceComponent = GetOwner()->FindComponentByClass<UExperienceComponent>();
+	}
+	const FClassProgress* ExistingProgress = ProfessionProgress.Find(ProfessionAsset);
+	const bool bHadProgress = ExistingProgress != nullptr;
+	const float CurrentExperience = ExistingProgress ? ExistingProgress->Experience : 0.0f;
+	if (!FMath::IsFinite(CurrentExperience + Amount) || !ExperienceComponent || !ExperienceComponent->SpendExperience(Amount))
+	{
+		return false;
+	}
+	FClassProgress& Progress = ProfessionProgress.FindOrAdd(ProfessionAsset);
+	if (!bHadProgress && !SelectedProfessions.Contains(ProfessionAsset))
+	{
+		Progress.Level = 0;
+	}
+	Progress.Experience += Amount;
+	float Required = GetProfessionExperienceToNextLevel(ProfessionAsset);
+	while (FMath::IsFinite(Required) && Required > 0.0f && Progress.Experience >= Required && Progress.Level < MAX_int32)
+	{
+		Progress.Experience -= Required;
+		++Progress.Level;
+		UpdateAppliedBonuses();
+		OnProfessionLevelChanged.Broadcast(ProfessionAsset, Progress.Level);
+		Required = GetProfessionExperienceToNextLevel(ProfessionAsset);
+	}
+	OnProfessionExperienceChanged.Broadcast(ProfessionAsset, Progress.Experience);
+	if (!SelectedProfessions.Contains(ProfessionAsset) && Progress.Level >= 1)
+	{
+		AddProfession(ProfessionAsset);
+	}
+	return true;
 }
 
 bool UClassComponent::AllocateExperienceToClass(UClassDataAsset* ClassAsset, float Amount)
@@ -345,7 +513,7 @@ bool UClassComponent::AllocateExperienceToClassAllowUnselected(UClassDataAsset* 
 
 bool UClassComponent::AllocateExperienceInternal(UClassDataAsset* ClassAsset, float Amount, bool bAllowUnselected)
 {
-	if (!ClassAsset || Amount <= 0.0f)
+	if (!ClassAsset || !FMath::IsFinite(Amount) || Amount <= 0.0f)
 	{
 		return false;
 	}
@@ -370,21 +538,9 @@ bool UClassComponent::AllocateExperienceInternal(UClassDataAsset* ClassAsset, fl
 		Progress.Level = 0;
 	}
 	Progress.Experience += Amount;
-	OnClassExperienceChanged.Broadcast(ClassAsset, Progress.Experience);
 
-	float Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
-	while (Progress.Experience >= Required)
-	{
-		Progress.Experience -= Required;
-		Progress.Level = FMath::Max(1, Progress.Level + 1);
-		OnClassLevelChanged.Broadcast(ClassAsset, Progress.Level);
-		const int32 PointsPerLevel = ClassAsset ? ClassAsset->AttributePointsPerLevel : 0;
-		if (AttributeComponent && PointsPerLevel > 0)
-		{
-			AttributeComponent->AddAttributePoints(PointsPerLevel);
-		}
-		Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
-	}
+	AdvanceClassIfReady(ClassAsset, Progress);
+	OnClassExperienceChanged.Broadcast(ClassAsset, Progress.Experience);
 
 	if (!bIsSelected && ClassAsset && Progress.Level >= ClassAsset->RequiredClassLevelToUnlock)
 	{
@@ -394,10 +550,114 @@ bool UClassComponent::AllocateExperienceInternal(UClassDataAsset* ClassAsset, fl
 	return true;
 }
 
+bool UClassComponent::GetUnmetClassSkillRequirement(UClassDataAsset* ClassAsset, FName& OutSkillID, int32& OutRequiredLevel) const
+{
+	OutSkillID = NAME_None;
+	OutRequiredLevel = 0;
+	if (!ClassAsset) return false;
+	const int32 TargetLevel = GetClassLevel(ClassAsset) + 1;
+	for (const FClassSkillLevelRequirement& Requirement : ClassAsset->SkillLevelRequirements)
+	{
+		if (Requirement.TargetClassLevel != TargetLevel || Requirement.SkillID.IsNone() || Requirement.RequiredSkillLevel < 1)
+		{
+			continue;
+		}
+		bool bMet = false;
+		if (SkillComponent)
+		{
+			for (USkillBase* Skill : SkillComponent->GetUnlockedSkills())
+			{
+				if (Skill && Skill->GetSkillID() == Requirement.SkillID &&
+					SkillComponent->GetSkillLevel(Skill) >= Requirement.RequiredSkillLevel)
+				{
+					bMet = true;
+					break;
+				}
+			}
+		}
+		if (!bMet)
+		{
+			OutSkillID = Requirement.SkillID;
+			OutRequiredLevel = Requirement.RequiredSkillLevel;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UClassComponent::MeetsClassSkillRequirements(UClassDataAsset* ClassAsset, int32 TargetLevel) const
+{
+	FName SkillID;
+	int32 RequiredLevel = 0;
+	return TargetLevel != GetClassLevel(ClassAsset) + 1 ||
+		!GetUnmetClassSkillRequirement(ClassAsset, SkillID, RequiredLevel);
+}
+
+bool UClassComponent::AdvanceClassIfReady(UClassDataAsset* ClassAsset, FClassProgress& Progress)
+{
+	bool bAdvanced = false;
+	float Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
+	while (FMath::IsFinite(Required) && Required > 0.0f && Progress.Experience >= Required &&
+		Progress.Level < MAX_int32 && MeetsClassSkillRequirements(ClassAsset, Progress.Level + 1))
+	{
+		Progress.Experience -= Required;
+		Progress.Level = FMath::Max(1, Progress.Level + 1);
+		UpdateAppliedBonuses();
+		GrantAttributePointsForClassLevels(ClassAsset, Progress.Level);
+		if (SelectedClasses.Contains(ClassAsset))
+		{
+			GrantClassSkills(ClassAsset);
+		}
+		OnClassLevelChanged.Broadcast(ClassAsset, Progress.Level);
+		bAdvanced = true;
+		Required = GetExperienceRequiredForLevel(ClassAsset, FMath::Max(1, Progress.Level));
+	}
+	return bAdvanced;
+}
+
+void UClassComponent::HandleSkillLevelUp(USkillBase* Skill, int32 NewLevel)
+{
+	if (!Skill || NewLevel < 1) return;
+	TArray<TObjectPtr<UClassDataAsset>> ClassesToUnlock;
+	for (TPair<TObjectPtr<UClassDataAsset>, FClassProgress>& Entry : ClassProgress)
+	{
+		UClassDataAsset* ClassAsset = Entry.Key.Get();
+		if (!ClassAsset || !AdvanceClassIfReady(ClassAsset, Entry.Value)) continue;
+		OnClassExperienceChanged.Broadcast(ClassAsset, Entry.Value.Experience);
+		if (!SelectedClasses.Contains(ClassAsset) && Entry.Value.Level >= ClassAsset->RequiredClassLevelToUnlock)
+		{
+			ClassesToUnlock.Add(ClassAsset);
+		}
+	}
+	for (UClassDataAsset* ClassAsset : ClassesToUnlock)
+	{
+		AddClass(ClassAsset);
+	}
+}
+
+void UClassComponent::GrantAttributePointsForClassLevels(UClassDataAsset* ClassAsset, int32 NewLevel)
+{
+	if (!ClassAsset || NewLevel <= 0) return;
+	if (!AttributeComponent && GetOwner())
+		AttributeComponent = GetOwner()->FindComponentByClass<UAttributeComponent>();
+	if (!AttributeComponent) return;
+	int32& AwardedLevel = AwardedAttributePointLevels.FindOrAdd(ClassAsset);
+	if (NewLevel <= AwardedLevel) return;
+	const int32 PointsPerLevel = ClassAsset->GetFreeAttributePointsPerLevel();
+	const int64 PointsToGrant = static_cast<int64>(NewLevel - AwardedLevel) * PointsPerLevel;
+	if (PointsToGrant > MAX_int32 - static_cast<int64>(AttributeComponent->GetUnspentAttributePoints()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent - Attribute point award would overflow for %s"), *GetNameSafe(ClassAsset));
+		return;
+	}
+	AttributeComponent->AddAttributePoints(static_cast<int32>(PointsToGrant));
+	AwardedLevel = NewLevel;
+}
+
 bool UClassComponent::MeetsRequirements(int32 RequiredLevel, const TMap<EPrimaryAttribute, float>& RequiredAttributes) const
 {
 	const int32 CurrentLevel = GetPlayerLevel();
-	if (CurrentLevel < RequiredLevel)
+	if (RequiredLevel > 1 && CurrentLevel < RequiredLevel)
 	{
 		return false;
 	}
@@ -406,7 +666,7 @@ bool UClassComponent::MeetsRequirements(int32 RequiredLevel, const TMap<EPrimary
 	{
 		for (const TPair<EPrimaryAttribute, float>& Requirement : RequiredAttributes)
 		{
-			if (AttributeComponent->GetAttribute(Requirement.Key) < Requirement.Value)
+			if (AttributeComponent->GetPersistentAttribute(Requirement.Key) < Requirement.Value)
 			{
 				return false;
 			}
@@ -420,11 +680,155 @@ bool UClassComponent::MeetsRequirements(int32 RequiredLevel, const TMap<EPrimary
 	return true;
 }
 
+bool UClassComponent::HasValidClassSkillGrants(const UClassDataAsset* ClassAsset) const
+{
+	if (!ClassAsset) return false;
+	if (ClassAsset->GrantedSkills.IsEmpty()) return true;
+	if (!GetOwner() || !GetOwner()->FindComponentByClass<USkillManagerComponent>()
+		|| !GetOwner()->FindComponentByClass<USkillComponent>()) return false;
+	TSet<FName> SeenSkillIDs;
+	for (const FClassGrantedSkill& Grant : ClassAsset->GrantedSkills)
+	{
+		if (Grant.TargetClassLevel < 1 || !Grant.SkillClass || !Grant.SkillData
+			|| Grant.SkillData->SkillID.IsNone() || SeenSkillIDs.Contains(Grant.SkillData->SkillID))
+		{
+			return false;
+		}
+		SeenSkillIDs.Add(Grant.SkillData->SkillID);
+	}
+	return true;
+}
+
+bool UClassComponent::GrantClassSkills(UClassDataAsset* ClassAsset)
+{
+	if (!HasValidClassSkillGrants(ClassAsset)) return false;
+	if (ClassAsset->GrantedSkills.IsEmpty()) return true;
+	USkillManagerComponent* Manager = GetOwner()->FindComponentByClass<USkillManagerComponent>();
+	USkillComponent* Skills = GetOwner()->FindComponentByClass<USkillComponent>();
+	Manager->SkillComponent = Skills;
+	FClassGrantedSkillState& State = GrantedClassSkills.FindOrAdd(ClassAsset);
+	State.Instances.SetNum(ClassAsset->GrantedSkills.Num());
+	bool bAllGranted = true;
+	for (int32 Index = 0; Index < ClassAsset->GrantedSkills.Num(); ++Index)
+	{
+		const FClassGrantedSkill& Grant = ClassAsset->GrantedSkills[Index];
+		if (GetClassLevel(ClassAsset) < Grant.TargetClassLevel
+			|| Manager->IsSkillIDUnlocked(Grant.SkillData->SkillID)) continue;
+		USkillBase* Skill = State.Instances[Index];
+		if (!Skill)
+		{
+			Skill = NewObject<USkillBase>(this, Grant.SkillClass);
+			if (Skill)
+			{
+				Skill->SkillData = Grant.SkillData;
+				State.Instances[Index] = Skill;
+			}
+		}
+		if (!Skill || !Manager->UnlockSkill(Skill))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ClassComponent - Could not grant %s from %s"),
+				*Grant.SkillData->SkillID.ToString(), *ClassAsset->ClassName.ToString());
+			bAllGranted = false;
+		}
+	}
+	return bAllGranted;
+}
+
+void UClassComponent::RevokeClassSkills(UClassDataAsset* ClassAsset)
+{
+	FClassGrantedSkillState* State = GrantedClassSkills.Find(ClassAsset);
+	USkillManagerComponent* Manager = GetOwner() ? GetOwner()->FindComponentByClass<USkillManagerComponent>() : nullptr;
+	if (!State || !Manager) return;
+	for (USkillBase* Skill : State->Instances)
+	{
+		if (Skill && Manager->IsSkillUnlocked(Skill))
+		{
+			Manager->RevokeSkill(Skill);
+		}
+	}
+}
+
+void UClassComponent::HandleSkillRevoked(USkillBase* Skill)
+{
+	for (UClassDataAsset* ClassAsset : GetSelectedClasses())
+	{
+		GrantClassSkills(ClassAsset);
+	}
+}
+
+bool UClassComponent::GrantProfessionSkill(UProfessionDataAsset* Profession)
+{
+	if (!Profession)
+	{
+		return false;
+	}
+	if (!Profession->GrantedSkillClass && !Profession->GrantedSkillData)
+	{
+		return true; // Legacy professions without a skill remain selectable.
+	}
+	if (!Profession->GrantedSkillClass || !Profession->GrantedSkillData || !GetOwner())
+	{
+		return false;
+	}
+	if (GrantedProfessionSkills.Contains(Profession))
+	{
+		return true;
+	}
+	USkillManagerComponent* Manager = GetOwner()->FindComponentByClass<USkillManagerComponent>();
+	USkillComponent* Skills = GetOwner()->FindComponentByClass<USkillComponent>();
+	if (!Manager || !Skills)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent - Cannot grant profession skill without skill components"));
+		return false;
+	}
+	Manager->SkillComponent = Skills;
+	USkillBase* Skill = NewObject<USkillBase>(this, Profession->GrantedSkillClass);
+	if (!Skill)
+	{
+		return false;
+	}
+	Skill->SkillData = Profession->GrantedSkillData;
+	if (!Manager->UnlockSkill(Skill))
+	{
+		return false;
+	}
+	GrantedProfessionSkills.Add(Profession, Skill);
+	return true;
+}
+
+void UClassComponent::RevokeProfessionSkill(UProfessionDataAsset* Profession)
+{
+	TObjectPtr<USkillBase> Skill;
+	if (!Profession || !GrantedProfessionSkills.RemoveAndCopyValue(Profession, Skill))
+	{
+		return;
+	}
+	if (GetOwner())
+	{
+		if (USkillManagerComponent* Manager = GetOwner()->FindComponentByClass<USkillManagerComponent>())
+		{
+			Manager->RevokeSkill(Skill);
+		}
+	}
+}
+
 void UClassComponent::UpdateAppliedBonuses()
 {
+	if (GetOwner())
+	{
+		if (!AttributeComponent)
+		{
+			AttributeComponent = GetOwner()->FindComponentByClass<UAttributeComponent>();
+		}
+		if (!SecondaryAttributeComponent)
+		{
+			SecondaryAttributeComponent = GetOwner()->FindComponentByClass<USecondaryAttributeComponent>();
+		}
+	}
 	if (AttributeComponent)
 	{
-		TMap<EPrimaryAttribute, float> PrimaryBonuses;
+		TMap<EPrimaryAttribute, float> SelectedPrimaryBonuses;
+		TMap<EPrimaryAttribute, float> EarnedPrimaryBonuses;
 		for (const TObjectPtr<UClassDataAsset>& ClassAsset : SelectedClasses)
 		{
 			if (!ClassAsset)
@@ -433,22 +837,40 @@ void UClassComponent::UpdateAppliedBonuses()
 			}
 			for (const TPair<EPrimaryAttribute, float>& Bonus : ClassAsset->PrimaryAttributeBonuses)
 			{
-				PrimaryBonuses.FindOrAdd(Bonus.Key) += Bonus.Value;
+				SelectedPrimaryBonuses.FindOrAdd(Bonus.Key) += Bonus.Value;
 			}
 		}
-		for (const TObjectPtr<UProfessionDataAsset>& ProfessionAsset : SelectedProfessions)
+		for (const auto& ProgressPair : ClassProgress)
 		{
-			if (!ProfessionAsset)
+			const UClassDataAsset* ClassAsset = ProgressPair.Key.Get();
+			if (!ClassAsset || ProgressPair.Value.Level <= 0)
 			{
 				continue;
 			}
-			for (const TPair<EPrimaryAttribute, float>& Bonus : ProfessionAsset->PrimaryAttributeBonuses)
+			for (const TPair<EPrimaryAttribute, float>& Gain : ClassAsset->AttributeGainsPerLevel)
 			{
-				PrimaryBonuses.FindOrAdd(Bonus.Key) += Bonus.Value;
+				if (FMath::IsFinite(Gain.Value) && Gain.Value >= 0.0f)
+				{
+					EarnedPrimaryBonuses.FindOrAdd(Gain.Key) += Gain.Value * ProgressPair.Value.Level;
+				}
 			}
 		}
-
-		AttributeComponent->SetClassBonuses(PrimaryBonuses);
+		for (const auto& ProgressPair : ProfessionProgress)
+		{
+			const UProfessionDataAsset* ProfessionAsset = ProgressPair.Key.Get();
+			if (!ProfessionAsset || ProgressPair.Value.Level <= 0)
+			{
+				continue;
+			}
+			for (const TPair<EPrimaryAttribute, float>& Gain : ProfessionAsset->AttributeGainsPerLevel)
+			{
+				if (FMath::IsFinite(Gain.Value) && Gain.Value >= 0.0f)
+				{
+					EarnedPrimaryBonuses.FindOrAdd(Gain.Key) += Gain.Value * ProgressPair.Value.Level;
+				}
+			}
+		}
+		AttributeComponent->SetClassProgressionBonuses(SelectedPrimaryBonuses, EarnedPrimaryBonuses);
 	}
 
 	if (SecondaryAttributeComponent)
@@ -465,18 +887,6 @@ void UClassComponent::UpdateAppliedBonuses()
 				SecondaryBonuses.FindOrAdd(Bonus.Key) += Bonus.Value;
 			}
 		}
-		for (const TObjectPtr<UProfessionDataAsset>& ProfessionAsset : SelectedProfessions)
-		{
-			if (!ProfessionAsset)
-			{
-				continue;
-			}
-			for (const TPair<ESecondaryAttribute, float>& Bonus : ProfessionAsset->SecondaryAttributeBonuses)
-			{
-				SecondaryBonuses.FindOrAdd(Bonus.Key) += Bonus.Value;
-			}
-		}
-
 		SecondaryAttributeComponent->SetClassBonuses(SecondaryBonuses);
 	}
 }
@@ -496,7 +906,12 @@ float UClassComponent::GetExperienceRequiredForLevel(UClassDataAsset* ClassAsset
 	if (ClassAsset && ClassAsset->ClassExperienceCurve)
 	{
 		const float CurveValue = ClassAsset->ClassExperienceCurve->GetFloatValue(static_cast<float>(Level));
-		return FMath::Max(0.0f, CurveValue);
+		if (FMath::IsFinite(CurveValue) && CurveValue > 0.0f)
+		{
+			return CurveValue;
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("ClassComponent - Invalid XP curve value for %s at level %d; using default progression"), *ClassAsset->GetName(), Level);
 	}
 
 	return BaseExperienceToLevel + (ExperiencePerLevel * FMath::Max(0, Level - 1));

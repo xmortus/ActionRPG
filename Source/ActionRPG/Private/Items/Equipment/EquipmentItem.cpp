@@ -20,6 +20,12 @@ const TMap<EPrimaryAttribute, float>& UEquipmentItem::GetPrimaryAttributeBonuses
 	return ItemData ? ItemData->EquipmentPrimaryBonuses : EmptyBonuses;
 }
 
+const TMap<EDamageType, float>& UEquipmentItem::GetDamageResistanceBonuses() const
+{
+	static const TMap<EDamageType, float> EmptyBonuses;
+	return ItemData ? ItemData->EquipmentDamageResistanceBonuses : EmptyBonuses;
+}
+
 int32 UEquipmentItem::GetRequiredLevel() const
 {
 	return ItemData ? ItemData->EquipmentRequiredLevel : 1;

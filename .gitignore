@@ -30,6 +30,11 @@ DerivedDataCache/
 Intermediate/
 Saved/
 Build/
+PrototypeBuild/
+
+# Local agent and editor state
+.codex-temp/
+.cursor/
 
 # Compiled source
 *.com
@@ -108,13 +113,8 @@ CrashReportClient/
 # Autosaves
 Autosaves/
 
-# Screenshots
-*.png
-*.jpg
-*.jpeg
-!README*.png
-!README*.jpg
-!README*.jpeg
+# Screenshots outside Saved/
+Screenshots/
 
 # Web cache
 webcache_*/

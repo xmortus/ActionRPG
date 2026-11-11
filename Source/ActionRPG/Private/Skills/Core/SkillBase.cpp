@@ -22,7 +22,7 @@ USkillBase* USkillBase::Activate(AActor* Target)
 	// Set cooldown
 	if (SkillData)
 	{
-		CooldownRemaining = SkillData->CooldownDuration;
+		CooldownRemaining = GetEffectiveCooldownDuration();
 		UE_LOG(LogTemp, Log, TEXT("SkillBase::Activate - Cooldown set: %.2f (from SkillData->CooldownDuration: %.2f)"), 
 			CooldownRemaining, SkillData->CooldownDuration);
 	}
@@ -84,6 +84,23 @@ ESkillCategory USkillBase::GetSkillCategory() const
 float USkillBase::GetCooldownRemaining() const
 {
 	return CooldownRemaining;
+}
+
+float USkillBase::GetEffectiveCooldownDuration() const
+{
+	return SkillData && FMath::IsFinite(SkillData->CooldownDuration)
+		? FMath::Max(0.0f, SkillData->CooldownDuration) : 0.0f;
+}
+
+float USkillBase::GetDamageMultiplier() const
+{
+	if (!SkillData) return 1.0f;
+	const float PerLevel = FMath::IsFinite(SkillData->DamagePercentPerSkillLevel)
+		? FMath::Max(0.0f, SkillData->DamagePercentPerSkillLevel) : 0.0f;
+	const float Maximum = FMath::IsFinite(SkillData->MaxSkillDamageMultiplier)
+		? FMath::Max(1.0f, SkillData->MaxSkillDamageMultiplier) : 1.0f;
+	const float LevelsGained = static_cast<float>(FMath::Max(0, SkillLevel - 1));
+	return FMath::Clamp(1.0f + LevelsGained * PerLevel / 100.0f, 1.0f, Maximum);
 }
 
 void USkillBase::UpdateCooldown(float DeltaTime)

@@ -24,6 +24,9 @@ public:
 	// Override Activate to implement ranged attack logic
 	virtual USkillBase* Activate(AActor* Target = nullptr) override;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill|Combat")
+	float GetAttackDamage() const;
+
 protected:
 	/**
 	 * Spawn projectile actor at specified location and rotation.
@@ -52,10 +55,4 @@ protected:
 	 */
 	float GetProjectileSpeed() const;
 
-	/**
-	 * Get the effective attack damage.
-	 * May scale with skill level in the future.
-	 * @return Attack damage value
-	 */
-	float GetAttackDamage() const;
 };

@@ -26,6 +26,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	virtual void Use();
 
+	/** Returns whether the effect was applied, so inventory can consume only successful uses. */
+	virtual bool TryUse();
+
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	virtual bool CanUse() const;
 
@@ -35,6 +38,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	FText GetItemName() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
+	virtual FText GetItemTooltip() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	EItemType GetItemType() const;

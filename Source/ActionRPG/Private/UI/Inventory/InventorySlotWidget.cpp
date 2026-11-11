@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/Inventory/InventorySlotWidget.h"
+#include "UI/ActionRPGUITheme.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
 #include "UI/Inventory/InventoryWidget.h"
 #include "Components/Image.h"
@@ -15,6 +16,7 @@
 void UInventorySlotWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ActionRPGUITheme::StyleBlueprintWidgetTree(WidgetTree, true);
 
 	// Initialize to empty state
 	SlotIndex = -1;
@@ -25,8 +27,8 @@ void UInventorySlotWidget::NativeConstruct()
 	
 	// Initialize visual feedback colors
 	// Use a lighter default color so it's visible and distinct from dark gray background
-	DefaultBorderColor = FLinearColor(0.4f, 0.4f, 0.45f, 1.0f);  // Light gray (was dark gray 0.1, 0.1, 0.1)
-	HoverBorderColor = FLinearColor(0.5f, 0.5f, 0.6f, 1.0f);     // Brighter gray-blue
+	DefaultBorderColor = ActionRPGUITheme::Slot();
+	HoverBorderColor = ActionRPGUITheme::SlotHover();
 	ValidDropColor = FLinearColor(0.2f, 0.8f, 0.3f, 1.0f);       // Bright green (increased brightness)
 	InvalidDropColor = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);     // Bright red (increased brightness)
 	
@@ -80,6 +82,8 @@ void UInventorySlotWidget::SetParentInventoryWidget(UInventoryWidget* InventoryW
 
 void UInventorySlotWidget::UpdateSlotVisuals()
 {
+	SetToolTipText(CurrentItem && CurrentItem->ItemData
+		? CurrentItem->GetItemTooltip() : FText::GetEmpty());
 	// Update Item Icon
 	if (ItemIcon)
 	{

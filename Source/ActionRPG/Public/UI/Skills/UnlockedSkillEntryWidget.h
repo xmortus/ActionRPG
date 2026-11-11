@@ -8,7 +8,6 @@
 
 class UImage;
 class UTextBlock;
-class UButton;
 class USkillBase;
 class UUnlockedSkillsPanelWidget;
 
@@ -26,7 +25,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Unlocked Skills")
 	void SetSkillData(USkillBase* InSkill, UUnlockedSkillsPanelWidget* InParentPanel);
 
+	void RefreshProgress();
+	USkillBase* GetSkill() const { return CurrentSkill; }
+
 protected:
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+
 	// Widget references (bind in Blueprint)
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UImage> SkillIcon;
@@ -34,23 +39,8 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> SkillNameText;
 
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> AssignButton;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> AssignMainHandButton;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> AssignOffhandButton;
-
-	UFUNCTION()
-	void OnAssignClicked();
-
-	UFUNCTION()
-	void OnAssignMainHandClicked();
-
-	UFUNCTION()
-	void OnAssignOffhandClicked();
+	UPROPERTY()
+	TObjectPtr<UTextBlock> ProgressText;
 
 private:
 	UPROPERTY()

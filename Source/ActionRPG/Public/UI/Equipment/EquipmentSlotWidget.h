@@ -7,8 +7,10 @@
 #include "Items/Core/ItemTypes.h"
 #include "EquipmentSlotWidget.generated.h"
 
+class UImage;
 class UEquipmentComponent;
 class UEquipmentItem;
+class UBorder;
 
 /**
  * Single equipment slot widget for paper-doll display.
@@ -29,12 +31,26 @@ public:
 	UEquipmentItem* GetEquippedItem() const;
 
 protected:
-	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment UI")
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Equipment UI")
 	void OnSlotUpdated(UEquipmentItem* Item);
+	virtual void OnSlotUpdated_Implementation(UEquipmentItem* Item);
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UImage> SlotIcon;
 
 private:
 	UPROPERTY()
 	TObjectPtr<UEquipmentComponent> EquipmentComponent;
+
+	UPROPERTY()
+	TObjectPtr<UBorder> DropHighlightBorder;
+	FLinearColor NormalBorderColor;
 
 	void BindEquipmentComponent();
 

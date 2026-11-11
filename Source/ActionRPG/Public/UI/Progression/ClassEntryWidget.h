@@ -11,6 +11,7 @@ class UProfessionDataAsset;
 class UClassComponent;
 class UClassSelectionPanelWidget;
 class UTexture2D;
+class UButton;
 
 /**
  * Single class/profession row entry widget.
@@ -21,6 +22,10 @@ class ACTIONRPG_API UClassEntryWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	virtual void NativeOnInitialized() override;
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+
 	UFUNCTION(BlueprintCallable, Category = "Class UI")
 	void SetClassEntry(UClassDataAsset* InClassAsset, UClassComponent* InClassComponent);
 
@@ -57,13 +62,27 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
 	bool IsSelectedForXp() const { return bIsSelectedForXp; }
 
+	void RefreshRow();
+
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
 	UClassDataAsset* GetClassAsset() const { return ClassAsset; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Class UI")
+	UProfessionDataAsset* GetProfessionAsset() const { return ProfessionAsset; }
 
 	UPROPERTY(BlueprintReadWrite, Category = "Class UI", meta = (ExposeOnSpawn = "true"))
 	TObjectPtr<UClassSelectionPanelWidget> ParentPanel;
 
 private:
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> Button_SelectClass;
+
+	UPROPERTY()
+	TObjectPtr<class UTextBlock> RowText;
+
+	UFUNCTION()
+	void HandleSelectionClicked();
+
 	UPROPERTY()
 	TObjectPtr<UClassDataAsset> ClassAsset;
 

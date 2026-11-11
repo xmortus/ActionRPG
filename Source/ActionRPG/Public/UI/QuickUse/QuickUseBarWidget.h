@@ -53,6 +53,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Quick Use Bar")
 	void ClearActionSlot(EQuickUseBarSlotType SlotType) const;
+	bool CanAssignDroppedSkill(int32 SlotIndex, USkillBase* Skill) const;
+	bool AssignDroppedSkill(int32 SlotIndex, USkillBase* Skill);
 
 	/**
 	 * Get the InventoryComponent from the player character.

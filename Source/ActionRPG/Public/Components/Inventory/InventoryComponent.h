@@ -119,6 +119,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	bool HasSpaceFor(const UItemBase* Item, int32 Quantity = 1) const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Crafting")
+	int32 CountItemData(const class UItemDataAsset* ItemData) const;
+
+
 	// Getters
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetMaxCapacity() const { return MaxCapacity; }
@@ -164,6 +168,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
 	bool UnequipItemToInventory(EEquipmentSlot Slot);
 
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
+	bool UnequipItemToSlot(EEquipmentSlot Slot, int32 TargetSlotIndex);
+
 	// Debug
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
 	void ReportInventoryContents() const;
@@ -205,9 +212,18 @@ protected:
 	TArray<FQuickUseSlot> QuickUseSlots;
 
 private:
+	friend class USkillBlacksmithCrafting;
+
+	bool CanCraftRecipe(const class UCraftingRecipeDataAsset* Recipe) const;
+	// Returns false without changing the inventory if the recipe is invalid or cannot fit.
+	bool CraftRecipe(const class UCraftingRecipeDataAsset* Recipe);
+	bool BuildCraftPlan(const class UCraftingRecipeDataAsset* Recipe, TArray<int32>& Quantities,
+		TArray<int32>& Consumed, TArray<int32>& Added) const;
+
 	// Helper methods for item stacking
 	bool TryStackItem(UItemBase* Item, int32 Quantity, int32& RemainingQuantity);
 	int32 FindEmptySlot() const;
 	void UpdateSlotEmptyStatus(int32 SlotIndex);
 	void BroadcastInventoryChanged(int32 SlotIndex, UItemBase* Item);
+	void ReconcileQuickUseBindings();
 };

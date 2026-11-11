@@ -23,7 +23,7 @@ enum class ESkillCategory : uint8
 	Passive			UMETA(DisplayName = "Passive")
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (ScriptName = "RPGDamageKind"))
 enum class EDamageType : uint8
 {
 	Physical		UMETA(DisplayName = "Physical"),

@@ -1394,12 +1394,12 @@ class USecondaryAttributeComponent : public UActorComponent
 - ProfessionName
 - ProfessionDescription
 - ProfessionType (Crafting, Gathering, Support)
-- Level Rewards (recipes, bonuses at each level)
+- Level Rewards (profession skill unlocks; no attribute bonuses)
 - Efficiency Formulas (how level affects output quality)
 
 ### ClassComponent
 
-**Purpose:** Manages class/profession selection, switching, and bonuses
+**Purpose:** Manages class/profession selection, switching, class attribute bonuses, and profession skill grants
 
 **Key Features:**
 - Active class/profession tracking

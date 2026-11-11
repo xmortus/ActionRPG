@@ -16,6 +16,13 @@ class UUnlockedSkillsPanelWidget;
 class UCharacterStatusPanelWidget;
 class UClassSelectionPanelWidget;
 class USkillManagerComponent;
+class UTrialTrackerWidget;
+class UQuestTrackerWidget;
+class UCraftingPanelWidget;
+class UVitalBarsWidget;
+class UPlayerDeathWidget;
+class UPrototypeMenuWidget;
+class AActionRPGPlayerCharacter;
 
 /**
  * PlayerController for ActionRPG.
@@ -51,9 +58,71 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Input")
 	UInputAction* GetOffhandInputAction() const { return OffhandAction; }
 
+	/** Apply damage to the possessed player for PIE combat and respawn testing. */
+	UFUNCTION(Exec)
+	void RPGTestDamageSelf(float DamageAmount);
+
+	/** Print current Strength practice and permanent training gain in PIE. */
+	UFUNCTION(Exec)
+	void RPGTrainingStatus();
+
+	/** Grant free skill points for testing upgrades in PIE only. */
+	UFUNCTION(Exec)
+	void RPGTestGrantSkillPoints(int32 Points);
+
+	/** Grant unallocated XP to the possessed player for PIE progression checks. */
+	UFUNCTION(Exec)
+	void RPGTestGrantXP(float Amount);
+
 protected:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FPlayerDeathFlowTest;
+#endif
 	virtual void BeginPlay() override;
+	virtual void OnPossess(APawn* InPawn) override;
 	virtual void SetupInputComponent() override;
+	void EnsureTrialTracker();
+	void EnsureQuestTracker();
+	void EnsureCraftingPanel();
+	void EnsureVitalBars();
+	void ShowPrototypeMenu(bool bInitial);
+	void TogglePauseMenu();
+	UFUNCTION()
+	void HandleMenuPlay();
+	UFUNCTION()
+	void HandleMenuExit();
+	void BindPlayerLifeEvents();
+	UFUNCTION()
+	void HandlePlayerDied(AActionRPGPlayerCharacter* DeadCharacter, AActor* DamageCauser);
+	UFUNCTION()
+	void HandlePlayerRevived(AActionRPGPlayerCharacter* RevivedCharacter);
+	UFUNCTION()
+	void RequestRespawn();
+	void UnlockRespawn();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Life", meta = (ClampMin = "0.0"))
+	float RespawnDelaySeconds = 3.0f;
+	UPROPERTY()
+	TObjectPtr<AActionRPGPlayerCharacter> LifeEventPlayer;
+	UPROPERTY()
+	TObjectPtr<UPlayerDeathWidget> DeathWidget;
+	UPROPERTY()
+	TObjectPtr<UPrototypeMenuWidget> PrototypeMenuWidget;
+	bool bHasStartedPrototype = false;
+	FTimerHandle RespawnUnlockTimer;
+	FTransform InitialPlayerTransform;
+
+	UPROPERTY()
+	TObjectPtr<UTrialTrackerWidget> TrialTrackerWidget;
+
+	UPROPERTY()
+	TObjectPtr<UQuestTrackerWidget> QuestTrackerWidget;
+
+	UPROPERTY()
+	TObjectPtr<UCraftingPanelWidget> CraftingPanelWidget;
+
+	UPROPERTY()
+	TObjectPtr<UVitalBarsWidget> VitalBarsWidget;
 
 	// Enhanced Input
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -111,12 +180,14 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UUnlockedSkillsPanelWidget> SkillPanelWidget;
 
+	// Retained for existing Blueprint serialization; the character-status panel is built natively.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UCharacterStatusPanelWidget> CharacterStatusPanelWidgetClass;
 
 	UPROPERTY()
 	TObjectPtr<UCharacterStatusPanelWidget> CharacterStatusPanelWidget;
 
+	// Retained for existing Blueprint serialization; the class/profession panel is built natively.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UClassSelectionPanelWidget> ClassSelectionPanelWidgetClass;
 
@@ -167,6 +238,7 @@ protected:
 	void OnOpenSkillPanel();
 	void OnOpenCharacterStatusPanel();
 	void OnOpenClassPanel();
+	void OnOpenCrafting();
 
 	// Skill Slot Handlers
 	void OnSkillSlot1();

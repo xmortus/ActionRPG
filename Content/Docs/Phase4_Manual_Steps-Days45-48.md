@@ -69,32 +69,27 @@
    - **Recommended:** create a dedicated equipment‑inventory slot widget (avoid reusing `WBP_InventorySlot`, which expects a `UInventoryWidget` parent).
 7. Filters row:
    - Add buttons: Armor, Weapons, Food & Potions, Quest Items, All Items.
-8. Bind widget events (Blueprint logic details):
-   - In `WBP_EquipmentWidget`:
-     - Override `OnEquipmentUpdated`: call `UpdatePaperDoll()` (custom event) to refresh all slot widgets.
-     - Override `OnInventoryUpdated`: call `EquipmentInventoryWidget->OnInventoryUpdated` (or a `RefreshInventory` custom event).
-     - Override `OnStatsUpdated`: call `EquipmentStatsWidget->OnStatsUpdated`.
-   - In `WBP_EquipmentSlot`:
-     - Override `OnSlotUpdated(Item)`:
-       - If `Item` is valid: set slot icon to `Item->GetItemIcon()` (or data asset icon).
-       - If `Item` is null: set slot icon to empty/placeholder.
-   - In `WBP_EquipmentStats`:
-     - Override `OnStatsUpdated`:
-       - Read primary stats from `AttributeComponent`.
-       - Read secondary stats from `SecondaryAttributeComponent`.
-       - Update TextBlocks (STR/AGI/CON/etc., HP/Mana/Armor/Crit/MoveSpeed).
-   - In `WBP_EquipmentInventory`:
-     - Override `OnInventoryUpdated`:
-       - Clear `UniformGridPanel` children.
-       - Get `InventoryComponent->GetInventorySlots()`.
-       - For each slot:
-          - Create your equipment‑inventory slot widget.
-         - Call a setup function (slot index, item, quantity).
-         - Add to grid (Row = Index / Columns, Column = Index % Columns).
+8. C++‑driven widget bindings (no BP graph required):
+   - `WBP_EquipmentWidget`:
+     - Ensure child widgets are named **`EquipmentInventoryWidget`** and **`EquipmentStatsWidget`**.
+   - `WBP_EquipmentSlot`:
+     - Slot icon Image must be named **`SlotIcon`** (C++ updates it in `OnSlotUpdated_Implementation`).
+   - `WBP_EquipmentStats`:
+     - Add TextBlocks named **`PrimaryStatsText`** and **`SecondaryStatsText`**.
+     - C++ will fill them via `OnStatsUpdated_Implementation`.
+   - `WBP_EquipmentInventory`:
+     - UniformGridPanel must be named **`InventoryGrid`**.
+     - Set **`SlotWidgetClass`** to `WBP_EquipmentInventorySlot`.
+     - Set **`Columns`** to your desired column count.
+   - `WBP_EquipmentInventorySlot`:
+     - Reparent to `UEquipmentInventorySlotWidget`.
+     - Item icon Image named **`ItemIcon`**.
+     - Quantity TextBlock named **`QuantityText`**.
 9. Drag & drop wiring:
+   - **C++ handles equipment drag/drop now.** No Blueprint overrides required.
    - Inventory slot drag → equipment slot drop (equip via `InventoryComponent->EquipItemFromSlot`).
    - Equipment slot drag → inventory drop (unequip via `InventoryComponent->UnequipItemToInventory`).
-   - Invalid drops return item to original slot.
+   - Invalid drops return item to original slot (no inventory or equipment change occurs).
 10. Filter button logic (optional):
    - On click, set a local category enum and refresh the grid.
    - Default filter = All Items.

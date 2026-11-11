@@ -7,6 +7,7 @@
 #include "Components/SphereComponent.h"
 #include "Actors/SkillProjectile.h"
 #include "Components/Skills/SkillComponent.h"
+#include "Components/Progression/AttributeComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/Engine.h"
 
@@ -16,9 +17,7 @@ USkillRangedAttack::USkillRangedAttack()
 
 USkillBase* USkillRangedAttack::Activate(AActor* Target)
 {
-	// Call parent to handle cooldown and validation
-	USkillBase* Result = Super::Activate(Target);
-	if (!Result)
+	if (!CanActivate(Target))
 	{
 		return nullptr;
 	}
@@ -27,27 +26,27 @@ USkillBase* USkillRangedAttack::Activate(AActor* Target)
 	if (!OwnerActor)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillRangedAttack::Activate - OwnerActor is null"));
-		return this;
+		return nullptr;
 	}
 
 	ACharacter* OwnerCharacter = Cast<ACharacter>(OwnerActor);
 	if (!OwnerCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillRangedAttack::Activate - OwnerActor is not a Character"));
-		return this;
+		return nullptr;
 	}
 
 	if (!SkillData)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillRangedAttack::Activate - SkillData is null"));
-		return this;
+		return nullptr;
 	}
 
 	// Check if ProjectileClass is set
 	if (!SkillData->ProjectileClass)
 	{
 		UE_LOG(LogTemp, Error, TEXT("SkillRangedAttack::Activate - ProjectileClass is not set in SkillDataAsset"));
-		return this;
+		return nullptr;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillRangedAttack::Activate - Executing ranged attack from %s"), *OwnerActor->GetName());
@@ -63,7 +62,12 @@ USkillBase* USkillRangedAttack::Activate(AActor* Target)
 	if (!Projectile)
 	{
 		UE_LOG(LogTemp, Error, TEXT("SkillRangedAttack::Activate - Failed to spawn projectile"));
-		return this;
+		return nullptr;
+	}
+	if (!Super::Activate(Target))
+	{
+		Projectile->Destroy();
+		return nullptr;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillRangedAttack::Activate - Spawned projectile %s at location %s"), 
@@ -205,16 +209,11 @@ float USkillRangedAttack::GetProjectileSpeed() const
 
 float USkillRangedAttack::GetAttackDamage() const
 {
-	if (!SkillData)
-	{
-		return 20.0f; // Default damage
-	}
-
-	float BaseDamage = SkillData->BaseDamage;
-
-	// Future: Scale with skill level
-	// float LevelMultiplier = 1.0f + (SkillLevel - 1) * 0.15f;
-	// return BaseDamage * LevelMultiplier;
-
-	return BaseDamage;
+	const float BaseDamage = SkillData && FMath::IsFinite(SkillData->BaseDamage)
+		? FMath::Max(0.0f, SkillData->BaseDamage) : 20.0f;
+	const UAttributeComponent* Attributes = OwnerActor ? OwnerActor->FindComponentByClass<UAttributeComponent>() : nullptr;
+	const float Dexterity = Attributes ? FMath::Max(0.0f, Attributes->GetAttribute(EPrimaryAttribute::Dexterity)) : 0.0f;
+	const float PerDexterity = SkillData && FMath::IsFinite(SkillData->RangedDamagePerDexterity)
+		? FMath::Max(0.0f, SkillData->RangedDamagePerDexterity) : 0.0f;
+	return (BaseDamage + Dexterity * PerDexterity) * GetDamageMultiplier();
 }

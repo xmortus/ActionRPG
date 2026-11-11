@@ -20,6 +20,12 @@
 
 ## Overview
 
+### UE 5.8 status (2026-10-22)
+
+The non-profession Phase 4 scope (attributes, equipment, XP allocation, class progression and UI) is implemented. The earlier C++ changes passed a clean `ActionRPGEditor` build. On 2026-10-22, the latest class XP threshold display fix passed Live Coding and all three focused progression automation tests in the running UE 5.8 editor. Live PIE confirmed that entering a native `AExperiencePickupActor` grants 25 XP, one click allocates it to Warrior, and the class row displays `25 / 100`. The temporary test pickup was removed; no pickup is placed in the current level. Prior PIE checks covered equipment and class/status UI behavior.
+
+The user resumed profession work on 2026-10-22. Blacksmith grants a native crafting skill when unlocked and revokes it (including hotbar assignments) on removal. Its first recipe consumes 2 Iron Ore and creates 1 Iron Sword. A reusable Iron Ore pickup sits near PlayerStart in `/Game/NewMap`; PIE confirmed it adds 2 Iron Ore to inventory on overlap. The crafting/recipe UI is implemented. Clicking Blacksmith only chooses it as an XP target; assigning the first 100 XP unlocks the profession at level 1 and grants its skill. Further assigned XP levels it independently, and active profession levels contribute to player level. Professions grant skills but no bonus attributes.
+
 ### Phase 4 Goals
 - Implement AttributeComponent (Primary Attributes)
 - Implement SecondaryAttributeComponent with formulas
@@ -155,7 +161,7 @@
 
 2. **Create ClassComponent**
    - Class/profession selection
-   - Class bonuses and requirement checks
+   - Class attribute bonuses, profession skill grants, and requirement checks
 
 3. **Class/Profession Data Assets**
    - `ClassDataAsset`, `ProfessionDataAsset`
@@ -163,7 +169,7 @@
 
 #### Deliverables
 - XP system with level progression
-- Class/Profession system with bonuses
+- Class attribute bonuses and profession-granted skills
 - Data assets for classes/professions
 
 ---
@@ -308,7 +314,7 @@ Focus on Attributes, Secondary Attributes, Equipment, XP, and Class/Profession s
 - Add `[d:/Unreal Projects/ActionRPG/Source/ActionRPG/Public/Components/Progression/ExperienceComponent.h](d:/Unreal Projects/ActionRPG/Source/ActionRPG/Public/Components/Progression/ExperienceComponent.h)` + `.cpp`:
 - XP accumulation, level thresholds, and events
 - Add `[d:/Unreal Projects/ActionRPG/Source/ActionRPG/Public/Components/Progression/ClassComponent.h](d:/Unreal Projects/ActionRPG/Source/ActionRPG/Public/Components/Progression/ClassComponent.h)` + `.cpp`:
-- Class/profession selection, bonuses, and requirement checks
+- Class/profession selection, class-only attribute bonuses, profession skill grants, and requirement checks
 - Add class/profession data assets + `ClassDatabase`
 
 ### 5) UI (Attributes, Equipment, Class)

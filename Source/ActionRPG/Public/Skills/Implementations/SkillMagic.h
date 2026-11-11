@@ -24,6 +24,9 @@ public:
 	// Override Activate to implement magic attack logic
 	virtual USkillBase* Activate(AActor* Target = nullptr) override;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill|Combat")
+	float GetAttackDamage() const;
+
 protected:
 	/**
 	 * Spawn projectile actor at specified location and rotation.
@@ -42,8 +45,6 @@ protected:
 	/** Get projectile speed from SkillDataAsset. */
 	float GetProjectileSpeed() const;
 
-	/** Get attack damage from SkillDataAsset. */
-	float GetAttackDamage() const;
 
 	/** Get area of effect radius from SkillDataAsset. */
 	float GetAreaOfEffectRadius() const;

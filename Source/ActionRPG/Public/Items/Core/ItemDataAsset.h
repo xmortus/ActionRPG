@@ -14,6 +14,7 @@ class AItemPickupActor;
 class UItemBase;
 class USkillBase;
 class USkillDataAsset;
+class UStaticMesh;
 
 /**
  * Data Asset for defining item properties.
@@ -30,6 +31,10 @@ public:
 
 	// Primary Data Asset Interface
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
+
+	/** Shared tooltip text for standalone and Equipment inventory slots. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
+	FText GetItemTooltip() const;
 
 	// Item Properties
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
@@ -85,6 +90,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment")
 	TMap<EPrimaryAttribute, float> EquipmentPrimaryBonuses;
 
+	/** Percentage-point resistance bonuses while this item is equipped. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment")
+	TMap<EDamageType, float> EquipmentDamageResistanceBonuses;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Equipment|Requirements", meta = (ClampMin = "1"))
 	int32 EquipmentRequiredLevel;
 
@@ -95,8 +104,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon", meta = (ClampMin = "0.0"))
 	float WeaponDamage;
 
+	/** Only a named, nonstacking item configured here grows from credited defeats while equipped. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon|Growth")
+	bool bSoulboundGrowth = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon|Growth", meta = (ClampMin = "1", EditCondition = "bSoulboundGrowth"))
+	int32 DefeatsPerGrowthRank = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon|Growth", meta = (ClampMin = "1", EditCondition = "bSoulboundGrowth"))
+	int32 MaxGrowthRank = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon|Growth", meta = (ClampMin = "0.0", EditCondition = "bSoulboundGrowth"))
+	float DamagePerGrowthRank = 2.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon")
 	EDamageType WeaponDamageType;
+
+	// Visual shown on the character while this weapon occupies the main-hand slot.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Weapon")
+	TObjectPtr<UStaticMesh> EquippedWeaponMesh;
 
 	// Skill Item Data (used by SkillItem / SkillStone / BeastCore)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Skill")

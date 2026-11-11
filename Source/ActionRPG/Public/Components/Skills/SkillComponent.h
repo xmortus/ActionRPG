@@ -78,6 +78,9 @@ public:
 	float GetSkillExperience(USkillBase* Skill) const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Component")
+	float GetSkillExperienceRequiredForNextLevel(USkillBase* Skill) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Component")
 	bool IsSkillUnlocked(USkillBase* Skill) const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Component")
@@ -147,7 +150,6 @@ protected:
 
 	// Validate and deduct resource costs
 	bool ValidateResourceCosts(USkillBase* Skill) const;
-	void DeductResourceCosts(USkillBase* Skill);
 
 private:
 	// Helper to find skill instance index
@@ -160,4 +162,6 @@ private:
 	// Get skill instance (C++ only - returns pointer, for internal use)
 	FSkillInstance* GetSkillInstance(USkillBase* Skill);
 	const FSkillInstance* GetSkillInstance(USkillBase* Skill) const;
+
+	void ApplyAttributeMilestones(USkillBase* Skill, int32 CurrentLevel) const;
 };

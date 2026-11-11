@@ -63,12 +63,20 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill")
 	float GetCooldownRemaining() const;
 
+	/** Cooldown applied after a successful activation; derived skills may scale it. */
+	virtual float GetEffectiveCooldownDuration() const;
+
+	/** Data-configured multiplier from use-based skill levels for offensive implementations. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill|Combat")
+	float GetDamageMultiplier() const;
+
 	// Resource Costs (may vary by level)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill")
 	float GetManaCost() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill")
-	float GetStaminaCost() const;
+	virtual float GetStaminaCost() const;
+
 
 	// Skill Level and Experience
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill")

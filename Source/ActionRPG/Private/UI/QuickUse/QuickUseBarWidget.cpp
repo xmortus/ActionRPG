@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/QuickUse/QuickUseBarWidget.h"
+#include "UI/ActionRPGUITheme.h"
 #include "Components/UniformGridPanel.h"
 #include "UI/QuickUse/QuickUseSlotWidget.h"
 #include "UI/Inventory/ItemDragDropOperation.h"
+#include "UI/Skills/SkillDragDropOperation.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Components/Skills/SkillComponent.h"
 #include "Components/Skills/SkillManagerComponent.h"
@@ -17,6 +19,7 @@
 void UQuickUseBarWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ActionRPGUITheme::StyleBlueprintWidgetTree(WidgetTree, true);
 
 	UE_LOG(LogTemp, Log, TEXT("QuickUseBarWidget::NativeConstruct - Constructing quick-use bar widget"));
 
@@ -537,6 +540,29 @@ void UQuickUseBarWidget::ClearActionSlot(EQuickUseBarSlotType SlotType) const
 	}
 }
 
+bool UQuickUseBarWidget::CanAssignDroppedSkill(int32 SlotIndex, USkillBase* Skill) const
+{
+	return Skill && SkillManagerComponent && SkillManagerComponent->IsSkillUnlocked(Skill)
+		&& ((SlotIndex >= 0 && SlotIndex < 8) || SlotIndex == 10 || SlotIndex == 11);
+}
+
+bool UQuickUseBarWidget::AssignDroppedSkill(int32 SlotIndex, USkillBase* Skill)
+{
+	if (!CanAssignDroppedSkill(SlotIndex, Skill))
+	{
+		return false;
+	}
+	if (SlotIndex == 10)
+	{
+		return SkillManagerComponent->AssignMainHandSkill(Skill);
+	}
+	if (SlotIndex == 11)
+	{
+		return SkillManagerComponent->AssignOffhandSkill(Skill);
+	}
+	return SkillManagerComponent->AssignSkillToSlot(SlotIndex, Skill);
+}
+
 FText UQuickUseBarWidget::GetHotkeyTextForSlot(int32 SlotIndex) const
 {
 	// Validate slot index
@@ -700,6 +726,31 @@ FText UQuickUseBarWidget::GetHotkeyTextForActionSlot(EQuickUseBarSlotType SlotTy
 bool UQuickUseBarWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
 	Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+	if (USkillDragDropOperation* SkillDragOp = Cast<USkillDragDropOperation>(InOperation))
+	{
+		if (SkillDragOp->bWasHandled)
+		{
+			return true;
+		}
+		const FVector2D ScreenPosition = InDragDropEvent.GetScreenSpacePosition();
+		for (int32 Index = 0; Index < SlotWidgets.Num(); ++Index)
+		{
+			if (SlotWidgets[Index] && SlotWidgets[Index]->GetCachedGeometry().IsUnderLocation(ScreenPosition))
+			{
+				SkillDragOp->bWasHandled = true;
+				return AssignDroppedSkill(Index, SkillDragOp->Skill);
+			}
+		}
+		for (int32 Index = 0; Index < ActionSlotWidgets.Num(); ++Index)
+		{
+			if (ActionSlotWidgets[Index] && ActionSlotWidgets[Index]->GetCachedGeometry().IsUnderLocation(ScreenPosition))
+			{
+				SkillDragOp->bWasHandled = true;
+				return AssignDroppedSkill(10 + Index, SkillDragOp->Skill);
+			}
+		}
+		return false;
+	}
 
 	// Check if this is an item drag operation from inventory
 	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);

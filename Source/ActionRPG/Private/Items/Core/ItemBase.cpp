@@ -22,6 +22,16 @@ void UItemBase::Use()
 	UE_LOG(LogTemp, Log, TEXT("ItemBase::Use - Item used: %s"), ItemData ? *ItemData->ItemName.ToString() : TEXT("NULL"));
 }
 
+bool UItemBase::TryUse()
+{
+	if (!CanUse())
+	{
+		return false;
+	}
+	Use();
+	return true;
+}
+
 bool UItemBase::CanUse() const
 {
 	if (!ItemData)
@@ -41,6 +51,11 @@ FName UItemBase::GetItemID() const
 FText UItemBase::GetItemName() const
 {
 	return ItemData ? ItemData->ItemName : FText::GetEmpty();
+}
+
+FText UItemBase::GetItemTooltip() const
+{
+	return ItemData ? ItemData->GetItemTooltip() : FText::GetEmpty();
 }
 
 EItemType UItemBase::GetItemType() const

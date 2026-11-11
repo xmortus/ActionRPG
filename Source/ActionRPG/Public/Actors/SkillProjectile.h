@@ -10,6 +10,7 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UProjectileMovementComponent;
 class USkillBase;
+class UDamageType;
 
 /**
  * Basic projectile actor for skill system.
@@ -24,7 +25,13 @@ public:
 	ASkillProjectile();
 
 protected:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FRemainingAttributeTrainingTest;
+#endif
 	virtual void BeginPlay() override;
+	void ProcessImpact(AActor* OtherActor, const FHitResult& Hit);
+	int32 ApplyAreaDamageAndRecordHits(AActor* DirectTarget);
+	void RecordProjectileHitPractice(AActor* Target, float ActualDamage);
 
 	// Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -69,6 +76,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void SetDamage(float NewDamage) { Damage = NewDamage; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile")
+	float GetDamage() const { return Damage; }
+
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void SetOwnerActor(AActor* NewOwner) { OwnerActor = NewOwner; }
 
@@ -77,4 +87,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void SetAreaOfEffectRadius(float NewRadius) { AreaOfEffectRadius = NewRadius; }
+
+	/** Resolve the skill's physical or magical damage class for direct and area hits. */
+	TSubclassOf<UDamageType> GetDamageTypeClass() const;
 };

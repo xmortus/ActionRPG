@@ -25,6 +25,7 @@ AItemPickupActor::AItemPickupActor()
 	CollisionComponent->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
 	CollisionComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 	CollisionComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+	CollisionComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Overlap);
 	
 	// Ensure collision is generated
 	CollisionComponent->SetGenerateOverlapEvents(true);
@@ -47,6 +48,7 @@ void AItemPickupActor::BeginPlay()
 		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 		CollisionComponent->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
 		CollisionComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+		CollisionComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Overlap);
 		CollisionComponent->SetGenerateOverlapEvents(true);
 		
 		// Bind overlap event
@@ -369,22 +371,22 @@ void AItemPickupActor::DebugCollisionSettings() const
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("=== ItemPickupActor Collision Debug ==="));
-	UE_LOG(LogTemp, Warning, TEXT("Actor Name: %s"), *GetName());
-	UE_LOG(LogTemp, Warning, TEXT("CollisionComponent Name: %s"), *CollisionComponent->GetName());
-	UE_LOG(LogTemp, Warning, TEXT("Sphere Radius: %.2f"), CollisionComponent->GetScaledSphereRadius());
-	UE_LOG(LogTemp, Warning, TEXT("Collision Enabled: %d"), (int32)CollisionComponent->GetCollisionEnabled());
-	UE_LOG(LogTemp, Warning, TEXT("Object Type: %d"), (int32)CollisionComponent->GetCollisionObjectType());
-	UE_LOG(LogTemp, Warning, TEXT("Generate Overlap Events: %s"), 
+	UE_LOG(LogTemp, Log, TEXT("=== ItemPickupActor Collision Debug ==="));
+	UE_LOG(LogTemp, Log, TEXT("Actor Name: %s"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("CollisionComponent Name: %s"), *CollisionComponent->GetName());
+	UE_LOG(LogTemp, Log, TEXT("Sphere Radius: %.2f"), CollisionComponent->GetScaledSphereRadius());
+	UE_LOG(LogTemp, Log, TEXT("Collision Enabled: %d"), (int32)CollisionComponent->GetCollisionEnabled());
+	UE_LOG(LogTemp, Log, TEXT("Object Type: %d"), (int32)CollisionComponent->GetCollisionObjectType());
+	UE_LOG(LogTemp, Log, TEXT("Generate Overlap Events: %s"), 
 	       CollisionComponent->GetGenerateOverlapEvents() ? TEXT("TRUE") : TEXT("FALSE"));
-	UE_LOG(LogTemp, Warning, TEXT("Response to Pawn: %d"), 
+	UE_LOG(LogTemp, Log, TEXT("Response to Pawn: %d"), 
 	       (int32)CollisionComponent->GetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn));
-	UE_LOG(LogTemp, Warning, TEXT("Is Root Component: %s"), 
+	UE_LOG(LogTemp, Log, TEXT("Is Root Component: %s"), 
 	       (RootComponent == CollisionComponent) ? TEXT("TRUE") : TEXT("FALSE"));
-	UE_LOG(LogTemp, Warning, TEXT("Interaction Range: %.2f"), InteractionRange);
-	UE_LOG(LogTemp, Warning, TEXT("Auto Pickup on Overlap: %s"), 
+	UE_LOG(LogTemp, Log, TEXT("Interaction Range: %.2f"), InteractionRange);
+	UE_LOG(LogTemp, Log, TEXT("Auto Pickup on Overlap: %s"), 
 	       bAutoPickupOnOverlap ? TEXT("TRUE") : TEXT("FALSE"));
-	UE_LOG(LogTemp, Warning, TEXT("========================================"));
+	UE_LOG(LogTemp, Log, TEXT("========================================"));
 }
 
 void AItemPickupActor::SetItemData(UItemDataAsset* NewItemData)

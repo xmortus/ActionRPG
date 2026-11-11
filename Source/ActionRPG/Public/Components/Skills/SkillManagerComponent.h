@@ -8,6 +8,22 @@
 #include "SkillManagerComponent.generated.h"
 
 class USkillComponent;
+class USkillDataAsset;
+
+/** One selectable skill in the player's point-spend catalog. */
+USTRUCT(BlueprintType)
+struct ACTIONRPG_API FSkillCatalogEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill Catalog")
+	TSubclassOf<USkillBase> SkillClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill Catalog")
+	TObjectPtr<USkillDataAsset> SkillData;
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSkillPointsChanged, int32, NewBalance, int32, Delta);
 
 /**
  * Skill Manager Component for managing skill unlocks and skill bar assignments.
@@ -25,12 +41,51 @@ public:
 	// Component lifecycle
 	virtual void BeginPlay() override;
 
+	/** Free skill points are a separate special-reward balance, not unlock XP. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Points")
+	int32 GetUnspentSkillPoints() const { return UnspentSkillPoints; }
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Points")
+	bool AddSkillPoints(int32 Points);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Points")
+	bool SpendSkillPoints(int32 Points);
+
+	/** Skills available for purchase with free skill points. Set on player component defaults. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill Manager|Catalog")
+	TArray<FSkillCatalogEntry> SkillCatalog;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Catalog")
+	bool IsCatalogSkillUnlocked(int32 CatalogIndex) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Catalog")
+	bool CanLearnCatalogSkill(int32 CatalogIndex) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager|Catalog")
+	bool LearnCatalogSkill(int32 CatalogIndex);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager|Catalog")
+	FText GetCatalogSkillStatus(int32 CatalogIndex) const;
+
+	UPROPERTY(BlueprintAssignable, Category = "Skill Manager|Points")
+	FOnSkillPointsChanged OnSkillPointsChanged;
+
+
 	// Skill Unlock Management
 	UFUNCTION(BlueprintCallable, Category = "Skill Manager")
 	bool UnlockSkill(USkillBase* Skill);
 
+	/** Skill stones grant their named skill without catalog entry requirements. */
+	bool UnlockSkillFromStone(USkillBase* Skill);
+
+	UFUNCTION(BlueprintCallable, Category = "Skill Manager")
+	bool RevokeSkill(USkillBase* Skill);
+
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager")
 	bool IsSkillUnlocked(USkillBase* Skill) const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager")
+	bool IsSkillIDUnlocked(FName SkillID) const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Skill Manager")
 	TArray<USkillBase*> GetUnlockedSkills() const;
@@ -96,6 +151,7 @@ public:
 
 	// Events
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillUnlocked, USkillBase*, Skill);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillRevoked, USkillBase*, Skill);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSkillSlotChanged, int32, SlotIndex, USkillBase*, Skill);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillSlotCleared, int32, SlotIndex);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMainHandSkillChanged, USkillBase*, Skill);
@@ -103,6 +159,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Skill Manager")
 	FOnSkillUnlocked OnSkillUnlocked;
+
+	UPROPERTY(BlueprintAssignable, Category = "Skill Manager")
+	FOnSkillRevoked OnSkillRevoked;
 
 	UPROPERTY(BlueprintAssignable, Category = "Skill Manager")
 	FOnSkillSlotChanged OnSkillSlotChanged;
@@ -117,6 +176,9 @@ public:
 	FOnOffhandSkillChanged OnOffhandSkillChanged;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skill Manager|Points")
+	int32 UnspentSkillPoints = 0;
+
 	// Unlocked Skills (skills the player has unlocked)
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Manager")
 	TArray<TObjectPtr<USkillBase>> UnlockedSkills;
@@ -140,16 +202,7 @@ protected:
 
 	// Check skill prerequisites
 	bool CheckSkillPrerequisites(USkillBase* Skill) const;
+	FString GetRequirementFailure(const USkillDataAsset* SkillData) const;
+	bool UnlockSkillInternal(USkillBase* Skill, bool bCheckPrerequisites);
 
-	// Check attribute requirements (stub for Phase 4)
-	bool CheckAttributeRequirements(USkillBase* Skill) const;
-
-	// Check level requirements
-	bool CheckLevelRequirements(USkillBase* Skill) const;
-
-	// Check prerequisite skill requirements (stub for now)
-	bool CheckPrerequisiteSkills(USkillBase* Skill) const;
-
-	// Check class requirements (stub for Phase 4)
-	bool CheckClassRequirements(USkillBase* Skill) const;
 };

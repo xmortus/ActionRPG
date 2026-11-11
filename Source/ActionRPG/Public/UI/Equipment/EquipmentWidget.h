@@ -14,6 +14,8 @@ class UAttributeComponent;
 class USecondaryAttributeComponent;
 class UEquipmentItem;
 class UItemBase;
+class UEquipmentInventoryWidget;
+class UEquipmentStatsWidget;
 
 /**
  * Equipment UI root widget (paper-doll + stats + inventory).
@@ -49,17 +51,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Equipment UI")
 	void RefreshStats();
 
+	UFUNCTION(BlueprintCallable, Category = "Equipment UI")
+	void HideInventoryContextMenu();
+
 protected:
-	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment UI")
+	UFUNCTION(BlueprintNativeEvent, Category = "Equipment UI")
 	void OnEquipmentUpdated();
+	virtual void OnEquipmentUpdated_Implementation();
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment UI")
+	UFUNCTION(BlueprintNativeEvent, Category = "Equipment UI")
 	void OnInventoryUpdated();
+	virtual void OnInventoryUpdated_Implementation();
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment UI")
+	UFUNCTION(BlueprintNativeEvent, Category = "Equipment UI")
 	void OnStatsUpdated();
+	virtual void OnStatsUpdated_Implementation();
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UEquipmentInventoryWidget> EquipmentInventoryWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UEquipmentStatsWidget> EquipmentStatsWidget;
 
 private:
+	void StyleEquipmentLayout();
+
+	UFUNCTION()
+	void CloseEquipmentPanel();
+
 	UPROPERTY()
 	TObjectPtr<UEquipmentComponent> EquipmentComponent;
 

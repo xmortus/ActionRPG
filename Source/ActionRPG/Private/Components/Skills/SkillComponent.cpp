@@ -3,6 +3,10 @@
 #include "Components/Skills/SkillComponent.h"
 #include "Skills/Core/SkillBase.h"
 #include "Skills/Core/SkillDataAsset.h"
+#include "Components/Progression/TrialComponent.h"
+#include "Components/Progression/SecondaryAttributeComponent.h"
+#include "Components/Progression/AttributeComponent.h"
+#include "Progression/Core/ProgressionTypes.h"
 #include "GameFramework/Actor.h"
 
 USkillComponent::USkillComponent(const FObjectInitializer& ObjectInitializer)
@@ -77,6 +81,7 @@ bool USkillComponent::GrantSkill(USkillBase* Skill)
 
 	// Add to active skills
 	ActiveSkills.Add(NewInstance);
+	ApplyAttributeMilestones(Skill, NewInstance.Level);
 
 	UE_LOG(LogTemp, Log, TEXT("SkillComponent::GrantSkill - Granted skill: %s (Level: %d, Experience: %.2f)"),
 		Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"),
@@ -158,7 +163,7 @@ bool USkillComponent::ActivateSkill(USkillBase* Skill, AActor* Target)
 	if (!CanActivateSkill(Skill))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SkillComponent::ActivateSkill - Cannot activate skill: %s"),
-			Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"));
+			Skill && Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"));
 		return false;
 	}
 
@@ -170,13 +175,23 @@ bool USkillComponent::ActivateSkill(USkillBase* Skill, AActor* Target)
 		return false;
 	}
 
-	// Deduct resource costs
-	DeductResourceCosts(Skill);
+	const float ManaCost = Skill->GetManaCost();
+	const float StaminaCost = Skill->GetStaminaCost();
+	USecondaryAttributeComponent* Attributes = GetOwner() ? GetOwner()->FindComponentByClass<USecondaryAttributeComponent>() : nullptr;
+	if ((ManaCost > 0.0f || StaminaCost > 0.0f) && (!Attributes || !Attributes->TrySpendResources(ManaCost, StaminaCost)))
+	{
+		return false;
+	}
 
-	// Activate the skill
+	// Reserve the cost before activation; return it if the skill fails.
 	USkillBase* ActivatedSkill = Skill->Activate(Target);
 	if (!ActivatedSkill)
 	{
+		if (Attributes)
+		{
+			if (ManaCost > 0.0f) Attributes->RestoreResource(ESecondaryAttribute::MaxMana, ManaCost);
+			if (StaminaCost > 0.0f) Attributes->RestoreResource(ESecondaryAttribute::MaxStamina, StaminaCost);
+		}
 		UE_LOG(LogTemp, Warning, TEXT("SkillComponent::ActivateSkill - Skill activation failed: %s"),
 			Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"));
 		return false;
@@ -185,7 +200,7 @@ bool USkillComponent::ActivateSkill(USkillBase* Skill, AActor* Target)
 	// Update cooldown in instance
 	if (Skill->SkillData)
 	{
-		Instance->CooldownRemaining = Skill->SkillData->CooldownDuration;
+		Instance->CooldownRemaining = Skill->GetEffectiveCooldownDuration();
 		// Sync cooldown with skill's own cooldown
 		Skill->CooldownRemaining = Instance->CooldownRemaining;
 	}
@@ -197,6 +212,10 @@ bool USkillComponent::ActivateSkill(USkillBase* Skill, AActor* Target)
 
 	// Broadcast event
 	OnSkillActivated.Broadcast(Skill, Target);
+	if (UTrialComponent* Trials = GetOwner() ? GetOwner()->FindComponentByClass<UTrialComponent>() : nullptr)
+	{
+		Trials->ReportSkillActivated(Skill->GetSkillID());
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillComponent::ActivateSkill - Activated skill: %s (Target: %s, Cooldown: %.2f)"),
 		Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"),
@@ -327,7 +346,7 @@ FSkillInstance USkillComponent::GetSkillInstanceData(USkillBase* Skill) const
 
 void USkillComponent::AddSkillExperience(USkillBase* Skill, float Amount)
 {
-	if (!Skill || Amount <= 0.0f)
+	if (!Skill || !FMath::IsFinite(Amount) || Amount <= 0.0f)
 	{
 		return;
 	}
@@ -340,6 +359,8 @@ void USkillComponent::AddSkillExperience(USkillBase* Skill, float Amount)
 
 	// Calculate experience gain with modifiers
 	float ExperienceGain = CalculateExperienceGain(Skill, Amount);
+	if (!FMath::IsFinite(ExperienceGain) || ExperienceGain <= 0.0f
+		|| !FMath::IsFinite(Instance->Experience + ExperienceGain)) return;
 	int32 PreviousLevel = Instance->Level;
 
 	// Add experience
@@ -359,6 +380,12 @@ void USkillComponent::AddSkillExperience(USkillBase* Skill, float Amount)
 		Skill->SkillData ? *Skill->SkillData->SkillName.ToString() : TEXT("NULL"),
 		Instance->Level,
 		Instance->Experience);
+}
+
+float USkillComponent::GetSkillExperienceRequiredForNextLevel(USkillBase* Skill) const
+{
+	const FSkillInstance* Instance = FindSkillInstance(Skill);
+	return Instance ? GetExperienceRequiredForLevel(Instance->Level) : 0.0f;
 }
 
 float USkillComponent::CalculateExperienceGain(USkillBase* Skill, float BaseAmount) const
@@ -390,7 +417,8 @@ void USkillComponent::CheckSkillLevelUp(FSkillInstance& Instance, float Experien
 	float ExperienceRequired = GetExperienceRequiredForLevel(Instance.Level);
 
 	// Check if enough experience for level up
-	while (Instance.Experience >= ExperienceRequired)
+	while (Instance.Level > 0 && Instance.Level < MAX_int32 && FMath::IsFinite(ExperienceRequired)
+		&& ExperienceRequired > 0.0f && Instance.Experience >= ExperienceRequired)
 	{
 		Instance.Experience -= ExperienceRequired;
 		Instance.Level++;
@@ -398,6 +426,7 @@ void USkillComponent::CheckSkillLevelUp(FSkillInstance& Instance, float Experien
 		// Sync with skill
 		Instance.Skill->SkillLevel = Instance.Level;
 		Instance.Skill->Experience = Instance.Experience;
+		ApplyAttributeMilestones(Instance.Skill, Instance.Level);
 
 		// Calculate next level requirement
 		ExperienceRequired = GetExperienceRequiredForLevel(Instance.Level);
@@ -414,11 +443,26 @@ void USkillComponent::CheckSkillLevelUp(FSkillInstance& Instance, float Experien
 	}
 }
 
+void USkillComponent::ApplyAttributeMilestones(USkillBase* Skill, int32 CurrentLevel) const
+{
+	if (!Skill || !Skill->SkillData || Skill->GetSkillID().IsNone() || !GetOwner()) return;
+	UAttributeComponent* Attributes = GetOwner()->FindComponentByClass<UAttributeComponent>();
+	if (!Attributes) return;
+	for (const FSkillAttributeMilestone& Milestone : Skill->SkillData->AttributeMilestones)
+	{
+		if (Milestone.SkillLevel < 1 || Milestone.SkillLevel > CurrentLevel ||
+			!FMath::IsFinite(Milestone.Amount) || Milestone.Amount <= 0.0f) continue;
+		const FName SourceId(*FString::Printf(TEXT("Skill.%s.Level%d.Attribute%d"),
+			*Skill->GetSkillID().ToString(), Milestone.SkillLevel, static_cast<int32>(Milestone.Attribute)));
+		Attributes->SetModifierSource(SourceId, {{Milestone.Attribute, Milestone.Amount}}, true);
+	}
+}
+
 float USkillComponent::GetExperienceRequiredForLevel(int32 CurrentLevel) const
 {
 	// Simple formula: Level * 100
 	// Phase 4 may add more complex formulas
-	return static_cast<float>(CurrentLevel * 100);
+	return static_cast<float>(CurrentLevel) * 100.0f;
 }
 
 bool USkillComponent::ValidateResourceCosts(USkillBase* Skill) const
@@ -428,40 +472,23 @@ bool USkillComponent::ValidateResourceCosts(USkillBase* Skill) const
 		return false;
 	}
 
-	// Phase 4: Query resource component for mana/stamina
-	// For now, log warning if costs are required but resource system not available
-	float ManaCost = Skill->GetManaCost();
-	float StaminaCost = Skill->GetStaminaCost();
-
-	if (ManaCost > 0.0f || StaminaCost > 0.0f)
+	const float ManaCost = Skill->GetManaCost();
+	const float StaminaCost = Skill->GetStaminaCost();
+	if (!FMath::IsFinite(ManaCost) || !FMath::IsFinite(StaminaCost) || ManaCost < 0.0f || StaminaCost < 0.0f) return false;
+	if (ManaCost <= 0.0f && StaminaCost <= 0.0f)
 	{
-		// TODO: Phase 4 - Check resource component for available resources
-		UE_LOG(LogTemp, Verbose, TEXT("SkillComponent::ValidateResourceCosts - Resource system not yet implemented (Mana: %.2f, Stamina: %.2f)"),
-			ManaCost, StaminaCost);
-		// For now, allow activation (will be properly validated in Phase 4)
 		return true;
 	}
 
-	return true;
-}
-
-void USkillComponent::DeductResourceCosts(USkillBase* Skill)
-{
-	if (!Skill || !Skill->SkillData)
+	const USecondaryAttributeComponent* Attributes = GetOwner() ? GetOwner()->FindComponentByClass<USecondaryAttributeComponent>() : nullptr;
+	if (!Attributes)
 	{
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("SkillComponent::ValidateResourceCosts - SecondaryAttributeComponent missing for %s"),
+			*GetNameSafe(GetOwner()));
+		return false;
 	}
 
-	float ManaCost = Skill->GetManaCost();
-	float StaminaCost = Skill->GetStaminaCost();
-
-	if (ManaCost > 0.0f || StaminaCost > 0.0f)
-	{
-		// Phase 4: Call resource component to deduct costs
-		UE_LOG(LogTemp, Verbose, TEXT("SkillComponent::DeductResourceCosts - Resource system not yet implemented (Mana: %.2f, Stamina: %.2f)"),
-			ManaCost, StaminaCost);
-		// TODO: Phase 4 - Deduct resources from resource component
-	}
+	return Attributes->CanSpendResources(ManaCost, StaminaCost);
 }
 
 int32 USkillComponent::FindSkillInstanceIndex(USkillBase* Skill) const

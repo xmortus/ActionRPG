@@ -17,6 +17,14 @@ enum class EPrimaryAttribute : uint8
 };
 
 UENUM(BlueprintType)
+enum class ECharacterClassTier : uint8
+{
+	Basic UMETA(DisplayName = "Basic"),
+	Specialized UMETA(DisplayName = "Specialized"),
+	Advanced UMETA(DisplayName = "Advanced")
+};
+
+UENUM(BlueprintType)
 enum class ESecondaryAttribute : uint8
 {
 	MaxHealth	UMETA(DisplayName = "Max Health"),
@@ -25,6 +33,13 @@ enum class ESecondaryAttribute : uint8
 	Armor		UMETA(DisplayName = "Armor"),
 	CritChance	UMETA(DisplayName = "Crit Chance"),
 	MoveSpeed	UMETA(DisplayName = "Move Speed")
+};
+
+/** Earned attributes shown on Status, distinct from calculated combat stats. */
+UENUM(BlueprintType)
+enum class EAcquiredAttribute : uint8
+{
+	Endurance UMETA(DisplayName = "Endurance")
 };
 
 USTRUCT(BlueprintType)
@@ -37,4 +52,7 @@ struct ACTIONRPG_API FSecondaryAttributeFormula
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Progression")
 	TMap<EPrimaryAttribute, float> AttributeScaling;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Progression")
+	TMap<EAcquiredAttribute, float> AcquiredAttributeScaling;
 };
