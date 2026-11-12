@@ -5,10 +5,12 @@
 #include "Components/Progression/QuestComponent.h"
 
 #include "Characters/ActionRPGPlayerCharacter.h"
+#include "Animation/AnimSequenceBase.h"
 #include "Combat/DamageResolution.h"
 #include "Combat/ActionRPGPhysicalDamageType.h"
 #include "Combat/ActionRPGDamageTypes.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/Progression/TrialComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -31,8 +33,10 @@ void AActionRPGEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	CameraFacingLabel = FindComponentByClass<UTextRenderComponent>();
+	if (CameraFacingLabel) InitialLabelText = CameraFacingLabel->Text;
 	SetActorTickEnabled(IsValid(CameraFacingLabel));
 	FaceLabelTowardPlayerCamera();
+	if (TrainingIdleAnimation && GetMesh()) GetMesh()->PlayAnimation(TrainingIdleAnimation, true);
 	MaxHealth = FMath::IsFinite(MaxHealth) ? FMath::Max(MaxHealth, 1.0f) : 100.0f;
 	CurrentHealth = MaxHealth;
 	bIsDead = false;
@@ -72,7 +76,7 @@ void AActionRPGEnemyCharacter::FaceLabelTowardPlayerCamera()
 
 void AActionRPGEnemyCharacter::AttemptMeleeAttack()
 {
-	if (bIsDead || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f ||
+	if (bIsDead || bAttackInProgress || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f ||
 		!FMath::IsFinite(AttackDamage) || AttackDamage <= 0.0f) return;
 
 	AActionRPGPlayerCharacter* NearestPlayer = nullptr;
@@ -89,17 +93,62 @@ void AActionRPGEnemyCharacter::AttemptMeleeAttack()
 	}
 	if (NearestPlayer)
 	{
+		FVector TowardPlayer = NearestPlayer->GetActorLocation() - GetActorLocation();
+		TowardPlayer.Z = 0.0f;
+		if (!TowardPlayer.IsNearlyZero())
+		{
+			SetActorRotation(FRotator(0.0f, TowardPlayer.Rotation().Yaw, 0.0f));
+		}
+		if (TrainingAttackAnimation && GetMesh() && TrainingAttackAnimation->GetPlayLength() > 0.0f)
+		{
+			const float AttackDuration = TrainingAttackAnimation->GetPlayLength();
+			bAttackInProgress = true;
+			PendingAttackTarget = NearestPlayer;
+			GetMesh()->PlayAnimation(TrainingAttackAnimation, false);
+			GetWorldTimerManager().SetTimer(AttackHitTimer, this, &AActionRPGEnemyCharacter::ApplyPendingMeleeHit,
+				AttackDuration * 0.5f, false);
+			GetWorldTimerManager().SetTimer(AttackIdleTimer, this, &AActionRPGEnemyCharacter::FinishMeleeAttack,
+				AttackDuration, false);
+			return;
+		}
 		UGameplayStatics::ApplyDamage(NearestPlayer, AttackDamage, GetController(), this,
 			UActionRPGPhysicalDamageType::StaticClass());
 	}
+}
+
+void AActionRPGEnemyCharacter::ApplyPendingMeleeHit()
+{
+	AActionRPGPlayerCharacter* Target = PendingAttackTarget;
+	PendingAttackTarget = nullptr;
+	if (bIsDead || !IsValid(Target) || Target->IsDead() ||
+		FVector::Dist2D(GetActorLocation(), Target->GetActorLocation()) > AttackRange) return;
+	UGameplayStatics::ApplyDamage(Target, AttackDamage, GetController(), this,
+		UActionRPGPhysicalDamageType::StaticClass());
+}
+
+void AActionRPGEnemyCharacter::FinishMeleeAttack()
+{
+	bAttackInProgress = false;
+	if (!bIsDead && TrainingIdleAnimation && GetMesh()) GetMesh()->PlayAnimation(TrainingIdleAnimation, true);
+}
+
+void AActionRPGEnemyCharacter::ClearMeleeAttackState()
+{
+	GetWorldTimerManager().ClearTimer(AttackHitTimer);
+	GetWorldTimerManager().ClearTimer(AttackIdleTimer);
+	PendingAttackTarget = nullptr;
+	bAttackInProgress = false;
 }
 
 bool AActionRPGEnemyCharacter::Revive()
 {
 	if (!bIsDead || !FMath::IsFinite(MaxHealth) || MaxHealth < 1.0f) return false;
 	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(RespawnTimer);
+	ClearMeleeAttackState();
 	CurrentHealth = MaxHealth;
 	bIsDead = false;
+	if (TrainingIdleAnimation && GetMesh()) GetMesh()->PlayAnimation(TrainingIdleAnimation, true);
+	if (CameraFacingLabel) CameraFacingLabel->SetText(InitialLabelText);
 	GetCapsuleComponent()->SetCollisionEnabled(InitialCollisionEnabled);
 	GetCharacterMovement()->SetMovementMode(InitialMovementMode);
 	UE_LOG(LogTemp, Display, TEXT("Training enemy %s is ready for combat again"), *GetName());
@@ -163,6 +212,12 @@ float AActionRPGEnemyCharacter::TakeDamage(float DamageAmount, const FDamageEven
 	if (Result.bKilled)
 	{
 		bIsDead = true;
+		ClearMeleeAttackState();
+		if (TrainingDeathAnimation && GetMesh()) GetMesh()->PlayAnimation(TrainingDeathAnimation, false);
+		if (CameraFacingLabel && bRespawnAfterDeath)
+		{
+			CameraFacingLabel->SetText(FText::FromString(TEXT("DEFEATED - RESPAWNING")));
+		}
 		GetCharacterMovement()->DisableMovement();
 		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		AActionRPGPlayerCharacter* Killer = ResolveKiller(EventInstigator, DamageCauser);

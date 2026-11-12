@@ -7,7 +7,12 @@
 #include "Actors/SkillProjectile.h"
 #include "Components/Skills/SkillComponent.h"
 #include "Components/Progression/AttributeComponent.h"
+#include "Characters/ActionRPGPlayerCharacter.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
+#include "TimerManager.h"
 
 USkillMagic::USkillMagic()
 {
@@ -46,31 +51,91 @@ USkillBase* USkillMagic::Activate(AActor* Target)
 		UE_LOG(LogTemp, Error, TEXT("SkillMagic::Activate - ProjectileClass is not set in SkillDataAsset"));
 		return nullptr;
 	}
+	UWorld* World = OwnerActor->GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Executing magic attack from %s"), *OwnerActor->GetName());
 
-	// Get spawn location and direction
-	const FVector SpawnLocation = GetProjectileSpawnLocation();
-	const FVector Direction = GetProjectileDirection(Target);
-	const FRotator SpawnRotation = Direction.Rotation();
-
-	// Spawn projectile
-	AActor* Projectile = SpawnProjectile(SpawnLocation, SpawnRotation);
-	if (!Projectile)
+	float ReleaseDelaySeconds = 0.0f;
+	UAnimMontage* CastMontage = nullptr;
+	if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(OwnerCharacter))
 	{
-		UE_LOG(LogTemp, Error, TEXT("SkillMagic::Activate - Failed to spawn projectile"));
-		return nullptr;
-	}
-	if (!Super::Activate(Target))
-	{
-		Projectile->Destroy();
-		return nullptr;
+		CastMontage = PlayerCharacter->PlayMagicCastAnimation(ReleaseDelaySeconds);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Spawned projectile %s at location %s"),
-		*Projectile->GetName(), *SpawnLocation.ToString());
+	// Characters without a cast montage still release immediately. Keep the existing
+	// spawn-before-commit behavior so a failed spawn refunds the activation cost.
+	if (!CastMontage || ReleaseDelaySeconds <= 0.0f)
+	{
+		AActor* Projectile = SpawnProjectile(GetProjectileSpawnLocation(), GetProjectileDirection(Target).Rotation());
+		if (!Projectile)
+		{
+			UE_LOG(LogTemp, Error, TEXT("SkillMagic::Activate - Failed to spawn projectile"));
+			return nullptr;
+		}
+		if (!Super::Activate(Target))
+		{
+			Projectile->Destroy();
+			return nullptr;
+		}
+		UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Released projectile %s immediately"),
+			*Projectile->GetName());
+	}
+	else
+	{
+		if (!Super::Activate(Target))
+		{
+			OwnerCharacter->StopAnimMontage(CastMontage);
+			return nullptr;
+		}
+		World->GetTimerManager().ClearTimer(PendingCastTimer);
+		PendingCastTarget = Target;
+		PendingCastMontage = CastMontage;
+		World->GetTimerManager().SetTimer(PendingCastTimer, this,
+			&USkillMagic::ReleasePendingProjectile, ReleaseDelaySeconds, false);
+		UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Projectile scheduled for cast apex in %.3f seconds"),
+			ReleaseDelaySeconds);
+	}
 
-	// Grant base experience on cast (additional experience granted on hit by projectile)
+	GrantCastExperience();
+	return this;
+}
+
+void USkillMagic::ReleasePendingProjectile()
+{
+	AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(OwnerActor.Get());
+	UAnimInstance* AnimInstance = PlayerCharacter && PlayerCharacter->GetMesh()
+		? PlayerCharacter->GetMesh()->GetAnimInstance() : nullptr;
+	if (!IsValid(PlayerCharacter) || PlayerCharacter->IsDead() || !IsValid(PendingCastMontage)
+		|| !AnimInstance || !AnimInstance->Montage_IsPlaying(PendingCastMontage))
+	{
+		UE_LOG(LogTemp, Log, TEXT("SkillMagic::ReleasePendingProjectile - Cast was interrupted"));
+		PendingCastTarget = nullptr;
+		PendingCastMontage = nullptr;
+		return;
+	}
+
+	AActor* Target = IsValid(PendingCastTarget) ? PendingCastTarget.Get() : nullptr;
+	AActor* Projectile = SpawnProjectile(GetProjectileSpawnLocation(), GetProjectileDirection(Target).Rotation());
+	if (Projectile)
+	{
+		UE_LOG(LogTemp, Log, TEXT("SkillMagic::ReleasePendingProjectile - Released %s at animation apex"),
+			*Projectile->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("SkillMagic::ReleasePendingProjectile - Failed to spawn projectile"));
+	}
+	PendingCastTarget = nullptr;
+	PendingCastMontage = nullptr;
+}
+
+void USkillMagic::GrantCastExperience()
+{
+	// Grant base experience on cast (additional experience granted on hit by projectile).
 	const float BaseExperience = 5.0f;
 	if (USkillComponent* SkillComponent = OwnerActor->FindComponentByClass<USkillComponent>())
 	{
@@ -78,7 +143,6 @@ USkillBase* USkillMagic::Activate(AActor* Target)
 		UE_LOG(LogTemp, Log, TEXT("SkillMagic::Activate - Granted %.2f base experience"), BaseExperience);
 	}
 
-	return this;
 }
 
 AActor* USkillMagic::SpawnProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation)

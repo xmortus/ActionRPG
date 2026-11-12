@@ -27,6 +27,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
 #include "Items/Equipment/EquipmentItem.h"
 #include "Items/Core/ItemBase.h"
@@ -318,21 +319,55 @@ void AActionRPGPlayerCharacter::RefreshMainHandVisual()
 	EquippedWeaponVisual->SetVisibility(WeaponMesh != nullptr);
 }
 
-void AActionRPGPlayerCharacter::PlayBasicMeleeAttackAnimation(float PlayRate)
+void AActionRPGPlayerCharacter::PlayBasicMeleeAttackAnimation(float AttackIntervalSeconds)
 {
-	if (!BasicMeleeAttackAnimation || !GetMesh())
+	const bool bHasMainHandItem = EquipmentComponent &&
+		EquipmentComponent->GetEquippedItem(EEquipmentSlot::MainHand) != nullptr;
+	UAnimSequenceBase* Animation = bHasMainHandItem && EquippedMeleeAttackAnimation
+		? EquippedMeleeAttackAnimation.Get() : BasicMeleeAttackAnimation.Get();
+	if (!Animation || !GetMesh())
 	{
 		return;
 	}
 
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
+		const float ClipLength = Animation->GetPlayLength();
+		const float PlayRate = AttackIntervalSeconds > KINDA_SMALL_NUMBER && ClipLength > KINDA_SMALL_NUMBER
+			? ClipLength / AttackIntervalSeconds : 1.0f;
 		if (!AnimInstance->PlaySlotAnimationAsDynamicMontage(
-			BasicMeleeAttackAnimation, TEXT("DefaultSlot"), 0.08f, 0.15f, FMath::Max(1.0f, PlayRate)))
+			Animation, TEXT("DefaultSlot"), 0.08f, 0.15f, FMath::Max(0.1f, PlayRate)))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Player melee attack animation could not play on DefaultSlot"));
 		}
 	}
+}
+
+UAnimMontage* AActionRPGPlayerCharacter::PlayMagicCastAnimation(float& OutReleaseDelaySeconds)
+{
+	OutReleaseDelaySeconds = 0.0f;
+	if (!MagicCastAnimation || !GetMesh())
+	{
+		return nullptr;
+	}
+
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		const float PlayRate = FMath::Max(0.1f, MagicCastPlayRate);
+		if (UAnimMontage* Montage = AnimInstance->PlaySlotAnimationAsDynamicMontage(
+			MagicCastAnimation, TEXT("DefaultSlot"), 0.08f, 0.15f,
+			PlayRate))
+		{
+			OutReleaseDelaySeconds = MagicCastAnimation->GetPlayLength()
+				* FMath::Clamp(MagicProjectileReleaseFraction, 0.05f, 0.95f) / PlayRate;
+			return Montage;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Player magic cast animation could not play on DefaultSlot"));
+		}
+	}
+	return nullptr;
 }
 
 void AActionRPGPlayerCharacter::Move(const FVector2D& MovementVector)

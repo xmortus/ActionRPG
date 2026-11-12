@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Skills/Core/SkillBase.h"
+#include "TimerManager.h"
 #include "SkillMagic.generated.h"
 
 class AActor;
 class ASkillProjectile;
+class UAnimMontage;
 
 /**
  * Magic skill implementation (Fireball example).
@@ -28,6 +30,18 @@ public:
 	float GetAttackDamage() const;
 
 protected:
+	/** The target and montage for a cast waiting to reach its release pose. */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> PendingCastTarget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> PendingCastMontage;
+
+	FTimerHandle PendingCastTimer;
+
+	void ReleasePendingProjectile();
+	void GrantCastExperience();
+
 	/**
 	 * Spawn projectile actor at specified location and rotation.
 	 * @param SpawnLocation World location to spawn projectile

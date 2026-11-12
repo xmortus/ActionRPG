@@ -25,6 +25,7 @@ class UTrainingComponent;
 class AActionRPGEnemyCharacter;
 class UStaticMeshComponent;
 class UAnimSequenceBase;
+class UAnimMontage;
 class UEquipmentItem;
 class AActionRPGPlayerCharacter;
 
@@ -123,7 +124,24 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Animation")
 	TObjectPtr<UAnimSequenceBase> BasicMeleeAttackAnimation;
 
-	void PlayBasicMeleeAttackAnimation(float PlayRate = 1.0f);
+	/** Optional swing used for an equipped main-hand weapon. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Animation")
+	TObjectPtr<UAnimSequenceBase> EquippedMeleeAttackAnimation;
+
+	/** Optional casting motion used by projectile magic skills. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Animation")
+	TObjectPtr<UAnimSequenceBase> MagicCastAnimation;
+
+	/** Speeds up long showcase clips to fit the prototype's combat pace. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Animation", meta = (ClampMin = "0.1"))
+	float MagicCastPlayRate = 2.5f;
+
+	/** Point in the cast clip where the raised-hand motion releases the projectile. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Animation", meta = (ClampMin = "0.05", ClampMax = "0.95"))
+	float MagicProjectileReleaseFraction = 0.6f;
+
+	void PlayBasicMeleeAttackAnimation(float AttackIntervalSeconds);
+	UAnimMontage* PlayMagicCastAnimation(float& OutReleaseDelaySeconds);
 
 	/** Starts a short stamina-costing dodge in the last movement direction. */
 	UFUNCTION(BlueprintCallable, Category = "Combat|Dodge")

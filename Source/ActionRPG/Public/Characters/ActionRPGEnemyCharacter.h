@@ -12,6 +12,8 @@
 
 class AActionRPGPlayerCharacter;
 class AActionRPGEnemyCharacter;
+class UAnimationAsset;
+class UAnimSequenceBase;
 class UTextRenderComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEnemyDied, AActionRPGEnemyCharacter*, Enemy, AActor*, Killer);
@@ -66,6 +68,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Training", meta = (ClampMin = "0.1", EditCondition = "bRespawnAfterDeath"))
 	float RespawnDelaySeconds = 4.0f;
 
+	/** Optional single-node animations for visibly defeating and reviving a training enemy. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Training|Animation")
+	TObjectPtr<UAnimationAsset> TrainingIdleAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Training|Animation")
+	TObjectPtr<UAnimationAsset> TrainingDeathAnimation;
+
+	/** Plays when this enemy starts a close-range attack. Damage lands halfway through the swing. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Training|Animation")
+	TObjectPtr<UAnimSequenceBase> TrainingAttackAnimation;
+
 	/** Enables a simple close-range strike for enemies used in combat practice. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
 	bool bAttacksPlayers = false;
@@ -97,14 +110,25 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTextRenderComponent> CameraFacingLabel;
 
+	UPROPERTY(Transient)
+	TObjectPtr<AActionRPGPlayerCharacter> PendingAttackTarget;
+
+	FText InitialLabelText;
+	bool bAttackInProgress = false;
+
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FConstitutionTrainingTest;
 #endif
 	AActionRPGPlayerCharacter* ResolveKiller(AController* EventInstigator, AActor* DamageCauser) const;
 	void AttemptMeleeAttack();
+	void ApplyPendingMeleeHit();
+	void FinishMeleeAttack();
+	void ClearMeleeAttackState();
 	void RespawnAfterDelay();
 	FTimerHandle RespawnTimer;
 	FTimerHandle AttackTimer;
+	FTimerHandle AttackHitTimer;
+	FTimerHandle AttackIdleTimer;
 	ECollisionEnabled::Type InitialCollisionEnabled = ECollisionEnabled::QueryAndPhysics;
 	EMovementMode InitialMovementMode = MOVE_Walking;
 };

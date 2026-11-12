@@ -73,10 +73,7 @@ USkillBase* USkillMeleeAttack::Activate(AActor* Target)
 	UE_LOG(LogTemp, Log, TEXT("SkillMeleeAttack::Activate - Executing melee attack from %s"), *OwnerActor->GetName());
 	if (AActionRPGPlayerCharacter* PlayerCharacter = Cast<AActionRPGPlayerCharacter>(OwnerCharacter))
 	{
-		const float BaseCooldown = Super::GetEffectiveCooldownDuration();
-		const float EffectiveCooldown = GetEffectiveCooldownDuration();
-		const float PlayRate = EffectiveCooldown > 0.0f ? BaseCooldown / EffectiveCooldown : 1.0f;
-		PlayerCharacter->PlayBasicMeleeAttackAnimation(PlayRate);
+		PlayerCharacter->PlayBasicMeleeAttackAnimation(GetEffectiveCooldownDuration());
 	}
 
 	// Perform hit detection
